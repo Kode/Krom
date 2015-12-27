@@ -124,28 +124,12 @@ class CanvasGraphics extends Graphics {
 	}
 	
 	drawString(text, x, y) {
-		//canvas.fillText(text, tx + x, ty + y + webfont.getHeight());
-		//canvas.drawImage(cast(webfont.getTexture(), Image).image, 0, 0, 50, 50, tx + x, ty + y, 50, 50);
-		
-		let image = this.webfont.getImage(this.fontSize, this.myColor);
-		if (image.width > 0) {
-			// the image created in getImage() is not imediately useable
-			let xpos = x;
-			let ypos = y;
-            for (let i = 0; i < text.length; ++i) {
-				let q = webfont.kravur._get(this.fontSize).getBakedQuad(text.charCodeAt(i) - 32, xpos, ypos);
-				if (q != null) {
-					if (q.s1 - q.s0 > 0 && q.t1 - q.t0 > 0 && q.x1 - q.x0 > 0 && q.y1 - q.y0 > 0)
-						this.canvas.drawImage(image, q.s0 * image.width, q.t0 * image.height, (q.s1 - q.s0) * image.width, (q.t1 - q.t0) * image.height, q.x0, q.y0, q.x1 - q.x0, q.y1 - q.y0);
-					xpos += q.xadvance;
-				}
-			}
-		}
+		this.canvas.fillText(text, x, y + this.webfont.getHeight());
 	}
 
 	set font(font) {
 		this.webfont = font;
-		//canvas.font = webfont.size + "px " + webfont.name;
+		this.canvas.font = this.webfont.size + "px " + this.webfont.name;
 	}
 	
 	get font() {
