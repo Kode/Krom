@@ -21,12 +21,12 @@ class CanvasGraphics extends Graphics {
 		}
 	}
 	
-	begin(clear = true, clearColor = null) {
+	begin(clear /*= true*/, clearColor /*= null*/) {
 		if (clear) this.clear(clearColor);
 	}
 	
-	clear(color = null) {
-		if (color === null) color = Color.Black;
+	clear(color /*= null*/) {
+		if (color === null || color === undefined) color = Color.Black;
 		this.canvas.strokeStyle = "rgb(" + color.Rb + "," + color.Gb + "," + color.Bb + ")";
 		this.canvas.fillStyle = "rgb(" + color.Rb + "," + color.Gb + "," + color.Bb + ")";
 		this.canvas.fillRect(0, 0, this.width, this.height);
@@ -107,7 +107,8 @@ class CanvasGraphics extends Graphics {
 		this.scaleQuality = value;
 	}
 	
-	drawRect(x, y, width, height, strength = 1.0) {
+	drawRect(x, y, width, height, strength /*= 1.0*/) {
+		if (strength === undefined) strength = 1.0;
 		this.canvas.beginPath();
 		let oldStrength = this.canvas.lineWidth;
 		this.canvas.lineWidth = Math.round(strength);
@@ -151,7 +152,8 @@ class CanvasGraphics extends Graphics {
 		return this.webfont;
 	}
 
-	drawLine(x1, y1, x2, y2, strength = 1.0) {
+	drawLine(x1, y1, x2, y2, strength /*= 1.0*/) {
+		if (strength === undefined) strength = 1.0;
 		this.canvas.beginPath();
 		var oldWith = this.canvas.lineWidth;
 		this.canvas.lineWidth = Math.round(strength);

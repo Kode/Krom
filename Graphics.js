@@ -1,14 +1,14 @@
 "use strict";
 
 class Graphics {
-	begin(clear = true, clearColor = null) { }
+	begin(clear /*= true*/, clearColor /*= null*/) { }
 	end() { }
 	flush() { }
 	
 	//scale-filtering
 	//draw/fillPolygon
 	
-	clear(color = null) { }
+	clear(color /*= null*/) { }
 	
     drawImage(img, x, y) {
 		this.drawSubImage(img, x, y, 0, 0, img.width, img.height);
@@ -24,10 +24,10 @@ class Graphics {
 
 	drawScaledSubImage(image, sx, sy, sw, sh, dx, dy, dw, dh) { }
 	
-    drawRect(x, y, width, height, strength = 1.0) { }
+    drawRect(x, y, width, height, strength /*= 1.0*/) { }
 	fillRect(x, y, width, height) { }
 	drawString(text, x, y) { }
-	drawLine(x1, y1, x2, y2, strength = 1.0) { }
+	drawLine(x1, y1, x2, y2, strength /*= 1.0*/) { }
 	drawVideo(video, x, y, width, height) { }
 	fillTriangle(x1, y1, x2, y2, x3, y3) { }
 	

@@ -7,11 +7,13 @@ class Color {
 		return new Color(value);
 	}
 	
-	static fromBytes(r, g, b, a = 255) {
+	static fromBytes(r, g, b, a) {
+		if (a === undefined) a = 255;
 		return new Color((a << 24) | (r << 16) | (g << 8) | b);
 	}
 	
-	static fromFloats(r, g, b, a = 1) {
+	static fromFloats(r, g, b, a) {
+		if (a === undefined) a = 1;
 		return new Color((((a * 255) | 0) << 24) | (((r * 255) | 0) << 16) | (((g * 255) | 0) << 8) | ((b * 255) | 0));
 	}
 	
