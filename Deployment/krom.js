@@ -1,6 +1,5 @@
 function update() {
-	//clear(0xffffffff);
-	log('Hello update');
+	clear(0xffffffff);
 }
-log('Hello V8');
-//"Hello Krom"
+
+log('Hello Krom');
