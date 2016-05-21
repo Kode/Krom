@@ -25,7 +25,22 @@ class ArrayBufferAllocator : public v8::ArrayBuffer::Allocator {
 const char* macgetresourcepath();
 #endif
 
-void runv8(char* script) {
+namespace {
+	Platform* plat;
+	Isolate* isolate;
+	Global<Context> globalContext;
+	Global<Function> updateFunction;
+}
+
+static void LogCallback(const v8::FunctionCallbackInfo<v8::Value>& args) {
+	if (args.Length() < 1) return;
+	HandleScope scope(args.GetIsolate());
+	Local<Value> arg = args[0];
+	String::Utf8Value value(arg);
+	printf("%s\n", *value);
+}
+
+static bool startV8(char* scriptfile) {
 	V8::InitializeICU();
 	
 #ifdef SYS_OSX
@@ -39,30 +54,56 @@ void runv8(char* script) {
 	V8::InitializeExternalStartupData("./");
 #endif
 	
-	Platform* platform = platform::CreateDefaultPlatform();
-	V8::InitializePlatform(platform);
+	plat = platform::CreateDefaultPlatform();
+	V8::InitializePlatform(plat);
 	V8::Initialize();
 
 	ArrayBufferAllocator allocator;
 	Isolate::CreateParams create_params;
 	create_params.array_buffer_allocator = &allocator;
-	Isolate* isolate = Isolate::New(create_params);
-	{
-		Isolate::Scope isolate_scope(isolate);
-		HandleScope handle_scope(isolate);
-		Local<Context> context = Context::New(isolate);
-		Context::Scope context_scope(context);
-		Local<String> source = String::NewFromUtf8(isolate, script, //"'Hello' + ', World!'",
-                            NewStringType::kNormal).ToLocalChecked();
-		Local<Script> script = Script::Compile(context, source).ToLocalChecked();
-		Local<Value> result = script->Run(context).ToLocalChecked();
-		String::Utf8Value utf8(result);
-		printf("%s\n", *utf8);
+	isolate = Isolate::New(create_params);
+	
+	Isolate::Scope isolate_scope(isolate);
+	HandleScope handle_scope(isolate);
+	
+	Local<ObjectTemplate> global = ObjectTemplate::New(isolate);
+	global->Set(String::NewFromUtf8(isolate, "log"), FunctionTemplate::New(isolate, LogCallback));
+	
+	Local<Context> context = Context::New(isolate, NULL, global);
+	globalContext.Reset(isolate, context);
+	
+	Context::Scope context_scope(context);
+	Local<String> source = String::NewFromUtf8(isolate, scriptfile, NewStringType::kNormal).ToLocalChecked();
+	Local<Script> script = Script::Compile(context, source).ToLocalChecked();
+	script->Run(context).ToLocalChecked();
+	
+	Local<String> update_name = String::NewFromUtf8(isolate, "update", NewStringType::kNormal).ToLocalChecked();
+	Local<Value> update_val;
+	if (!context->Global()->Get(context, update_name).ToLocal(&update_val) || !update_val->IsFunction()) {
+		return false;
 	}
+	updateFunction.Reset(isolate, Local<Function>::Cast(update_val));
+	
+	return true;
+}
+
+static void runV8() {
+	Isolate::Scope isolate_scope(isolate);
+	HandleScope handle_scope(isolate);
+	v8::Local<v8::Context> context = v8::Local<v8::Context>::New(isolate, globalContext);
+	Context::Scope context_scope(context);
+	v8::Local<v8::Function> process = v8::Local<v8::Function>::New(isolate, updateFunction);
+	Local<Value> result;
+	process->Call(context, context->Global(), 0, NULL);
+}
+
+static void endV8() {
+	updateFunction.Reset();
+	globalContext.Reset();
 	isolate->Dispose();
 	V8::Dispose();
 	V8::ShutdownPlatform();
-	delete platform;
+	delete plat;
 }
 
 #include "pch.h"
@@ -81,7 +122,10 @@ void runv8(char* script) {
 
 namespace {
 	void update() {
-		
+		Kore::Graphics::begin();
+		runV8();
+		Kore::Graphics::end();
+		Kore::Graphics::swapBuffers();
 	}
 }
 
@@ -120,11 +164,13 @@ int kore(int argc, char** argv) {
 	Kore::FileReader reader;
 	reader.open("krom.js");
 	
-	runv8((char*)reader.readAll());
+	startV8((char*)reader.readAll());
 	
 	reader.close();
 	
 	Kore::System::start();
+	
+	endV8();
 	
 	return 0;
 }
