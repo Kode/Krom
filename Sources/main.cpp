@@ -60,6 +60,184 @@ namespace {
 		updateFunction.Reset(isolate, func);
 	}
 	
+	void krom_create_indexbuffer(const FunctionCallbackInfo<Value>& args) {
+		HandleScope scope(args.GetIsolate());
+
+		Local<ObjectTemplate> templ = ObjectTemplate::New(isolate);
+		templ->SetInternalFieldCount(1);
+		
+		Local<Object> obj = templ->NewInstance(isolate->GetCurrentContext()).ToLocalChecked();
+		obj->SetInternalField(0, External::New(isolate, new Kore::IndexBuffer(args[0]->Int32Value())));
+		args.GetReturnValue().Set(obj);
+	}
+	
+	void krom_set_indices(const FunctionCallbackInfo<Value>& args) {
+		HandleScope scope(args.GetIsolate());
+		
+		Local<External> field = Local<External>::Cast(args[0]->ToObject()->GetInternalField(0));
+		Kore::IndexBuffer* buffer = (Kore::IndexBuffer*)field->Value();
+		
+		Local<Object> array = args[1]->ToObject();
+		
+		int* indices = buffer->lock();
+		for (int32_t i = 0; i < buffer->count(); ++i) {
+			indices[i] = array->Get(i)->ToInt32()->Value();
+		}
+		buffer->unlock();
+	}
+	
+	void krom_set_indexbuffer(const FunctionCallbackInfo<Value>& args) {
+		HandleScope scope(args.GetIsolate());
+		Local<External> field = Local<External>::Cast(args[0]->ToObject()->GetInternalField(0));
+		Kore::IndexBuffer* buffer = (Kore::IndexBuffer*)field->Value();
+		Kore::Graphics::setIndexBuffer(*buffer);
+	}
+	
+	Kore::VertexData convertVertexData(int num) {
+		switch (num) {
+			case 0:
+				return Kore::Float1VertexData;
+			case 1:
+				return Kore::Float2VertexData;
+			case 2:
+				return Kore::Float3VertexData;
+			case 3:
+				return Kore::Float4VertexData;
+			case 4:
+				return Kore::Float4x4VertexData;
+		}
+		return Kore::Float1VertexData;
+	}
+	
+	void krom_create_vertexbuffer(const FunctionCallbackInfo<Value>& args) {
+		HandleScope scope(args.GetIsolate());
+		
+		Local<ObjectTemplate> templ = ObjectTemplate::New(isolate);
+		templ->SetInternalFieldCount(1);
+		
+		Local<Object> obj = templ->NewInstance(isolate->GetCurrentContext()).ToLocalChecked();
+
+		Local<Object> jsstructure = args[1]->ToObject();
+		int32_t length = jsstructure->Get(String::NewFromUtf8(isolate, "length"))->ToInt32()->Value();
+		Kore::VertexStructure structure;
+		for (int32_t i = 0; i < length; ++i) {
+			Local<Object> element = jsstructure->Get(i)->ToObject();
+			Local<Value> str = element->Get(String::NewFromUtf8(isolate, "name"));
+			String::Utf8Value utf8_value(str);
+			Local<Object> dataobj = element->Get(String::NewFromUtf8(isolate, "data"))->ToObject();
+			int32_t data = dataobj->Get(1)->ToInt32()->Value();
+			structure.add(*utf8_value, convertVertexData(data));
+		}
+		
+		obj->SetInternalField(0, External::New(isolate, new Kore::VertexBuffer(args[0]->Int32Value(), structure)));
+		args.GetReturnValue().Set(obj);
+	}
+	
+	void krom_set_vertices(const FunctionCallbackInfo<Value>& args) {
+		HandleScope scope(args.GetIsolate());
+		
+		Local<External> field = Local<External>::Cast(args[0]->ToObject()->GetInternalField(0));
+		Kore::VertexBuffer* buffer = (Kore::VertexBuffer*)field->Value();
+		
+		Local<Object> array = args[1]->ToObject();
+
+		float* vertices = buffer->lock();
+		for (int32_t i = 0; i < buffer->count() * buffer->stride() / 4; ++i) {
+			vertices[i] = (float)array->Get(i)->ToNumber()->Value();
+		}
+		buffer->unlock();
+	}
+	
+	void krom_set_vertexbuffer(const FunctionCallbackInfo<Value>& args) {
+		HandleScope scope(args.GetIsolate());
+		Local<External> field = Local<External>::Cast(args[0]->ToObject()->GetInternalField(0));
+		Kore::VertexBuffer* buffer = (Kore::VertexBuffer*)field->Value();
+		Kore::Graphics::setVertexBuffer(*buffer);
+	}
+	
+	void krom_draw_indexed_vertices(const FunctionCallbackInfo<Value>& args) {
+		HandleScope scope(args.GetIsolate());
+		Kore::Graphics::drawIndexedVertices();
+	}
+	
+	void krom_create_vertex_shader(const FunctionCallbackInfo<Value>& args) {
+		HandleScope scope(args.GetIsolate());
+		Local<ArrayBuffer> buffer = Local<ArrayBuffer>::Cast(args[0]);
+		ArrayBuffer::Contents content = buffer->GetContents();
+		Kore::Shader* shader = new Kore::Shader(content.Data(), (int)content.ByteLength(), Kore::VertexShader);
+		
+		Local<ObjectTemplate> templ = ObjectTemplate::New(isolate);
+		templ->SetInternalFieldCount(1);
+		
+		Local<Object> obj = templ->NewInstance(isolate->GetCurrentContext()).ToLocalChecked();
+		obj->SetInternalField(0, External::New(isolate, shader));
+		args.GetReturnValue().Set(obj);
+	}
+	
+	void krom_create_fragment_shader(const FunctionCallbackInfo<Value>& args) {
+		HandleScope scope(args.GetIsolate());
+		Local<ArrayBuffer> buffer = Local<ArrayBuffer>::Cast(args[0]);
+		ArrayBuffer::Contents content = buffer->GetContents();
+		Kore::Shader* shader = new Kore::Shader(content.Data(), (int)content.ByteLength(), Kore::FragmentShader);
+		
+		Local<ObjectTemplate> templ = ObjectTemplate::New(isolate);
+		templ->SetInternalFieldCount(1);
+		
+		Local<Object> obj = templ->NewInstance(isolate->GetCurrentContext()).ToLocalChecked();
+		obj->SetInternalField(0, External::New(isolate, shader));
+		args.GetReturnValue().Set(obj);
+	}
+	
+	void krom_create_program(const FunctionCallbackInfo<Value>& args) {
+		HandleScope scope(args.GetIsolate());
+		Kore::Program* program = new Kore::Program();
+		
+		Local<ObjectTemplate> templ = ObjectTemplate::New(isolate);
+		templ->SetInternalFieldCount(1);
+		
+		Local<Object> obj = templ->NewInstance(isolate->GetCurrentContext()).ToLocalChecked();
+		obj->SetInternalField(0, External::New(isolate, program));
+		args.GetReturnValue().Set(obj);
+	}
+	
+	void krom_compile_program(const FunctionCallbackInfo<Value>& args) {
+		HandleScope scope(args.GetIsolate());
+		
+		Local<External> progfield = Local<External>::Cast(args[0]->ToObject()->GetInternalField(0));
+		Kore::Program* program = (Kore::Program*)progfield->Value();
+		
+		Local<Object> jsstructure = args[1]->ToObject();
+		int32_t length = jsstructure->Get(String::NewFromUtf8(isolate, "length"))->ToInt32()->Value();
+		Kore::VertexStructure structure;
+		for (int32_t i = 0; i < length; ++i) {
+			Local<Object> element = jsstructure->Get(i)->ToObject();
+			Local<Value> str = element->Get(String::NewFromUtf8(isolate, "name"));
+			String::Utf8Value utf8_value(str);
+			Local<Object> dataobj = element->Get(String::NewFromUtf8(isolate, "data"))->ToObject();
+			int32_t data = dataobj->Get(1)->ToInt32()->Value();
+			structure.add(*utf8_value, convertVertexData(data));
+		}
+		
+		Local<External> vsfield = Local<External>::Cast(args[2]->ToObject()->GetInternalField(0));
+		Kore::Shader* vertexShader = (Kore::Shader*)vsfield->Value();
+		
+		Local<External> fsfield = Local<External>::Cast(args[3]->ToObject()->GetInternalField(0));
+		Kore::Shader* fragmentShader = (Kore::Shader*)fsfield->Value();
+		
+		program->setVertexShader(vertexShader);
+		program->setFragmentShader(fragmentShader);
+		program->link(structure);
+	}
+	
+	void krom_set_program(const FunctionCallbackInfo<Value>& args) {
+		HandleScope scope(args.GetIsolate());
+		
+		Local<External> progfield = Local<External>::Cast(args[0]->ToObject()->GetInternalField(0));
+		Kore::Program* program = (Kore::Program*)progfield->Value();
+		
+		program->set();
+	}
+	
 	bool startV8(char* scriptfile) {
 		V8::InitializeICU();
 	
@@ -90,6 +268,18 @@ namespace {
 		krom->Set(String::NewFromUtf8(isolate, "log"), FunctionTemplate::New(isolate, LogCallback));
 		krom->Set(String::NewFromUtf8(isolate, "clear"), FunctionTemplate::New(isolate, graphics_clear));
 		krom->Set(String::NewFromUtf8(isolate, "setCallback"), FunctionTemplate::New(isolate, krom_set_callback));
+		krom->Set(String::NewFromUtf8(isolate, "createIndexBuffer"), FunctionTemplate::New(isolate, krom_create_indexbuffer));
+		krom->Set(String::NewFromUtf8(isolate, "setIndices"), FunctionTemplate::New(isolate, krom_set_indices));
+		krom->Set(String::NewFromUtf8(isolate, "setIndexBuffer"), FunctionTemplate::New(isolate, krom_set_indexbuffer));
+		krom->Set(String::NewFromUtf8(isolate, "createVertexBuffer"), FunctionTemplate::New(isolate, krom_create_vertexbuffer));
+		krom->Set(String::NewFromUtf8(isolate, "setVertices"), FunctionTemplate::New(isolate, krom_set_vertices));
+		krom->Set(String::NewFromUtf8(isolate, "setVertexBuffer"), FunctionTemplate::New(isolate, krom_set_vertexbuffer));
+		krom->Set(String::NewFromUtf8(isolate, "drawIndexedVertices"), FunctionTemplate::New(isolate, krom_draw_indexed_vertices));
+		krom->Set(String::NewFromUtf8(isolate, "createVertexShader"), FunctionTemplate::New(isolate, krom_create_vertex_shader));
+		krom->Set(String::NewFromUtf8(isolate, "createFragmentShader"), FunctionTemplate::New(isolate, krom_create_fragment_shader));
+		krom->Set(String::NewFromUtf8(isolate, "createProgram"), FunctionTemplate::New(isolate, krom_create_program));
+		krom->Set(String::NewFromUtf8(isolate, "compileProgram"), FunctionTemplate::New(isolate, krom_compile_program));
+		krom->Set(String::NewFromUtf8(isolate, "setProgram"), FunctionTemplate::New(isolate, krom_set_program));
 		
 		Local<ObjectTemplate> global = ObjectTemplate::New(isolate);
 		global->Set(String::NewFromUtf8(isolate, "Krom"), krom);
