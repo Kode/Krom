@@ -22,13 +22,13 @@
 using namespace v8;
 
 class ArrayBufferAllocator : public v8::ArrayBuffer::Allocator {
- public:
-  virtual void* Allocate(size_t length) {
-    void* data = AllocateUninitialized(length);
-    return data == NULL ? data : memset(data, 0, length);
-  }
-  virtual void* AllocateUninitialized(size_t length) { return malloc(length); }
-  virtual void Free(void* data, size_t) { free(data); }
+public:
+	virtual void* Allocate(size_t length) {
+		void* data = AllocateUninitialized(length);
+		return data == NULL ? data : memset(data, 0, length);
+	}
+	virtual void* AllocateUninitialized(size_t length) { return malloc(length); }
+	virtual void Free(void* data, size_t) { free(data); }
 };
 
 #ifdef SYS_OSX
@@ -52,8 +52,15 @@ namespace {
 	void graphics_clear(const v8::FunctionCallbackInfo<v8::Value>& args) {
 		Kore::Graphics::clear(Kore::Graphics::ClearColorFlag);
 	}
-
-	static bool startV8(char* scriptfile) {
+	
+	void krom_set_callback(const FunctionCallbackInfo<Value>& args) {
+		HandleScope scope(args.GetIsolate());
+		Local<Value> arg = args[0];
+		Local<Function> func = Local<Function>::Cast(arg);
+		updateFunction.Reset(isolate, func);
+	}
+	
+	bool startV8(char* scriptfile) {
 		V8::InitializeICU();
 	
 #ifdef SYS_OSX
@@ -79,24 +86,31 @@ namespace {
 		Isolate::Scope isolate_scope(isolate);
 		HandleScope handle_scope(isolate);
 	
+		Local<ObjectTemplate> krom = ObjectTemplate::New(isolate);
+		krom->Set(String::NewFromUtf8(isolate, "log"), FunctionTemplate::New(isolate, LogCallback));
+		krom->Set(String::NewFromUtf8(isolate, "clear"), FunctionTemplate::New(isolate, graphics_clear));
+		krom->Set(String::NewFromUtf8(isolate, "setCallback"), FunctionTemplate::New(isolate, krom_set_callback));
+		
 		Local<ObjectTemplate> global = ObjectTemplate::New(isolate);
-		global->Set(String::NewFromUtf8(isolate, "log"), FunctionTemplate::New(isolate, LogCallback));
-		global->Set(String::NewFromUtf8(isolate, "clear"), FunctionTemplate::New(isolate, graphics_clear));
+		global->Set(String::NewFromUtf8(isolate, "Krom"), krom);
 		
 		Local<Context> context = Context::New(isolate, NULL, global);
 		globalContext.Reset(isolate, context);
 	
 		Context::Scope context_scope(context);
 		Local<String> source = String::NewFromUtf8(isolate, scriptfile, NewStringType::kNormal).ToLocalChecked();
-		Local<Script> script = Script::Compile(context, source).ToLocalChecked();
-		script->Run(context).ToLocalChecked();
-	
-		Local<String> update_name = String::NewFromUtf8(isolate, "update", NewStringType::kNormal).ToLocalChecked();
-		Local<Value> update_val;
-		if (!context->Global()->Get(context, update_name).ToLocal(&update_val) || !update_val->IsFunction()) {
+		Local<String> filename = String::NewFromUtf8(isolate, "krom.js", NewStringType::kNormal).ToLocalChecked();
+
+		TryCatch try_catch(isolate);
+		
+		Local<Script> compiled_script = Script::Compile(source, filename);
+		
+		Local<Value> result;
+		if (!compiled_script->Run(context).ToLocal(&result)) {
+			v8::String::Utf8Value stack_trace(try_catch.StackTrace());
+			printf("Trace: %s\n", *stack_trace);
 			return false;
 		}
-		updateFunction.Reset(isolate, Local<Function>::Cast(update_val));
 	
 		return true;
 	}
@@ -106,8 +120,14 @@ namespace {
 		HandleScope handle_scope(isolate);
 		v8::Local<v8::Context> context = v8::Local<v8::Context>::New(isolate, globalContext);
 		Context::Scope context_scope(context);
+		
+		TryCatch try_catch(isolate);
 		v8::Local<v8::Function> func = v8::Local<v8::Function>::New(isolate, updateFunction);
-		func->Call(context, context->Global(), 0, NULL);
+		Local<Value> result;
+		if (!func->Call(context, context->Global(), 0, NULL).ToLocal(&result)) {
+			v8::String::Utf8Value stack_trace(try_catch.StackTrace());
+			printf("Trace: %s\n", *stack_trace);
+		}
 	}
 
 	void endV8() {
@@ -162,11 +182,11 @@ int kore(int argc, char** argv) {
 	Kore::FileReader reader;
 	reader.open("krom.js");
 	
-	startV8((char*)reader.readAll());
+	bool started = startV8((char*)reader.readAll());
 	
 	reader.close();
 	
-	Kore::System::start();
+	if (started) Kore::System::start();
 	
 	endV8();
 	
