@@ -49,8 +49,11 @@ namespace {
 		printf("%s\n", *value);
 	}
 	
+	unsigned char g = 0;
+	
 	void graphics_clear(const v8::FunctionCallbackInfo<v8::Value>& args) {
-		Kore::Graphics::clear(Kore::Graphics::ClearColorFlag);
+		Kore::Graphics::clear(Kore::Graphics::ClearColorFlag, 0xff004400 | g);
+		++g;
 	}
 	
 	void krom_set_callback(const FunctionCallbackInfo<Value>& args) {
@@ -126,7 +129,9 @@ namespace {
 			String::Utf8Value utf8_value(str);
 			Local<Object> dataobj = element->Get(String::NewFromUtf8(isolate, "data"))->ToObject();
 			int32_t data = dataobj->Get(1)->ToInt32()->Value();
-			structure.add(*utf8_value, convertVertexData(data));
+			char* name = new char[32]; // TODO
+			strcpy(name, *utf8_value);
+			structure.add(name, convertVertexData(data));
 		}
 		
 		obj->SetInternalField(0, External::New(isolate, new Kore::VertexBuffer(args[0]->Int32Value(), structure)));
@@ -139,11 +144,13 @@ namespace {
 		Local<External> field = Local<External>::Cast(args[0]->ToObject()->GetInternalField(0));
 		Kore::VertexBuffer* buffer = (Kore::VertexBuffer*)field->Value();
 		
-		Local<Object> array = args[1]->ToObject();
+		Local<Float32Array> f32array = Local<Float32Array>::Cast(args[1]);
+		ArrayBuffer::Contents content = f32array->Buffer()->GetContents();
 
+		float* from = (float*)content.Data();
 		float* vertices = buffer->lock();
 		for (int32_t i = 0; i < buffer->count() * buffer->stride() / 4; ++i) {
-			vertices[i] = (float)array->Get(i)->ToNumber()->Value();
+			vertices[i] = from[i];
 		}
 		buffer->unlock();
 	}
@@ -215,7 +222,9 @@ namespace {
 			String::Utf8Value utf8_value(str);
 			Local<Object> dataobj = element->Get(String::NewFromUtf8(isolate, "data"))->ToObject();
 			int32_t data = dataobj->Get(1)->ToInt32()->Value();
-			structure.add(*utf8_value, convertVertexData(data));
+			char* name = new char[32]; // TODO
+			strcpy(name, *utf8_value);
+			structure.add(name, convertVertexData(data));
 		}
 		
 		Local<External> vsfield = Local<External>::Cast(args[2]->ToObject()->GetInternalField(0));
@@ -231,10 +240,8 @@ namespace {
 	
 	void krom_set_program(const FunctionCallbackInfo<Value>& args) {
 		HandleScope scope(args.GetIsolate());
-		
 		Local<External> progfield = Local<External>::Cast(args[0]->ToObject()->GetInternalField(0));
 		Kore::Program* program = (Kore::Program*)progfield->Value();
-		
 		program->set();
 	}
 	
@@ -328,7 +335,7 @@ namespace {
 		V8::ShutdownPlatform();
 		delete plat;
 	}
-
+	
 	void update() {
 		Kore::Graphics::begin();
 		runV8();
