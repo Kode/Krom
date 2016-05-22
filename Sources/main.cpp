@@ -27,8 +27,14 @@ public:
 		void* data = AllocateUninitialized(length);
 		return data == NULL ? data : memset(data, 0, length);
 	}
-	virtual void* AllocateUninitialized(size_t length) { return malloc(length); }
-	virtual void Free(void* data, size_t) { free(data); }
+	
+	virtual void* AllocateUninitialized(size_t length) {
+		return malloc(length);
+	}
+	
+	virtual void Free(void* data, size_t) {
+		free(data);
+	}
 };
 
 #ifdef SYS_OSX
@@ -40,6 +46,11 @@ namespace {
 	Isolate* isolate;
 	Global<Context> globalContext;
 	Global<Function> updateFunction;
+	Global<Function> keyboardDownFunction;
+	Global<Function> keyboardUpFunction;
+	Global<Function> mouseDownFunction;
+	Global<Function> mouseUpFunction;
+	Global<Function> mouseMoveFunction;
 
 	void LogCallback(const v8::FunctionCallbackInfo<v8::Value>& args) {
 		if (args.Length() < 1) return;
@@ -49,11 +60,8 @@ namespace {
 		printf("%s\n", *value);
 	}
 	
-	unsigned char g = 0;
-	
 	void graphics_clear(const v8::FunctionCallbackInfo<v8::Value>& args) {
-		Kore::Graphics::clear(Kore::Graphics::ClearColorFlag, 0xff004400 | g);
-		++g;
+		Kore::Graphics::clear(Kore::Graphics::ClearColorFlag, 0);
 	}
 	
 	void krom_set_callback(const FunctionCallbackInfo<Value>& args) {
@@ -61,6 +69,41 @@ namespace {
 		Local<Value> arg = args[0];
 		Local<Function> func = Local<Function>::Cast(arg);
 		updateFunction.Reset(isolate, func);
+	}
+	
+	void krom_set_keyboard_down_callback(const FunctionCallbackInfo<Value>& args) {
+		HandleScope scope(args.GetIsolate());
+		Local<Value> arg = args[0];
+		Local<Function> func = Local<Function>::Cast(arg);
+		keyboardDownFunction.Reset(isolate, func);
+	}
+	
+	void krom_set_keyboard_up_callback(const FunctionCallbackInfo<Value>& args) {
+		HandleScope scope(args.GetIsolate());
+		Local<Value> arg = args[0];
+		Local<Function> func = Local<Function>::Cast(arg);
+		keyboardUpFunction.Reset(isolate, func);
+	}
+	
+	void krom_set_mouse_down_callback(const FunctionCallbackInfo<Value>& args) {
+		HandleScope scope(args.GetIsolate());
+		Local<Value> arg = args[0];
+		Local<Function> func = Local<Function>::Cast(arg);
+		mouseDownFunction.Reset(isolate, func);
+	}
+	
+	void krom_set_mouse_up_callback(const FunctionCallbackInfo<Value>& args) {
+		HandleScope scope(args.GetIsolate());
+		Local<Value> arg = args[0];
+		Local<Function> func = Local<Function>::Cast(arg);
+		mouseUpFunction.Reset(isolate, func);
+	}
+	
+	void krom_set_mouse_move_callback(const FunctionCallbackInfo<Value>& args) {
+		HandleScope scope(args.GetIsolate());
+		Local<Value> arg = args[0];
+		Local<Function> func = Local<Function>::Cast(arg);
+		mouseMoveFunction.Reset(isolate, func);
 	}
 	
 	void krom_create_indexbuffer(const FunctionCallbackInfo<Value>& args) {
@@ -145,7 +188,9 @@ namespace {
 		Kore::VertexBuffer* buffer = (Kore::VertexBuffer*)field->Value();
 		
 		Local<Float32Array> f32array = Local<Float32Array>::Cast(args[1]);
-		ArrayBuffer::Contents content = f32array->Buffer()->GetContents();
+		ArrayBuffer::Contents content;
+		if (f32array->Buffer()->IsExternal()) content = f32array->Buffer()->GetContents();
+		else content = f32array->Buffer()->Externalize();
 
 		float* from = (float*)content.Data();
 		float* vertices = buffer->lock();
@@ -170,7 +215,7 @@ namespace {
 	void krom_create_vertex_shader(const FunctionCallbackInfo<Value>& args) {
 		HandleScope scope(args.GetIsolate());
 		Local<ArrayBuffer> buffer = Local<ArrayBuffer>::Cast(args[0]);
-		ArrayBuffer::Contents content = buffer->GetContents();
+		ArrayBuffer::Contents content = buffer->Externalize();
 		Kore::Shader* shader = new Kore::Shader(content.Data(), (int)content.ByteLength(), Kore::VertexShader);
 		
 		Local<ObjectTemplate> templ = ObjectTemplate::New(isolate);
@@ -184,7 +229,7 @@ namespace {
 	void krom_create_fragment_shader(const FunctionCallbackInfo<Value>& args) {
 		HandleScope scope(args.GetIsolate());
 		Local<ArrayBuffer> buffer = Local<ArrayBuffer>::Cast(args[0]);
-		ArrayBuffer::Contents content = buffer->GetContents();
+		ArrayBuffer::Contents content = buffer->Externalize();
 		Kore::Shader* shader = new Kore::Shader(content.Data(), (int)content.ByteLength(), Kore::FragmentShader);
 		
 		Local<ObjectTemplate> templ = ObjectTemplate::New(isolate);
@@ -245,6 +290,180 @@ namespace {
 		program->set();
 	}
 	
+	void krom_load_image(const FunctionCallbackInfo<Value>& args) {
+		HandleScope scope(args.GetIsolate());
+		String::Utf8Value utf8_value(args[0]);
+		Kore::Texture* texture = new Kore::Texture(*utf8_value);
+		
+		Local<ObjectTemplate> templ = ObjectTemplate::New(isolate);
+		templ->SetInternalFieldCount(1);
+		
+		Local<Object> obj = templ->NewInstance(isolate->GetCurrentContext()).ToLocalChecked();
+		obj->SetInternalField(0, External::New(isolate, texture));
+		obj->Set(String::NewFromUtf8(isolate, "width"), Int32::New(isolate, texture->width));
+		obj->Set(String::NewFromUtf8(isolate, "height"), Int32::New(isolate, texture->height));
+		obj->Set(String::NewFromUtf8(isolate, "realWidth"), Int32::New(isolate, texture->texWidth));
+		obj->Set(String::NewFromUtf8(isolate, "realHeight"), Int32::New(isolate, texture->texHeight));
+		args.GetReturnValue().Set(obj);
+	}
+	
+	void krom_load_sound(const FunctionCallbackInfo<Value>& args) {
+		HandleScope scope(args.GetIsolate());
+		
+	}
+	
+	void krom_load_blob(const FunctionCallbackInfo<Value>& args) {
+		HandleScope scope(args.GetIsolate());
+		String::Utf8Value utf8_value(args[0]);
+		Kore::FileReader reader;
+		reader.open(*utf8_value);
+		
+		Local<ArrayBuffer> buffer = ArrayBuffer::New(isolate, reader.size());
+		ArrayBuffer::Contents contents = buffer->Externalize();
+
+		unsigned char* from = (unsigned char*)reader.readAll();
+		unsigned char* to = (unsigned char*)contents.Data();
+		for (int i = 0; i < reader.size(); ++i) {
+			to[i] = from[i];
+		}
+		
+		reader.close();
+		
+		args.GetReturnValue().Set(buffer);
+	}
+	
+	void krom_get_constant_location(const FunctionCallbackInfo<Value>& args) {
+		HandleScope scope(args.GetIsolate());
+		Local<External> progfield = Local<External>::Cast(args[0]->ToObject()->GetInternalField(0));
+		Kore::Program* program = (Kore::Program*)progfield->Value();
+		
+		String::Utf8Value utf8_value(args[1]);
+		Kore::ConstantLocation location = program->getConstantLocation(*utf8_value);
+		
+		Local<ObjectTemplate> templ = ObjectTemplate::New(isolate);
+		templ->SetInternalFieldCount(1);
+		
+		Local<Object> obj = templ->NewInstance(isolate->GetCurrentContext()).ToLocalChecked();
+		obj->SetInternalField(0, External::New(isolate, new Kore::ConstantLocation(location)));
+		args.GetReturnValue().Set(obj);
+	}
+	
+	void krom_get_texture_unit(const FunctionCallbackInfo<Value>& args) {
+		HandleScope scope(args.GetIsolate());
+		Local<External> progfield = Local<External>::Cast(args[0]->ToObject()->GetInternalField(0));
+		Kore::Program* program = (Kore::Program*)progfield->Value();
+		
+		String::Utf8Value utf8_value(args[1]);
+		Kore::TextureUnit unit = program->getTextureUnit(*utf8_value);
+		
+		Local<ObjectTemplate> templ = ObjectTemplate::New(isolate);
+		templ->SetInternalFieldCount(1);
+		
+		Local<Object> obj = templ->NewInstance(isolate->GetCurrentContext()).ToLocalChecked();
+		obj->SetInternalField(0, External::New(isolate, new Kore::TextureUnit(unit)));
+		args.GetReturnValue().Set(obj);
+	}
+	
+	void krom_set_texture(const FunctionCallbackInfo<Value>& args) {
+		HandleScope scope(args.GetIsolate());
+		Local<External> unitfield = Local<External>::Cast(args[0]->ToObject()->GetInternalField(0));
+		Kore::TextureUnit* unit = (Kore::TextureUnit*)unitfield->Value();
+		Local<External> texfield = Local<External>::Cast(args[1]->ToObject()->GetInternalField(0));
+		Kore::Texture* texture = (Kore::Texture*)texfield->Value();
+		Kore::Graphics::setTexture(*unit, texture);
+	}
+	
+	void krom_set_bool(const FunctionCallbackInfo<Value>& args) {
+		HandleScope scope(args.GetIsolate());
+		Local<External> locationfield = Local<External>::Cast(args[0]->ToObject()->GetInternalField(0));
+		Kore::ConstantLocation* location = (Kore::ConstantLocation*)locationfield->Value();
+		int32_t value = args[1]->ToInt32()->Value();
+		Kore::Graphics::setBool(*location, value != 0);
+	}
+	
+	void krom_set_int(const FunctionCallbackInfo<Value>& args) {
+		HandleScope scope(args.GetIsolate());
+		Local<External> locationfield = Local<External>::Cast(args[0]->ToObject()->GetInternalField(0));
+		Kore::ConstantLocation* location = (Kore::ConstantLocation*)locationfield->Value();
+		int32_t value = args[1]->ToInt32()->Value();
+		Kore::Graphics::setInt(*location, value);
+	}
+	
+	void krom_set_float(const FunctionCallbackInfo<Value>& args) {
+		HandleScope scope(args.GetIsolate());
+		Local<External> locationfield = Local<External>::Cast(args[0]->ToObject()->GetInternalField(0));
+		Kore::ConstantLocation* location = (Kore::ConstantLocation*)locationfield->Value();
+		float value = (float)args[1]->ToNumber()->Value();
+		Kore::Graphics::setFloat(*location, value);
+	}
+	
+	void krom_set_float2(const FunctionCallbackInfo<Value>& args) {
+		HandleScope scope(args.GetIsolate());
+		Local<External> locationfield = Local<External>::Cast(args[0]->ToObject()->GetInternalField(0));
+		Kore::ConstantLocation* location = (Kore::ConstantLocation*)locationfield->Value();
+		float value1 = (float)args[1]->ToNumber()->Value();
+		float value2 = (float)args[2]->ToNumber()->Value();
+		Kore::Graphics::setFloat2(*location, value1, value2);
+	}
+	
+	void krom_set_float3(const FunctionCallbackInfo<Value>& args) {
+		HandleScope scope(args.GetIsolate());
+		Local<External> locationfield = Local<External>::Cast(args[0]->ToObject()->GetInternalField(0));
+		Kore::ConstantLocation* location = (Kore::ConstantLocation*)locationfield->Value();
+		float value1 = (float)args[1]->ToNumber()->Value();
+		float value2 = (float)args[2]->ToNumber()->Value();
+		float value3 = (float)args[3]->ToNumber()->Value();
+		Kore::Graphics::setFloat3(*location, value1, value2, value3);
+	}
+	
+	void krom_set_float4(const FunctionCallbackInfo<Value>& args) {
+		HandleScope scope(args.GetIsolate());
+		Local<External> locationfield = Local<External>::Cast(args[0]->ToObject()->GetInternalField(0));
+		Kore::ConstantLocation* location = (Kore::ConstantLocation*)locationfield->Value();
+		float value1 = (float)args[1]->ToNumber()->Value();
+		float value2 = (float)args[2]->ToNumber()->Value();
+		float value3 = (float)args[3]->ToNumber()->Value();
+		float value4 = (float)args[4]->ToNumber()->Value();
+		Kore::Graphics::setFloat4(*location, value1, value2, value3, value4);
+	}
+	
+	void krom_set_matrix(const FunctionCallbackInfo<Value>& args) {
+		HandleScope scope(args.GetIsolate());
+		Local<External> locationfield = Local<External>::Cast(args[0]->ToObject()->GetInternalField(0));
+		Kore::ConstantLocation* location = (Kore::ConstantLocation*)locationfield->Value();
+		
+		Local<Object> matrix = args[1]->ToObject();
+		float _00 = matrix->Get(String::NewFromUtf8(isolate, "_00"))->ToNumber()->Value();
+		float _01 = matrix->Get(String::NewFromUtf8(isolate, "_01"))->ToNumber()->Value();
+		float _02 = matrix->Get(String::NewFromUtf8(isolate, "_02"))->ToNumber()->Value();
+		float _03 = matrix->Get(String::NewFromUtf8(isolate, "_03"))->ToNumber()->Value();
+		float _10 = matrix->Get(String::NewFromUtf8(isolate, "_10"))->ToNumber()->Value();
+		float _11 = matrix->Get(String::NewFromUtf8(isolate, "_11"))->ToNumber()->Value();
+		float _12 = matrix->Get(String::NewFromUtf8(isolate, "_12"))->ToNumber()->Value();
+		float _13 = matrix->Get(String::NewFromUtf8(isolate, "_13"))->ToNumber()->Value();
+		float _20 = matrix->Get(String::NewFromUtf8(isolate, "_20"))->ToNumber()->Value();
+		float _21 = matrix->Get(String::NewFromUtf8(isolate, "_21"))->ToNumber()->Value();
+		float _22 = matrix->Get(String::NewFromUtf8(isolate, "_22"))->ToNumber()->Value();
+		float _23 = matrix->Get(String::NewFromUtf8(isolate, "_23"))->ToNumber()->Value();
+		float _30 = matrix->Get(String::NewFromUtf8(isolate, "_30"))->ToNumber()->Value();
+		float _31 = matrix->Get(String::NewFromUtf8(isolate, "_31"))->ToNumber()->Value();
+		float _32 = matrix->Get(String::NewFromUtf8(isolate, "_32"))->ToNumber()->Value();
+		float _33 = matrix->Get(String::NewFromUtf8(isolate, "_33"))->ToNumber()->Value();
+		
+		Kore::mat4 m;
+		m.Set(0, 0, _00); m.Set(1, 0, _01); m.Set(2, 0, _02); m.Set(3, 0, _03);
+		m.Set(0, 1, _10); m.Set(1, 1, _11); m.Set(2, 1, _12); m.Set(3, 1, _13);
+		m.Set(0, 2, _20); m.Set(1, 2, _21); m.Set(2, 2, _22); m.Set(3, 2, _23);
+		m.Set(0, 3, _30); m.Set(1, 3, _31); m.Set(2, 3, _32); m.Set(3, 3, _33);
+		
+		Kore::Graphics::setMatrix(*location, m);
+	}
+	
+	void krom_get_time(const FunctionCallbackInfo<Value>& args) {
+		HandleScope scope(args.GetIsolate());
+		args.GetReturnValue().Set(Number::New(isolate, Kore::System::time()));
+	}
+	
 	bool startV8(char* scriptfile) {
 		V8::InitializeICU();
 	
@@ -275,6 +494,11 @@ namespace {
 		krom->Set(String::NewFromUtf8(isolate, "log"), FunctionTemplate::New(isolate, LogCallback));
 		krom->Set(String::NewFromUtf8(isolate, "clear"), FunctionTemplate::New(isolate, graphics_clear));
 		krom->Set(String::NewFromUtf8(isolate, "setCallback"), FunctionTemplate::New(isolate, krom_set_callback));
+		krom->Set(String::NewFromUtf8(isolate, "setKeyboardDownCallback"), FunctionTemplate::New(isolate, krom_set_keyboard_down_callback));
+		krom->Set(String::NewFromUtf8(isolate, "setKeyboardUpCallback"), FunctionTemplate::New(isolate, krom_set_keyboard_up_callback));
+		krom->Set(String::NewFromUtf8(isolate, "setMouseDownCallback"), FunctionTemplate::New(isolate, krom_set_mouse_down_callback));
+		krom->Set(String::NewFromUtf8(isolate, "setMouseUpCallback"), FunctionTemplate::New(isolate, krom_set_mouse_up_callback));
+		krom->Set(String::NewFromUtf8(isolate, "setMouseMoveCallback"), FunctionTemplate::New(isolate, krom_set_mouse_move_callback));
 		krom->Set(String::NewFromUtf8(isolate, "createIndexBuffer"), FunctionTemplate::New(isolate, krom_create_indexbuffer));
 		krom->Set(String::NewFromUtf8(isolate, "setIndices"), FunctionTemplate::New(isolate, krom_set_indices));
 		krom->Set(String::NewFromUtf8(isolate, "setIndexBuffer"), FunctionTemplate::New(isolate, krom_set_indexbuffer));
@@ -287,6 +511,20 @@ namespace {
 		krom->Set(String::NewFromUtf8(isolate, "createProgram"), FunctionTemplate::New(isolate, krom_create_program));
 		krom->Set(String::NewFromUtf8(isolate, "compileProgram"), FunctionTemplate::New(isolate, krom_compile_program));
 		krom->Set(String::NewFromUtf8(isolate, "setProgram"), FunctionTemplate::New(isolate, krom_set_program));
+		krom->Set(String::NewFromUtf8(isolate, "loadImage"), FunctionTemplate::New(isolate, krom_load_image));
+		krom->Set(String::NewFromUtf8(isolate, "loadSound"), FunctionTemplate::New(isolate, krom_load_sound));
+		krom->Set(String::NewFromUtf8(isolate, "loadBlob"), FunctionTemplate::New(isolate, krom_load_blob));
+		krom->Set(String::NewFromUtf8(isolate, "getConstantLocation"), FunctionTemplate::New(isolate, krom_get_constant_location));
+		krom->Set(String::NewFromUtf8(isolate, "getTextureUnit"), FunctionTemplate::New(isolate, krom_get_texture_unit));
+		krom->Set(String::NewFromUtf8(isolate, "setTexture"), FunctionTemplate::New(isolate, krom_set_texture));
+		krom->Set(String::NewFromUtf8(isolate, "setBool"), FunctionTemplate::New(isolate, krom_set_bool));
+		krom->Set(String::NewFromUtf8(isolate, "setInt"), FunctionTemplate::New(isolate, krom_set_int));
+		krom->Set(String::NewFromUtf8(isolate, "setFloat"), FunctionTemplate::New(isolate, krom_set_float));
+		krom->Set(String::NewFromUtf8(isolate, "setFloat2"), FunctionTemplate::New(isolate, krom_set_float2));
+		krom->Set(String::NewFromUtf8(isolate, "setFloat3"), FunctionTemplate::New(isolate, krom_set_float3));
+		krom->Set(String::NewFromUtf8(isolate, "setFloat4"), FunctionTemplate::New(isolate, krom_set_float4));
+		krom->Set(String::NewFromUtf8(isolate, "setMatrix"), FunctionTemplate::New(isolate, krom_set_matrix));
+		krom->Set(String::NewFromUtf8(isolate, "getTime"), FunctionTemplate::New(isolate, krom_get_time));
 		
 		Local<ObjectTemplate> global = ObjectTemplate::New(isolate);
 		global->Set(String::NewFromUtf8(isolate, "Krom"), krom);
@@ -342,6 +580,91 @@ namespace {
 		Kore::Graphics::end();
 		Kore::Graphics::swapBuffers();
 	}
+	
+	void keyDown(Kore::KeyCode code, wchar_t character) {
+		Isolate::Scope isolate_scope(isolate);
+		HandleScope handle_scope(isolate);
+		v8::Local<v8::Context> context = v8::Local<v8::Context>::New(isolate, globalContext);
+		Context::Scope context_scope(context);
+		
+		TryCatch try_catch(isolate);
+		v8::Local<v8::Function> func = v8::Local<v8::Function>::New(isolate, keyboardDownFunction);
+		Local<Value> result;
+		const int argc = 1;
+		Local<Value> argv[argc] = {Int32::New(isolate, (int)code)};
+		if (!func->Call(context, context->Global(), argc, argv).ToLocal(&result)) {
+			v8::String::Utf8Value stack_trace(try_catch.StackTrace());
+			printf("Trace: %s\n", *stack_trace);
+		}
+	}
+	
+	void keyUp(Kore::KeyCode code, wchar_t character) {
+		Isolate::Scope isolate_scope(isolate);
+		HandleScope handle_scope(isolate);
+		v8::Local<v8::Context> context = v8::Local<v8::Context>::New(isolate, globalContext);
+		Context::Scope context_scope(context);
+		
+		TryCatch try_catch(isolate);
+		v8::Local<v8::Function> func = v8::Local<v8::Function>::New(isolate, keyboardUpFunction);
+		Local<Value> result;
+		const int argc = 1;
+		Local<Value> argv[argc] = {Int32::New(isolate, (int)code)};
+		if (!func->Call(context, context->Global(), argc, argv).ToLocal(&result)) {
+			v8::String::Utf8Value stack_trace(try_catch.StackTrace());
+			printf("Trace: %s\n", *stack_trace);
+		}
+	}
+	
+	void mouseMove(int window, int x, int y, int mx, int my) {
+		Isolate::Scope isolate_scope(isolate);
+		HandleScope handle_scope(isolate);
+		v8::Local<v8::Context> context = v8::Local<v8::Context>::New(isolate, globalContext);
+		Context::Scope context_scope(context);
+		
+		TryCatch try_catch(isolate);
+		v8::Local<v8::Function> func = v8::Local<v8::Function>::New(isolate, mouseMoveFunction);
+		Local<Value> result;
+		const int argc = 2;
+		Local<Value> argv[argc] = {Int32::New(isolate, x), Int32::New(isolate, y)};
+		if (!func->Call(context, context->Global(), argc, argv).ToLocal(&result)) {
+			v8::String::Utf8Value stack_trace(try_catch.StackTrace());
+			printf("Trace: %s\n", *stack_trace);
+		}
+	}
+	
+	void mouseDown(int window, int button, int x, int y) {
+		Isolate::Scope isolate_scope(isolate);
+		HandleScope handle_scope(isolate);
+		v8::Local<v8::Context> context = v8::Local<v8::Context>::New(isolate, globalContext);
+		Context::Scope context_scope(context);
+		
+		TryCatch try_catch(isolate);
+		v8::Local<v8::Function> func = v8::Local<v8::Function>::New(isolate, mouseDownFunction);
+		Local<Value> result;
+		const int argc = 3;
+		Local<Value> argv[argc] = {Int32::New(isolate, button), Int32::New(isolate, x), Int32::New(isolate, y)};
+		if (!func->Call(context, context->Global(), argc, argv).ToLocal(&result)) {
+			v8::String::Utf8Value stack_trace(try_catch.StackTrace());
+			printf("Trace: %s\n", *stack_trace);
+		}
+	}
+	
+	void mouseUp(int window, int button, int x, int y) {
+		Isolate::Scope isolate_scope(isolate);
+		HandleScope handle_scope(isolate);
+		v8::Local<v8::Context> context = v8::Local<v8::Context>::New(isolate, globalContext);
+		Context::Scope context_scope(context);
+		
+		TryCatch try_catch(isolate);
+		v8::Local<v8::Function> func = v8::Local<v8::Function>::New(isolate, mouseUpFunction);
+		Local<Value> result;
+		const int argc = 3;
+		Local<Value> argv[argc] = {Int32::New(isolate, button), Int32::New(isolate, x), Int32::New(isolate, y)};
+		if (!func->Call(context, context->Global(), argc, argv).ToLocal(&result)) {
+			v8::String::Utf8Value stack_trace(try_catch.StackTrace());
+			printf("Trace: %s\n", *stack_trace);
+		}
+	}
 }
 
 int kore(int argc, char** argv) {
@@ -370,9 +693,11 @@ int kore(int argc, char** argv) {
 	
 	Kore::System::setCallback(update);
 	
-	//Kore::Keyboard::the()->KeyDown = keyDown;
-	//Kore::Keyboard::the()->KeyUp = keyUp;
-	//Kore::Mouse::the()->Release = mouseUp;
+	Kore::Keyboard::the()->KeyDown = keyDown;
+	Kore::Keyboard::the()->KeyUp = keyUp;
+	Kore::Mouse::the()->Move = mouseMove;
+	Kore::Mouse::the()->Press = mouseDown;
+	Kore::Mouse::the()->Release = mouseUp;
 	
 	//Mixer::play(music);
 	
@@ -384,6 +709,8 @@ int kore(int argc, char** argv) {
 	reader.close();
 	
 	if (started) Kore::System::start();
+	
+	exit(0); // TODO
 	
 	endV8();
 	
