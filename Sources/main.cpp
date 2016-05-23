@@ -745,6 +745,7 @@ namespace {
 	
 	struct Klass {
 		std::string name;
+		std::string internal_name;
 		std::map<std::string, Function*> methods;
 		std::map<std::string, Function*> functions;
 	};
@@ -774,16 +775,19 @@ namespace {
 						mode = ParseMethods;
 					}
 					// hxClasses["BigBlock"] = BigBlock;
-					else if (startsWith(line, "$hxClasses[\"")) {
+					// var BigBlock = $hxClasses["BigBlock"] = function(xx,yy) {
+					else if (line.find("$hxClasses[\"") != std::string::npos) { //(startsWith(line, "$hxClasses[\"")) {
 						size_t first = line.find('\"');
 						size_t last = line.find_last_of('\"');
 						std::string name = line.substr(first + 1, last - first - 1);
-						first = line.find_last_of(' ');
-						std::string internal_name = line.substr(first + 1, line.size() - first - 2);
+						first = line.find(' ');
+						last = line.find(' ', first + 1);
+						std::string internal_name = line.substr(first + 1, last - first - 1);
 						if (classes.find(internal_name) == classes.end()) {
 							printf("Found type %s.\n", internal_name.c_str());
 							currentClass = new Klass;
 							currentClass->name = name;
+							currentClass->internal_name = internal_name;
 							classes[internal_name] = currentClass;
 							++types;
 						}
@@ -808,13 +812,13 @@ namespace {
 							first = line.find('(') + 1;
 							last = line.find_last_of(')');
 							size_t last_param_start = first;
-							for (size_t i = first; i < last; ++i) {
+							for (size_t i = first; i <= last; ++i) {
 								if (line[i] == ',') {
-									currentFunction->parameters.push_back(line.substr(last_param_start, i - last_param_start - 1));
+									currentFunction->parameters.push_back(line.substr(last_param_start, i - last_param_start));
 									last_param_start = i + 1;
 								}
 								if (line[i] == ')') {
-									currentFunction->parameters.push_back(line.substr(last_param_start, i - last_param_start - 1));
+									currentFunction->parameters.push_back(line.substr(last_param_start, i - last_param_start));
 									break;
 								}
 							}
@@ -845,6 +849,40 @@ namespace {
 						else if (currentFunction->body != currentBody) {
 							printf("Body of method %s in type %s changed.\n", currentFunction->name.c_str(), currentClass->name.c_str());
 							currentFunction->body = currentBody;
+							
+							Isolate::Scope isolate_scope(isolate);
+							HandleScope handle_scope(isolate);
+							v8::Local<v8::Context> context = v8::Local<v8::Context>::New(isolate, globalContext);
+							Context::Scope context_scope(context);
+							
+							// BlocksFromHeaven.prototype.loadingFinished = new Function([a, b], "lots of text;");
+							std::string script;
+							script += currentClass->internal_name;
+							script += ".prototype.";
+							script += currentFunction->name;
+							script += " = new Function([";
+							for (size_t i = 0; i < currentFunction->parameters.size(); ++i) {
+								script += "\"" + currentFunction->parameters[i] + "\"";
+								if (i < currentFunction->parameters.size() - 1) script += ",";
+							}
+							script += "], \"";
+							script += currentFunction->body;
+							script += "\");";
+							
+							printf("Script:\n%s\n", script.c_str());
+							
+							Local<String> source = String::NewFromUtf8(isolate, script.c_str(), NewStringType::kNormal).ToLocalChecked();
+							Local<String> filename = String::NewFromUtf8(isolate, currentFunction->name.c_str(), NewStringType::kNormal).ToLocalChecked();
+							
+							TryCatch try_catch(isolate);
+							
+							Local<Script> compiled_script = Script::Compile(source, filename);
+							
+							Local<Value> result;
+							if (!compiled_script->Run(context).ToLocal(&result)) {
+								v8::String::Utf8Value stack_trace(try_catch.StackTrace());
+								printf("Trace: %s\n", *stack_trace);
+							}
 						}
 						mode = ParseMethods;
 					}
