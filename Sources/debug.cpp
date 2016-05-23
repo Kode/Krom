@@ -88,14 +88,118 @@ void bla() {
 }
 */
 
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <fcntl.h>
+#include <errno.h>
+#include <time.h>
+
+#ifdef _WIN32
+#include <winsock.h>
+#include <io.h>
+#else
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <netdb.h>
+#include <arpa/inet.h>
+#include <unistd.h>
+#endif
+
+#include <string>
+#include <stdexcept>
+
+std::vector<uint16_t> utf8_to_utf16(const std::string& utf8)
+{
+	std::vector<uint16_t> unicode;
+	size_t i = 0;
+	while (i < utf8.size())
+	{
+		unsigned long uni;
+		size_t todo;
+		bool error = false;
+		unsigned char ch = utf8[i++];
+		if (ch <= 0x7F)
+		{
+			uni = ch;
+			todo = 0;
+		}
+		else if (ch <= 0xBF)
+		{
+			throw std::logic_error("not a UTF-8 string");
+		}
+		else if (ch <= 0xDF)
+		{
+			uni = ch&0x1F;
+			todo = 1;
+		}
+		else if (ch <= 0xEF)
+		{
+			uni = ch&0x0F;
+			todo = 2;
+		}
+		else if (ch <= 0xF7)
+		{
+			uni = ch&0x07;
+			todo = 3;
+		}
+		else
+		{
+			throw std::logic_error("not a UTF-8 string");
+		}
+		for (size_t j = 0; j < todo; ++j)
+		{
+			if (i == utf8.size())
+				throw std::logic_error("not a UTF-8 string");
+			unsigned char ch = utf8[i++];
+			if (ch < 0x80 || ch > 0xBF)
+				throw std::logic_error("not a UTF-8 string");
+			uni <<= 6;
+			uni += ch & 0x3F;
+		}
+		if (uni >= 0xD800 && uni <= 0xDFFF)
+			throw std::logic_error("not a UTF-8 string");
+		if (uni > 0x10FFFF)
+			throw std::logic_error("not a UTF-8 string");
+		unicode.push_back(uni);
+	}
+	/*std::wstring utf16;
+	for (size_t i = 0; i < unicode.size(); ++i)
+	{
+		unsigned long uni = unicode[i];
+		if (uni <= 0xFFFF)
+		{
+			utf16 += (wchar_t)uni;
+		}
+		else
+		{
+			uni -= 0x10000;
+			utf16 += (wchar_t)((uni >> 10) + 0xD800);
+			utf16 += (wchar_t)((uni & 0x3FF) + 0xDC00);
+		}
+	}
+	return utf16;*/
+	return unicode;
+}
+
 void startserver(v8::Isolate* isolate);
 
 namespace {
+	int client_socket;
+	
 	void messageHandler(const v8::Debug::Message& message) {
 		if (message.IsResponse()) {
 			int a = 3;
 			++a;
 			//send_command_thread_->semaphore_.Signal();
+			
+			v8::Local<v8::String> string = message.GetJSON();
+			v8::String::Utf8Value data(string);
+			
+			printf("Sending response: %s", *data);
+			
+			send(client_socket, *data, data.length(), 0);
 		}
 	}
 	
@@ -122,25 +226,6 @@ void startDebugger(v8::Isolate* isolate) {
 	Kore::createAndRunThread(run, isolate);
 }
 
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <fcntl.h>
-#include <errno.h>
-#include <time.h>
-
-#ifdef _WIN32
-#include <winsock.h>
-#include <io.h>
-#else
-#include <sys/types.h>
-#include <sys/socket.h>
-#include <netinet/in.h>
-#include <netdb.h>
-#include <arpa/inet.h>
-#include <unistd.h>
-#endif
-
 #define PORT 9911
 #define RCVBUFSIZE 1024
 
@@ -152,6 +237,7 @@ static void echo(v8::Isolate* isolate, SOCKET client_socket)
 static void echo(v8::Isolate* isolate, int client_socket)
 #endif
 {
+	::client_socket = client_socket;
 	char echo_buffer[RCVBUFSIZE];
 	int recv_size;
 	time_t zeit;
@@ -161,7 +247,21 @@ static void echo(v8::Isolate* isolate, int client_socket)
 	time(&zeit);
 	printf("Client Message: %s \t%s", echo_buffer, ctime(&zeit));
 	
-	v8::Debug::SendCommand((v8::Isolate*)isolate, (uint16_t*)echo_buffer, recv_size);
+	int first_bracket = 0;
+	for (int i = 0; i < recv_size; ++i) {
+		if (echo_buffer[i] == '{') {
+			first_bracket = i;
+			break;
+		}
+	}
+	
+	v8::Local<v8::String> string = v8::String::NewFromUtf8(isolate, echo_buffer);
+	//v8::String::Value value(string);
+	
+	char* json = &echo_buffer[first_bracket];
+	std::vector<uint16_t> value = utf8_to_utf16(json);
+	
+	v8::Debug::SendCommand(isolate, value.data(), value.size());
 }
 
 static void error_exit(const char *error_message) {
