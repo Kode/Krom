@@ -739,6 +739,8 @@ extern "C" void filechanged(char* path) {
 	}
 }
 
+void startDebugger(v8::Isolate* isolate);
+
 int kore(int argc, char** argv) {
 	int w = 1024;
 	int h = 768;
@@ -783,7 +785,10 @@ int kore(int argc, char** argv) {
 	
 	watchDirectory(argv[1]);
 	
-	if (started) Kore::System::start();
+	if (started) {
+		startDebugger(isolate);
+		Kore::System::start();
+	}
 	
 	exit(0); // TODO
 	
