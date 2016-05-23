@@ -19,7 +19,9 @@
 #include "../V8/include/libplatform/libplatform.h"
 #include "../V8/include/v8.h"
 
+#include <fstream>
 #include <map>
+#include <sstream>
 #include <string>
 #include <vector>
 
@@ -720,12 +722,117 @@ namespace {
 		}
 	}
 	
+	bool startsWith(std::string str, std::string start) {
+		return str.substr(0, start.size()) == start;
+	}
+	
 	bool endsWith(std::string str, std::string end) {
 		if (str.size() < end.size()) return false;
 		for (size_t i = str.size() - end.size(); i < str.size(); ++i) {
 			if (str[i] != end[i - (str.size() - end.size())]) return false;
 		}
 		return true;
+	}
+	
+	std::string assetsdir;
+	std::string kromjs;
+	
+	struct Function {
+		std::vector<std::string> parameters;
+		std::string body;
+	};
+	
+	struct Klass {
+		std::string name;
+		std::map<std::string, Function*> methods;
+		std::map<std::string, Function*> functions;
+	};
+
+	std::map<std::string, Klass*> classes;
+
+	enum ParseMode {
+		ParseRegular,
+		ParseMethods,
+		ParseMethod
+	};
+	
+	void parseCode() {
+		int types = 0;
+		ParseMode mode = ParseRegular;
+		Klass* currentClass = nullptr;
+		Function* currentFunction = nullptr;
+		int brackets = 1;
+		
+		std::ifstream infile(kromjs.c_str());
+		std::string line;
+		while (std::getline(infile, line)) {
+			switch (mode) {
+				case ParseRegular: {
+					if (endsWith(line, ".prototype = {")) { // parse methods
+						mode = ParseMethods;
+					}
+					// hxClasses["BigBlock"] = BigBlock;
+					else if (startsWith(line, "$hxClasses[\"")) {
+						size_t first = line.find('\"');
+						size_t last = line.find_last_of('\"');
+						std::string name = line.substr(first + 1, last - first - 1);
+						first = line.find_last_of(' ');
+						std::string internal_name = line.substr(first + 1, line.size() - first - 2);
+						printf("Found type %s.\n", internal_name.c_str());
+						currentClass = new Klass;
+						currentClass->name = name;
+						classes[internal_name] = currentClass;
+						++types;
+					}
+					break;
+				}
+				case ParseMethods: {
+					// ,draw: function(g) {
+					if (endsWith(line, "{")) {
+						size_t first = 0;
+						while (line[first] == ' ' || line[first] == '\t' || line[first] == ',') {
+							++first;
+						}
+						size_t last = line.find(':');
+						std::string methodname = line.substr(first, last - first);
+						
+						currentFunction = new Function;
+						first = line.find('(') + 1;
+						last = line.find_last_of(')');
+						size_t last_param_start = first;
+						for (size_t i = first; i < last; ++i) {
+							if (line[i] == ',') {
+								currentFunction->parameters.push_back(line.substr(last_param_start, i - last_param_start - 1));
+								last_param_start = i + 1;
+							}
+							if (line[i] == ')') {
+								currentFunction->parameters.push_back(line.substr(last_param_start, i - last_param_start - 1));
+								break;
+							}
+						}
+						
+						printf("Found method %s.\n", methodname.c_str());
+						currentClass->methods[methodname] = currentFunction;
+						mode = ParseMethod;
+						brackets = 1;
+					}
+					else if (endsWith(line, "};")) {
+						mode = ParseRegular;
+					}
+					break;
+				}
+				case ParseMethod: {
+					currentFunction->body += line + "\n";
+					if (line.find('{') != std::string::npos) ++brackets;
+					if (line.find('}') != std::string::npos) --brackets;
+					if (brackets == 0) {
+						mode = ParseMethods;
+					}
+					break;
+				}
+			}
+		}
+		printf("%i types found.\n", types);
 	}
 }
 
@@ -737,6 +844,9 @@ extern "C" void filechanged(char* path) {
 		std::string name = strpath.substr(strpath.find_last_of('/') + 1);
 		imageChanges[name] = true;
 	}
+	else if (endsWith(strpath, "krom.js")) {
+		printf("Code changed.\n");
+	}
 }
 
 void startDebugger(v8::Isolate* isolate);
@@ -744,6 +854,9 @@ void startDebugger(v8::Isolate* isolate);
 int kore(int argc, char** argv) {
 	int w = 1024;
 	int h = 768;
+	
+	assetsdir = argv[1];
+	kromjs = assetsdir + "/krom.js";
 	
 	Kore::setFilesLocation(argv[1]);
 	Kore::System::setName("Krom");
@@ -779,10 +892,13 @@ int kore(int argc, char** argv) {
 	Kore::FileReader reader;
 	reader.open("krom.js");
 	
-	bool started = startV8((char*)reader.readAll());
+	char* code = (char*)reader.readAll();
+	bool started = startV8(code);
 	
 	reader.close();
-	
+
+	parseCode();
+
 	watchDirectory(argv[1]);
 	
 	if (started) {

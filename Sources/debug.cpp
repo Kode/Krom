@@ -1,92 +1,7 @@
 #include "../V8/include/v8.h"
 #include "../V8/include/v8-debug.h"
 #include "pch.h"
-#include <Kore/Network/Socket.h>
 #include <Kore/Threads/Thread.h>
-
-/*
-class SendCommandThread;
-static SendCommandThread* send_command_thread_ = NULL;
-
-class SendCommandThread : public v8::base::Thread {
-public:
-	explicit SendCommandThread(v8::Isolate* isolate)
-	: Thread(Options("SendCommandThread")),
-	semaphore_(0),
-	isolate_(isolate) {}
-	
-	static void CountingAndSignallingMessageHandler(const v8::Debug::Message& message) {
-		if (message.IsResponse()) {
-			//counting_message_handler_counter++;
-			send_command_thread_->semaphore_.Signal();
-		}
-	}
-	
-	virtual void Run() {
-		semaphore_.Wait();
-		const int kBufferSize = 1000;
-		uint16_t buffer[kBufferSize];
-		const char* scripts_command =
-		"{\"seq\":0,"
-		"\"type\":\"request\","
-		"\"command\":\"scripts\"}";
-		int length = AsciiToUtf16(scripts_command, buffer);
-		// Send scripts command.
-		
-		for (int i = 0; i < 20; i++) {
-			//v8::base::ElapsedTimer timer;
-			//timer.Start();
-			//CHECK_EQ(i, counting_message_handler_counter);
-			// Queue debug message.
-			v8::Debug::SendCommand(isolate_, buffer, length);
-			// Wait for the message handler to pick up the response.
-			semaphore_.Wait();
-			//i::PrintF("iteration %d took %f ms\n", i, timer.Elapsed().InMillisecondsF());
-		}
-		
-		isolate_->TerminateExecution();
-	}
-	
-	void StartSending() { semaphore_.Signal(); }
-	
-private:
-	v8::base::Semaphore semaphore_;
-	v8::Isolate* isolate_;
-};
-
-static void StartSendingCommands(const v8::FunctionCallbackInfo<v8::Value>& info) {
-	send_command_thread_->StartSending();
-}
-
-
-void bla() {
-	DebugLocalContext env;
-	v8::Isolate* isolate = env->GetIsolate();
-	v8::HandleScope scope(isolate);
-	v8::Local<v8::Context> context = env.context();
-	
-	counting_message_handler_counter = 0;
-	
-	v8::Debug::SetMessageHandler(
-								 isolate, SendCommandThread::CountingAndSignallingMessageHandler);
-	send_command_thread_ = new SendCommandThread(isolate);
-	send_command_thread_->Start();
-	
-	v8::Local<v8::FunctionTemplate> start =
-	v8::FunctionTemplate::New(isolate, StartSendingCommands);
-	CHECK(env->Global()
-		  ->Set(context, v8_str("start"),
-				start->GetFunction(context).ToLocalChecked())
-		  .FromJust());
-	
-	CompileRun("start(); while (true) { }");
-	
-	CHECK_EQ(20, counting_message_handler_counter);
-	
-	v8::Debug::SetMessageHandler(isolate, nullptr);
-	CheckDebuggerUnloaded(isolate);
-}
-*/
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -190,14 +105,10 @@ namespace {
 	
 	void messageHandler(const v8::Debug::Message& message) {
 		if (message.IsResponse()) {
-			int a = 3;
-			++a;
-			//send_command_thread_->semaphore_.Signal();
-			
 			v8::Local<v8::String> string = message.GetJSON();
 			v8::String::Utf8Value data(string);
 			
-			printf("Sending response: %s", *data);
+			printf("Sending response: %s\n", *data);
 			
 			send(client_socket, *data, data.length(), 0);
 		}
@@ -237,31 +148,36 @@ static void echo(v8::Isolate* isolate, SOCKET client_socket)
 static void echo(v8::Isolate* isolate, int client_socket)
 #endif
 {
-	::client_socket = client_socket;
-	char echo_buffer[RCVBUFSIZE];
-	int recv_size;
-	time_t zeit;
+	//for (;;) {
+		::client_socket = client_socket;
+		char echo_buffer[RCVBUFSIZE];
+		int recv_size;
+		time_t zeit;
 	
-	if ((recv_size = recv(client_socket, echo_buffer, RCVBUFSIZE,0)) < 0) error_exit("recv() error");
-	echo_buffer[recv_size] = '\0';
-	time(&zeit);
-	printf("Client Message: %s \t%s", echo_buffer, ctime(&zeit));
-	
-	int first_bracket = 0;
-	for (int i = 0; i < recv_size; ++i) {
-		if (echo_buffer[i] == '{') {
-			first_bracket = i;
-			break;
+		if ((recv_size = recv(client_socket, echo_buffer, RCVBUFSIZE,0)) < 0) error_exit("recv() error");
+		echo_buffer[recv_size] = '\0';
+		
+		int first_bracket = 0;
+		for (int i = 0; i < recv_size; ++i) {
+			if (echo_buffer[i] == '{') {
+				first_bracket = i;
+				break;
+			}
 		}
-	}
 	
-	v8::Local<v8::String> string = v8::String::NewFromUtf8(isolate, echo_buffer);
-	//v8::String::Value value(string);
+		if (first_bracket > 0) {
+			time(&zeit);
+			printf("Client Message: %s \t%s", echo_buffer, ctime(&zeit));
+			
+			//v8::Local<v8::String> string = v8::String::NewFromUtf8(isolate, echo_buffer);
+			//v8::String::Value value(string);
 	
-	char* json = &echo_buffer[first_bracket];
-	std::vector<uint16_t> value = utf8_to_utf16(json);
+			char* json = &echo_buffer[first_bracket];
+			std::vector<uint16_t> value = utf8_to_utf16(json);
 	
-	v8::Debug::SendCommand(isolate, value.data(), value.size());
+			v8::Debug::SendCommand(isolate, value.data(), value.size());
+		}
+	//}
 }
 
 static void error_exit(const char *error_message) {
