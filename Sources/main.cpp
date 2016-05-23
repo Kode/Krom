@@ -19,6 +19,10 @@
 #include "../V8/include/libplatform/libplatform.h"
 #include "../V8/include/v8.h"
 
+#include <map>
+#include <string>
+#include <vector>
+
 using namespace v8;
 
 class ArrayBufferAllocator : public v8::ArrayBuffer::Allocator {
@@ -51,6 +55,7 @@ namespace {
 	Global<Function> mouseDownFunction;
 	Global<Function> mouseUpFunction;
 	Global<Function> mouseMoveFunction;
+	std::map<std::string, bool> imageChanges;
 
 	void LogCallback(const v8::FunctionCallbackInfo<v8::Value>& args) {
 		if (args.Length() < 1) return;
@@ -209,7 +214,10 @@ namespace {
 	
 	void krom_draw_indexed_vertices(const FunctionCallbackInfo<Value>& args) {
 		HandleScope scope(args.GetIsolate());
-		Kore::Graphics::drawIndexedVertices();
+		int start = args[0]->ToInt32()->Value();
+		int count = args[1]->ToInt32()->Value();
+		if (count < 0) Kore::Graphics::drawIndexedVertices();
+		else Kore::Graphics::drawIndexedVertices(start, count);
 	}
 	
 	void krom_create_vertex_shader(const FunctionCallbackInfo<Value>& args) {
@@ -304,6 +312,7 @@ namespace {
 		obj->Set(String::NewFromUtf8(isolate, "height"), Int32::New(isolate, texture->height));
 		obj->Set(String::NewFromUtf8(isolate, "realWidth"), Int32::New(isolate, texture->texWidth));
 		obj->Set(String::NewFromUtf8(isolate, "realHeight"), Int32::New(isolate, texture->texHeight));
+		obj->Set(String::NewFromUtf8(isolate, "filename"), args[0]);
 		args.GetReturnValue().Set(obj);
 	}
 	
@@ -368,8 +377,19 @@ namespace {
 		HandleScope scope(args.GetIsolate());
 		Local<External> unitfield = Local<External>::Cast(args[0]->ToObject()->GetInternalField(0));
 		Kore::TextureUnit* unit = (Kore::TextureUnit*)unitfield->Value();
-		Local<External> texfield = Local<External>::Cast(args[1]->ToObject()->GetInternalField(0));
-		Kore::Texture* texture = (Kore::Texture*)texfield->Value();
+		
+		Kore::Texture* texture = nullptr;
+		String::Utf8Value filename(args[1]->ToObject()->Get(String::NewFromUtf8(isolate, "filename")));
+		if (imageChanges[*filename]) {
+			imageChanges[*filename] = false;
+			printf("Image %s changed.\n", *filename);
+			texture = new Kore::Texture(*filename);
+			args[1]->ToObject()->SetInternalField(0, External::New(isolate, texture));
+		}
+		else {
+			Local<External> texfield = Local<External>::Cast(args[1]->ToObject()->GetInternalField(0));
+			texture = (Kore::Texture*)texfield->Value();
+		}
 		Kore::Graphics::setTexture(*unit, texture);
 	}
 	
@@ -464,6 +484,37 @@ namespace {
 		args.GetReturnValue().Set(Number::New(isolate, Kore::System::time()));
 	}
 	
+	void krom_create_render_target(const FunctionCallbackInfo<Value>& args) {
+		HandleScope scope(args.GetIsolate());
+		Kore::RenderTarget* renderTarget = new Kore::RenderTarget(args[0]->ToInt32()->Value(), args[1]->ToInt32()->Value(), 0);
+		
+		Local<ObjectTemplate> templ = ObjectTemplate::New(isolate);
+		templ->SetInternalFieldCount(1);
+		
+		Local<Object> obj = templ->NewInstance(isolate->GetCurrentContext()).ToLocalChecked();
+		obj->SetInternalField(0, External::New(isolate, renderTarget));
+		obj->Set(String::NewFromUtf8(isolate, "width"), Int32::New(isolate, renderTarget->width));
+		obj->Set(String::NewFromUtf8(isolate, "height"), Int32::New(isolate, renderTarget->height));
+		args.GetReturnValue().Set(obj);
+	}
+	
+	void krom_begin(const FunctionCallbackInfo<Value>& args) {
+		HandleScope scope(args.GetIsolate());
+		if (args[0]->IsNull() || args[0]->IsUndefined()) {
+			Kore::Graphics::restoreRenderTarget();
+		}
+		else {
+			Local<External> rtfield = Local<External>::Cast(args[0]->ToObject()->GetInternalField(0));
+			Kore::RenderTarget* renderTarget = (Kore::RenderTarget*)rtfield->Value();
+			Kore::Graphics::setRenderTarget(renderTarget, 0, 0);
+		}
+	}
+	
+	void krom_end(const FunctionCallbackInfo<Value>& args) {
+		HandleScope scope(args.GetIsolate());
+		
+	}
+	
 	bool startV8(char* scriptfile) {
 		V8::InitializeICU();
 	
@@ -525,6 +576,9 @@ namespace {
 		krom->Set(String::NewFromUtf8(isolate, "setFloat4"), FunctionTemplate::New(isolate, krom_set_float4));
 		krom->Set(String::NewFromUtf8(isolate, "setMatrix"), FunctionTemplate::New(isolate, krom_set_matrix));
 		krom->Set(String::NewFromUtf8(isolate, "getTime"), FunctionTemplate::New(isolate, krom_get_time));
+		krom->Set(String::NewFromUtf8(isolate, "createRenderTarget"), FunctionTemplate::New(isolate, krom_create_render_target));
+		krom->Set(String::NewFromUtf8(isolate, "begin"), FunctionTemplate::New(isolate, krom_begin));
+		krom->Set(String::NewFromUtf8(isolate, "end"), FunctionTemplate::New(isolate, krom_end));
 		
 		Local<ObjectTemplate> global = ObjectTemplate::New(isolate);
 		global->Set(String::NewFromUtf8(isolate, "Krom"), krom);
@@ -665,12 +719,31 @@ namespace {
 			printf("Trace: %s\n", *stack_trace);
 		}
 	}
+	
+	bool endsWith(std::string str, std::string end) {
+		if (str.size() < end.size()) return false;
+		for (size_t i = str.size() - end.size(); i < str.size(); ++i) {
+			if (str[i] != end[i - (str.size() - end.size())]) return false;
+		}
+		return true;
+	}
+}
+
+extern "C" void watchDirectory(char* path);
+
+extern "C" void filechanged(char* path) {
+	std::string strpath = path;
+	if (endsWith(strpath, ".png")) {
+		std::string name = strpath.substr(strpath.find_last_of('/') + 1);
+		imageChanges[name] = true;
+	}
 }
 
 int kore(int argc, char** argv) {
 	int w = 1024;
 	int h = 768;
 	
+	Kore::setFilesLocation(argv[1]);
 	Kore::System::setName("Krom");
 	Kore::System::setup();
 	Kore::WindowOptions options;
@@ -707,6 +780,8 @@ int kore(int argc, char** argv) {
 	bool started = startV8((char*)reader.readAll());
 	
 	reader.close();
+	
+	watchDirectory(argv[1]);
 	
 	if (started) Kore::System::start();
 	
