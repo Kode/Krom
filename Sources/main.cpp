@@ -605,8 +605,17 @@ namespace {
 	
 		return true;
 	}
+	
+	bool codechanged = false;
 
+	void parseCode();
+	
 	void runV8() {
+		if (codechanged) {
+			parseCode();
+			codechanged = false;
+		}
+		
 		Isolate::Scope isolate_scope(isolate);
 		HandleScope handle_scope(isolate);
 		v8::Local<v8::Context> context = v8::Local<v8::Context>::New(isolate, globalContext);
@@ -784,7 +793,7 @@ namespace {
 						last = line.find(' ', first + 1);
 						std::string internal_name = line.substr(first + 1, last - first - 1);
 						if (classes.find(internal_name) == classes.end()) {
-							printf("Found type %s.\n", internal_name.c_str());
+							//printf("Found type %s.\n", internal_name.c_str());
 							currentClass = new Klass;
 							currentClass->name = name;
 							currentClass->internal_name = internal_name;
@@ -823,7 +832,7 @@ namespace {
 								}
 							}
 						
-							printf("Found method %s.\n", methodname.c_str());
+							//printf("Found method %s.\n", methodname.c_str());
 							currentClass->methods[methodname] = currentFunction;
 						}
 						else {
@@ -839,15 +848,16 @@ namespace {
 					break;
 				}
 				case ParseMethod: {
-					currentBody += line + "\n";
 					if (line.find('{') != std::string::npos) ++brackets;
 					if (line.find('}') != std::string::npos) --brackets;
-					if (brackets == 0) {
+					if (brackets > 0) {
+						currentBody += line + " ";
+					}
+					else {
 						if (currentFunction->body == "") {
 							currentFunction->body = currentBody;
 						}
 						else if (currentFunction->body != currentBody) {
-							printf("Body of method %s in type %s changed.\n", currentFunction->name.c_str(), currentClass->name.c_str());
 							currentFunction->body = currentBody;
 							
 							Isolate::Scope isolate_scope(isolate);
@@ -869,15 +879,19 @@ namespace {
 							script += currentFunction->body;
 							script += "\");";
 							
-							printf("Script:\n%s\n", script.c_str());
+							//printf("Script:\n%s\n", script.c_str());
+							printf("Patching method %s in class %s.\n", currentFunction->name.c_str(), currentClass->name.c_str());
 							
 							Local<String> source = String::NewFromUtf8(isolate, script.c_str(), NewStringType::kNormal).ToLocalChecked();
-							Local<String> filename = String::NewFromUtf8(isolate, currentFunction->name.c_str(), NewStringType::kNormal).ToLocalChecked();
 							
 							TryCatch try_catch(isolate);
 							
-							Local<Script> compiled_script = Script::Compile(source, filename);
-							
+							Local<Script> compiled_script;
+							if (!Script::Compile(context, source).ToLocal(&compiled_script)) {
+								v8::String::Utf8Value stack_trace(try_catch.StackTrace());
+								printf("Trace: %s\n", *stack_trace);
+							}
+
 							Local<Value> result;
 							if (!compiled_script->Run(context).ToLocal(&result)) {
 								v8::String::Utf8Value stack_trace(try_catch.StackTrace());
@@ -904,7 +918,7 @@ extern "C" void filechanged(char* path) {
 	}
 	else if (endsWith(strpath, "krom.js")) {
 		printf("Code changed.\n");
-		parseCode();
+		codechanged = true;
 	}
 }
 
