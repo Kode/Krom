@@ -738,6 +738,7 @@ namespace {
 	std::string kromjs;
 	
 	struct Function {
+		std::string name;
 		std::vector<std::string> parameters;
 		std::string body;
 	};
@@ -761,6 +762,7 @@ namespace {
 		ParseMode mode = ParseRegular;
 		Klass* currentClass = nullptr;
 		Function* currentFunction = nullptr;
+		std::string currentBody;
 		int brackets = 1;
 		
 		std::ifstream infile(kromjs.c_str());
@@ -778,11 +780,16 @@ namespace {
 						std::string name = line.substr(first + 1, last - first - 1);
 						first = line.find_last_of(' ');
 						std::string internal_name = line.substr(first + 1, line.size() - first - 2);
-						printf("Found type %s.\n", internal_name.c_str());
-						currentClass = new Klass;
-						currentClass->name = name;
-						classes[internal_name] = currentClass;
-						++types;
+						if (classes.find(internal_name) == classes.end()) {
+							printf("Found type %s.\n", internal_name.c_str());
+							currentClass = new Klass;
+							currentClass->name = name;
+							classes[internal_name] = currentClass;
+							++types;
+						}
+						else {
+							currentClass = classes[internal_name];
+						}
 					}
 					break;
 				}
@@ -795,25 +802,31 @@ namespace {
 						}
 						size_t last = line.find(':');
 						std::string methodname = line.substr(first, last - first);
+						if (currentClass->methods.find(methodname) == currentClass->methods.end()) {
+							currentFunction = new Function;
+							currentFunction->name = methodname;
+							first = line.find('(') + 1;
+							last = line.find_last_of(')');
+							size_t last_param_start = first;
+							for (size_t i = first; i < last; ++i) {
+								if (line[i] == ',') {
+									currentFunction->parameters.push_back(line.substr(last_param_start, i - last_param_start - 1));
+									last_param_start = i + 1;
+								}
+								if (line[i] == ')') {
+									currentFunction->parameters.push_back(line.substr(last_param_start, i - last_param_start - 1));
+									break;
+								}
+							}
 						
-						currentFunction = new Function;
-						first = line.find('(') + 1;
-						last = line.find_last_of(')');
-						size_t last_param_start = first;
-						for (size_t i = first; i < last; ++i) {
-							if (line[i] == ',') {
-								currentFunction->parameters.push_back(line.substr(last_param_start, i - last_param_start - 1));
-								last_param_start = i + 1;
-							}
-							if (line[i] == ')') {
-								currentFunction->parameters.push_back(line.substr(last_param_start, i - last_param_start - 1));
-								break;
-							}
+							printf("Found method %s.\n", methodname.c_str());
+							currentClass->methods[methodname] = currentFunction;
 						}
-						
-						printf("Found method %s.\n", methodname.c_str());
-						currentClass->methods[methodname] = currentFunction;
+						else {
+							currentFunction = currentClass->methods[methodname];
+						}
 						mode = ParseMethod;
+						currentBody = "";
 						brackets = 1;
 					}
 					else if (endsWith(line, "};")) {
@@ -822,10 +835,17 @@ namespace {
 					break;
 				}
 				case ParseMethod: {
-					currentFunction->body += line + "\n";
+					currentBody += line + "\n";
 					if (line.find('{') != std::string::npos) ++brackets;
 					if (line.find('}') != std::string::npos) --brackets;
 					if (brackets == 0) {
+						if (currentFunction->body == "") {
+							currentFunction->body = currentBody;
+						}
+						else if (currentFunction->body != currentBody) {
+							printf("Body of method %s in type %s changed.\n", currentFunction->name.c_str(), currentClass->name.c_str());
+							currentFunction->body = currentBody;
+						}
 						mode = ParseMethods;
 					}
 					break;
@@ -846,6 +866,7 @@ extern "C" void filechanged(char* path) {
 	}
 	else if (endsWith(strpath, "krom.js")) {
 		printf("Code changed.\n");
+		parseCode();
 	}
 }
 
