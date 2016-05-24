@@ -58,6 +58,8 @@ namespace {
 	Global<Function> mouseUpFunction;
 	Global<Function> mouseMoveFunction;
 	std::map<std::string, bool> imageChanges;
+	std::map<std::string, bool> shaderChanges;
+	std::map<std::string, std::string> shaderFileNames;
 
 	void LogCallback(const v8::FunctionCallbackInfo<v8::Value>& args) {
 		if (args.Length() < 1) return;
@@ -222,6 +224,13 @@ namespace {
 		else Kore::Graphics::drawIndexedVertices(start, count);
 	}
 	
+	std::string replace(std::string str, char a, char b) {
+		for (size_t i = 0; i < str.size(); ++i) {
+			if (str[i] == a) str[i] = b;
+		}
+		return str;
+	}
+	
 	void krom_create_vertex_shader(const FunctionCallbackInfo<Value>& args) {
 		HandleScope scope(args.GetIsolate());
 		Local<ArrayBuffer> buffer = Local<ArrayBuffer>::Cast(args[0]);
@@ -233,6 +242,7 @@ namespace {
 		
 		Local<Object> obj = templ->NewInstance(isolate->GetCurrentContext()).ToLocalChecked();
 		obj->SetInternalField(0, External::New(isolate, shader));
+		obj->Set(String::NewFromUtf8(isolate, "name"), args[1]);
 		args.GetReturnValue().Set(obj);
 	}
 	
@@ -247,6 +257,7 @@ namespace {
 		
 		Local<Object> obj = templ->NewInstance(isolate->GetCurrentContext()).ToLocalChecked();
 		obj->SetInternalField(0, External::New(isolate, shader));
+		obj->Set(String::NewFromUtf8(isolate, "name"), args[1]);
 		args.GetReturnValue().Set(obj);
 	}
 	
@@ -255,22 +266,42 @@ namespace {
 		Kore::Program* program = new Kore::Program();
 		
 		Local<ObjectTemplate> templ = ObjectTemplate::New(isolate);
-		templ->SetInternalFieldCount(1);
+		templ->SetInternalFieldCount(4);
 		
 		Local<Object> obj = templ->NewInstance(isolate->GetCurrentContext()).ToLocalChecked();
 		obj->SetInternalField(0, External::New(isolate, program));
 		args.GetReturnValue().Set(obj);
 	}
 	
+	void recompileProgram(Local<Object> projobj) {
+		Local<External> structfield = Local<External>::Cast(projobj->GetInternalField(1));
+		Kore::VertexStructure* structure = (Kore::VertexStructure*)structfield->Value();
+		
+		Local<External> vsfield = Local<External>::Cast(projobj->GetInternalField(2));
+		Kore::Shader* vs = (Kore::Shader*)vsfield->Value();
+		
+		Local<External> fsfield = Local<External>::Cast(projobj->GetInternalField(3));
+		Kore::Shader* fs = (Kore::Shader*)fsfield->Value();
+		
+		Kore::Program* program = new Kore::Program();
+		program->setVertexShader(vs);
+		program->setFragmentShader(fs);
+		program->link(*structure);
+		
+		projobj->SetInternalField(0, External::New(isolate, program));
+	}
+	
 	void krom_compile_program(const FunctionCallbackInfo<Value>& args) {
 		HandleScope scope(args.GetIsolate());
 		
-		Local<External> progfield = Local<External>::Cast(args[0]->ToObject()->GetInternalField(0));
+		Local<Object> progobj = args[0]->ToObject();
+		
+		Local<External> progfield = Local<External>::Cast(progobj->GetInternalField(0));
 		Kore::Program* program = (Kore::Program*)progfield->Value();
 		
 		Local<Object> jsstructure = args[1]->ToObject();
 		int32_t length = jsstructure->Get(String::NewFromUtf8(isolate, "length"))->ToInt32()->Value();
-		Kore::VertexStructure structure;
+		Kore::VertexStructure* structure = new Kore::VertexStructure;
 		for (int32_t i = 0; i < length; ++i) {
 			Local<Object> element = jsstructure->Get(i)->ToObject();
 			Local<Value> str = element->Get(String::NewFromUtf8(isolate, "name"));
@@ -279,24 +310,68 @@ namespace {
 			int32_t data = dataobj->Get(1)->ToInt32()->Value();
 			char* name = new char[32]; // TODO
 			strcpy(name, *utf8_value);
-			structure.add(name, convertVertexData(data));
+			structure->add(name, convertVertexData(data));
 		}
+		
+		progobj->SetInternalField(1, External::New(isolate, structure));
 		
 		Local<External> vsfield = Local<External>::Cast(args[2]->ToObject()->GetInternalField(0));
 		Kore::Shader* vertexShader = (Kore::Shader*)vsfield->Value();
+		progobj->SetInternalField(2, External::New(isolate, vertexShader));
+		progobj->Set(String::NewFromUtf8(isolate, "vsname"), args[2]->ToObject()->Get(String::NewFromUtf8(isolate, "name")));
 		
 		Local<External> fsfield = Local<External>::Cast(args[3]->ToObject()->GetInternalField(0));
 		Kore::Shader* fragmentShader = (Kore::Shader*)fsfield->Value();
+		progobj->SetInternalField(3, External::New(isolate, fragmentShader));
+		progobj->Set(String::NewFromUtf8(isolate, "fsname"), args[3]->ToObject()->Get(String::NewFromUtf8(isolate, "name")));
 		
 		program->setVertexShader(vertexShader);
 		program->setFragmentShader(fragmentShader);
-		program->link(structure);
+		program->link(*structure);
 	}
 	
 	void krom_set_program(const FunctionCallbackInfo<Value>& args) {
 		HandleScope scope(args.GetIsolate());
-		Local<External> progfield = Local<External>::Cast(args[0]->ToObject()->GetInternalField(0));
+		Local<Object> progobj = args[0]->ToObject();
+		Local<External> progfield = Local<External>::Cast(progobj->GetInternalField(0));
 		Kore::Program* program = (Kore::Program*)progfield->Value();
+		
+		Local<Value> vsnameobj = progobj->Get(String::NewFromUtf8(isolate, "vsname"));
+		String::Utf8Value vsname(vsnameobj);
+		
+		Local<Value> fsnameobj = progobj->Get(String::NewFromUtf8(isolate, "fsname"));
+		String::Utf8Value fsname(fsnameobj);
+		
+		bool shaderChanged = false;
+		
+		if (shaderChanges[*vsname]) {
+			shaderChanged = true;
+			printf("Reloading shader %s.\n", *vsname);
+			std::string filename = shaderFileNames[*vsname];
+			std::ifstream input(filename.c_str(), std::ios::binary );
+			std::vector<char> buffer((std::istreambuf_iterator<char>(input)), (std::istreambuf_iterator<char>()));
+			Kore::Shader* vertexShader = new Kore::Shader(buffer.data(), (int)buffer.size(), Kore::VertexShader);
+			progobj->SetInternalField(2, External::New(isolate, vertexShader));
+			shaderChanges[*vsname] = false;
+		}
+		
+		if (shaderChanges[*fsname]) {
+			shaderChanged = true;
+			printf("Reloading shader %s.\n", *fsname);
+			std::string filename = shaderFileNames[*fsname];
+			std::ifstream input(filename.c_str(), std::ios::binary );
+			std::vector<char> buffer((std::istreambuf_iterator<char>(input)), (std::istreambuf_iterator<char>()));
+			Kore::Shader* fragmentShader = new Kore::Shader(buffer.data(), (int)buffer.size(), Kore::FragmentShader);
+			progobj->SetInternalField(3, External::New(isolate, fragmentShader));
+			shaderChanges[*fsname] = false;
+		}
+		
+		if (shaderChanged) {
+			recompileProgram(progobj);
+			Local<External> progfield = Local<External>::Cast(progobj->GetInternalField(0));
+			program = (Kore::Program*)progfield->Value();
+		}
+		
 		program->set();
 	}
 	
@@ -908,13 +983,22 @@ namespace {
 	}
 }
 
-extern "C" void watchDirectory(char* path);
+extern "C" void watchDirectories(char* path1, char* path2);
 
 extern "C" void filechanged(char* path) {
 	std::string strpath = path;
 	if (endsWith(strpath, ".png")) {
 		std::string name = strpath.substr(strpath.find_last_of('/') + 1);
 		imageChanges[name] = true;
+	}
+	else if (endsWith(strpath, ".essl")) {
+		std::string name = strpath.substr(strpath.find_last_of('/') + 1);
+		name = name.substr(0, name.find_last_of('.'));
+		name = replace(name, '.', '_');
+		name = replace(name, '-', '_');
+		printf("Shader changed: %s.\n", name.c_str());
+		shaderFileNames[name] = strpath;
+		shaderChanges[name] = true;
 	}
 	else if (endsWith(strpath, "krom.js")) {
 		printf("Code changed.\n");
@@ -972,7 +1056,7 @@ int kore(int argc, char** argv) {
 
 	parseCode();
 
-	watchDirectory(argv[1]);
+	watchDirectories(argv[1], argv[2]);
 	
 	if (started) {
 		startDebugger(isolate);

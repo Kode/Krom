@@ -18,9 +18,11 @@ void myCallbackFunction(
 	}
 }
 
-void watchDirectory(char* path) {
-	CFStringRef mypath = CFStringCreateWithCStringNoCopy(NULL, path, kCFStringEncodingMacRoman, NULL);
-	CFArrayRef pathsToWatch = CFArrayCreate(NULL, (const void **)&mypath, 1, NULL);
+void watchDirectories(char* path1, char* path2) {
+	CFStringRef mypath1 = CFStringCreateWithCStringNoCopy(NULL, path1, kCFStringEncodingMacRoman, NULL);
+	CFStringRef mypath2 = CFStringCreateWithCStringNoCopy(NULL, path2, kCFStringEncodingMacRoman, NULL);
+	CFStringRef paths[2] = {mypath1, mypath2};
+	CFArrayRef pathsToWatch = CFArrayCreate(NULL, (const void **)paths, 2, NULL);
 	void *callbackInfo = NULL;
 	FSEventStreamRef stream;
 	CFAbsoluteTime latency = 0.5;
