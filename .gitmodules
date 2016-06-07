@@ -2,3 +2,7 @@
 	path = Kore
 	url = ../Kore
 	branch = master
+[submodule "V8"]
+	path = V8
+	url = ../v8_bin
+	branch = master
