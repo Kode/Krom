@@ -1,3 +1,5 @@
+#ifdef SYS_OSX
+
 #include <stdlib.h>
 #include <string.h>
 #include <CoreServices/CoreServices.h>
@@ -32,3 +34,5 @@ void watchDirectories(char* path1, char* path2) {
 	FSEventStreamScheduleWithRunLoop(stream, CFRunLoopGetCurrent(), kCFRunLoopDefaultMode);
 	FSEventStreamStart(stream);
 }
+
+#endif

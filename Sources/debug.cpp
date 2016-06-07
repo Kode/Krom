@@ -198,8 +198,12 @@ void startserver(v8::Isolate* isolate) {
 	int sock, fd;
 #endif
 	
+#ifdef _WIN32
+	int len;
+#else
 	unsigned int len;
-	
+#endif
+
 #ifdef _WIN32
 	WORD wVersionRequested;
 	WSADATA wsaData;
