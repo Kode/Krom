@@ -1,5 +1,4 @@
-var solution = new Solution('Krom');
-var project = new Project('Krom');
+let project = new Project('Krom');
 
 project.addFile('Sources/**');
 //project.addIncludeDir('V8/include');
@@ -29,8 +28,7 @@ if (platform === Platform.OSX) {
 
 project.setDebugDir('Deployment');
 
-project.addSubProject(Solution.createProject('Kore'));
-
-solution.addProject(project)
-
-return solution;
+Project.createProject('Kore').then((kore) => {
+	project.addSubProject(kore);
+	resolve(project);
+});
