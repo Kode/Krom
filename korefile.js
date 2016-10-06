@@ -1,17 +1,13 @@
-let project = new Project('Krom');
+let project = new Project('Krom', __dirname);
 
 project.addFile('Sources/**');
-//project.addIncludeDir('V8/include');
+project.addIncludeDir('V8/include');
 
 if (platform === Platform.Windows) {
+	project.addLib('Dbghelp');
+	project.addLib('Shlwapi');
 	project.addLib('Winmm');
-	project.addLib('V8/Libraries/win32/debug/icui18n');
-	project.addLib('V8/Libraries/win32/debug/icuuc');
-	project.addLib('V8/Libraries/win32/debug/v8_base_0');
-	project.addLib('V8/Libraries/win32/debug/v8_base_1');
-	project.addLib('V8/Libraries/win32/debug/v8_base_2');
-	project.addLib('V8/Libraries/win32/debug/v8_base_3');
-	project.addLib('V8/Libraries/win32/debug/v8_external_snapshot');
+	project.addLib('V8/Libraries/win32/debug/v8.dll');
 	project.addLib('V8/Libraries/win32/debug/v8_libbase');
 	project.addLib('V8/Libraries/win32/debug/v8_libplatform');
 }
@@ -28,7 +24,7 @@ if (platform === Platform.OSX) {
 
 project.setDebugDir('Deployment');
 
-Project.createProject('Kore').then((kore) => {
+Project.createProject('Kore', __dirname).then((kore) => {
 	project.addSubProject(kore);
 	resolve(project);
 });
