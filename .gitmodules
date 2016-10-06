@@ -6,3 +6,7 @@
 	path = V8
 	url = ../v8_bin
 	branch = master
+[submodule "Deployment/debug"]
+	path = Deployment/debug
+	url = ../Krom_debug_bin
+	branch = master

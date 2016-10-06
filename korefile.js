@@ -10,6 +10,8 @@ if (platform === Platform.Windows) {
 	project.addLib('V8/Libraries/win32/debug/v8.dll');
 	project.addLib('V8/Libraries/win32/debug/v8_libbase');
 	project.addLib('V8/Libraries/win32/debug/v8_libplatform');
+
+	project.setDebugDir('Deployment/debug/win32');
 }
 
 if (platform === Platform.OSX) {
@@ -21,8 +23,6 @@ if (platform === Platform.OSX) {
 	project.addLib('V8/Libraries/osx/debug/libv8_libbase.a');
 	project.addLib('V8/Libraries/osx/debug/libv8_libplatform.a');
 }
-
-project.setDebugDir('Deployment');
 
 Project.createProject('Kore', __dirname).then((kore) => {
 	project.addSubProject(kore);
