@@ -1048,11 +1048,12 @@ int kore(int argc, char** argv) {
 	
 	Kore::FileReader reader;
 	reader.open("krom.js");
-	
-	char* code = (char*)reader.readAll();
-	bool started = startV8(code);
-	
+	char* code = new char[reader.size() + 1];
+	memcpy(code, reader.readAll(), reader.size());
+	code[reader.size()] = 0;
 	reader.close();
+
+	bool started = startV8(code);
 
 	parseCode();
 
