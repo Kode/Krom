@@ -27,22 +27,6 @@
 
 using namespace v8;
 
-class ArrayBufferAllocator : public v8::ArrayBuffer::Allocator {
-public:
-	virtual void* Allocate(size_t length) {
-		void* data = AllocateUninitialized(length);
-		return data == NULL ? data : memset(data, 0, length);
-	}
-	
-	virtual void* AllocateUninitialized(size_t length) {
-		return malloc(length);
-	}
-	
-	virtual void Free(void* data, size_t) {
-		free(data);
-	}
-};
-
 #ifdef SYS_OSX
 const char* macgetresourcepath();
 #endif
@@ -593,16 +577,16 @@ namespace {
 	}
 	
 	bool startV8(char* scriptfile) {
-		V8::InitializeICU();
-	
 #ifdef SYS_OSX
 		char filepath[256];
 		strcpy(filepath, macgetresourcepath());
 		strcat(filepath, "/");
 		strcat(filepath, "Deployment");
 		strcat(filepath, "/");
+		V8::InitializeICUDefaultLocation(filepath);
 		V8::InitializeExternalStartupData(filepath);
 #else
+		V8::InitializeICUDefaultLocation("./");
 		V8::InitializeExternalStartupData("./");
 #endif
 	
@@ -610,9 +594,8 @@ namespace {
 		V8::InitializePlatform(plat);
 		V8::Initialize();
 
-		ArrayBufferAllocator allocator;
 		Isolate::CreateParams create_params;
-		create_params.array_buffer_allocator = &allocator;
+		create_params.array_buffer_allocator = v8::ArrayBuffer::Allocator::NewDefaultAllocator();
 		isolate = Isolate::New(create_params);
 	
 		Isolate::Scope isolate_scope(isolate);
@@ -1057,10 +1040,10 @@ int kore(int argc, char** argv) {
 
 	parseCode();
 
-	watchDirectories(argv[1], argv[2]);
+	//watchDirectories(argv[1], argv[2]);
 	
 	if (started) {
-		startDebugger(isolate);
+		//startDebugger(isolate);
 		Kore::System::start();
 	}
 	
