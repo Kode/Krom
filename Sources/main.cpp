@@ -565,7 +565,8 @@ namespace {
 			Kore::Graphics::restoreRenderTarget();
 		}
 		else {
-			Local<External> rtfield = Local<External>::Cast(args[0]->ToObject()->GetInternalField(0));
+			Local<Object> obj = args[0]->ToObject()->Get(String::NewFromUtf8(isolate, "renderTarget_"))->ToObject();
+			Local<External> rtfield = Local<External>::Cast(obj->GetInternalField(0));
 			Kore::RenderTarget* renderTarget = (Kore::RenderTarget*)rtfield->Value();
 			Kore::Graphics::setRenderTarget(renderTarget, 0, 0);
 		}
