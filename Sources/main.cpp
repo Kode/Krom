@@ -620,6 +620,60 @@ namespace {
 		args.GetReturnValue().Set(obj);
 	}
 	
+	void krom_viewport(const FunctionCallbackInfo<Value>& args) {
+		HandleScope scope(args.GetIsolate());
+
+		int x = args[0]->ToInt32()->Int32Value();
+		int y = args[1]->ToInt32()->Int32Value();
+		int w = args[2]->ToInt32()->Int32Value();
+		int h = args[3]->ToInt32()->Int32Value();
+
+		Kore::Graphics::viewport(x, y, w, h);
+	}
+
+	void krom_set_depth_mode(const FunctionCallbackInfo<Value>& args) {
+		HandleScope scope(args.GetIsolate());
+
+		bool write = args[0]->ToBoolean()->Value();
+		int mode = args[1]->ToInt32()->Int32Value();
+
+		switch (mode) {
+		case 0:
+			write ? Kore::Graphics::setRenderState(Kore::DepthTest, true) : Kore::Graphics::setRenderState(Kore::DepthTest, false);
+			Kore::Graphics::setRenderState(Kore::DepthTestCompare, Kore::ZCompareAlways);
+			break;
+		case 1:
+			Kore::Graphics::setRenderState(Kore::DepthTest, true);
+			Kore::Graphics::setRenderState(Kore::DepthTestCompare, Kore::ZCompareNever);
+			break;
+		case 2:
+			Kore::Graphics::setRenderState(Kore::DepthTest, true);
+			Kore::Graphics::setRenderState(Kore::DepthTestCompare, Kore::ZCompareEqual);
+			break;
+		case 3:
+			Kore::Graphics::setRenderState(Kore::DepthTest, true);
+			Kore::Graphics::setRenderState(Kore::DepthTestCompare, Kore::ZCompareNotEqual);
+			break;
+		case 4:
+			Kore::Graphics::setRenderState(Kore::DepthTest, true);
+			Kore::Graphics::setRenderState(Kore::DepthTestCompare, Kore::ZCompareLess);
+			break;
+		case 5:
+			Kore::Graphics::setRenderState(Kore::DepthTest, true);
+			Kore::Graphics::setRenderState(Kore::DepthTestCompare, Kore::ZCompareLessEqual);
+			break;
+		case 6:
+			Kore::Graphics::setRenderState(Kore::DepthTest, true);
+			Kore::Graphics::setRenderState(Kore::DepthTestCompare, Kore::ZCompareGreater);
+			break;
+		case 7:
+			Kore::Graphics::setRenderState(Kore::DepthTest, true);
+			Kore::Graphics::setRenderState(Kore::DepthTestCompare, Kore::ZCompareGreaterEqual);
+			break;
+		}
+		Kore::Graphics::setRenderState(Kore::DepthWrite, write);
+	}
+	
 	void krom_begin(const FunctionCallbackInfo<Value>& args) {
 		HandleScope scope(args.GetIsolate());
 		if (args[0]->IsNull() || args[0]->IsUndefined()) {
@@ -700,6 +754,8 @@ namespace {
 		krom->Set(String::NewFromUtf8(isolate, "setMatrix"), FunctionTemplate::New(isolate, krom_set_matrix));
 		krom->Set(String::NewFromUtf8(isolate, "getTime"), FunctionTemplate::New(isolate, krom_get_time));
 		krom->Set(String::NewFromUtf8(isolate, "createRenderTarget"), FunctionTemplate::New(isolate, krom_create_render_target));
+		krom->Set(String::NewFromUtf8(isolate, "viewport"), FunctionTemplate::New(isolate, krom_viewport));
+		krom->Set(String::NewFromUtf8(isolate, "setDepthMode"), FunctionTemplate::New(isolate, krom_set_depth_mode));
 		krom->Set(String::NewFromUtf8(isolate, "begin"), FunctionTemplate::New(isolate, krom_begin));
 		krom->Set(String::NewFromUtf8(isolate, "end"), FunctionTemplate::New(isolate, krom_end));
 		
@@ -1078,6 +1134,7 @@ int kore(int argc, char** argv) {
 	options.rendererOptions.antialiasing = 0;
 	Kore::System::initWindow(options);
 	
+	Kore::Graphics::setRenderState(Kore::DepthTest, false);
 	//Mixer::init();
 	//Audio::init();
 	Kore::Random::init(Kore::System::time() * 1000);
