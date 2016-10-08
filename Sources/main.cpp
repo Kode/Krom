@@ -440,6 +440,9 @@ namespace {
 		Kore::TextureUnit* unit = (Kore::TextureUnit*)unitfield->Value();
 		
 		Kore::Texture* texture = nullptr;
+
+		if (args[1]->IsNull() || args[1]->IsUndefined()) return;
+
 		String::Utf8Value filename(args[1]->ToObject()->Get(String::NewFromUtf8(isolate, "filename")));
 		if (imageChanges[*filename]) {
 			imageChanges[*filename] = false;
