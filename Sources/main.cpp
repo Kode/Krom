@@ -439,22 +439,32 @@ namespace {
 		Local<External> unitfield = Local<External>::Cast(args[0]->ToObject()->GetInternalField(0));
 		Kore::TextureUnit* unit = (Kore::TextureUnit*)unitfield->Value();
 		
-		Kore::Texture* texture = nullptr;
-
 		if (args[1]->IsNull() || args[1]->IsUndefined()) return;
 
-		String::Utf8Value filename(args[1]->ToObject()->Get(String::NewFromUtf8(isolate, "filename")));
-		if (imageChanges[*filename]) {
-			imageChanges[*filename] = false;
-			printf("Image %s changed.\n", *filename);
-			texture = new Kore::Texture(*filename);
-			args[1]->ToObject()->SetInternalField(0, External::New(isolate, texture));
+		Local<Object> image = args[1]->ToObject();
+		Local<Value> tex = image->Get(String::NewFromUtf8(isolate, "texture_"));
+		Local<Value> rt = image->Get(String::NewFromUtf8(isolate, "renderTarget_"));
+
+		if (tex->IsObject()) {
+			Kore::Texture* texture;
+			String::Utf8Value filename(tex->ToObject()->Get(String::NewFromUtf8(isolate, "filename")));
+			if (imageChanges[*filename]) {
+				imageChanges[*filename] = false;
+				printf("Image %s changed.\n", *filename);
+				texture = new Kore::Texture(*filename);
+				args[1]->ToObject()->SetInternalField(0, External::New(isolate, texture));
+			}
+			else {
+				Local<External> texfield = Local<External>::Cast(tex->ToObject()->GetInternalField(0));
+				texture = (Kore::Texture*)texfield->Value();
+			}
+			Kore::Graphics::setTexture(*unit, texture);
 		}
-		else {
-			Local<External> texfield = Local<External>::Cast(args[1]->ToObject()->GetInternalField(0));
-			texture = (Kore::Texture*)texfield->Value();
+		else if (rt->IsObject()) {
+			Local<External> rtfield = Local<External>::Cast(rt->ToObject()->GetInternalField(0));
+			Kore::RenderTarget* renderTarget = (Kore::RenderTarget*)rtfield->Value();
+			renderTarget->useColorAsTexture(*unit);
 		}
-		Kore::Graphics::setTexture(*unit, texture);
 	}
 	
 	void krom_set_bool(const FunctionCallbackInfo<Value>& args) {
