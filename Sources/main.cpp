@@ -453,7 +453,7 @@ namespace {
 				imageChanges[*filename] = false;
 				Kore::log(Kore::Info, "Image %s changed.", *filename);
 				texture = new Kore::Texture(*filename);
-				args[1]->ToObject()->SetInternalField(0, External::New(isolate, texture));
+				tex->ToObject()->SetInternalField(0, External::New(isolate, texture));
 			}
 			else {
 				Local<External> texfield = Local<External>::Cast(tex->ToObject()->GetInternalField(0));
@@ -1171,7 +1171,7 @@ int kore(int argc, char** argv) {
 
 	parseCode();
 
-	//watchDirectories(argv[1], argv[2]);
+	watchDirectories(argv[1], argv[2]);
 	
 	if (started) {
 		//startDebugger(isolate);

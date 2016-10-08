@@ -1,7 +1,9 @@
+#include "pch.h"
+
 #ifdef SYS_WINDOWS
 
-#include "pch.h"
 #include <Kore/Threads/Thread.h>
+#include <Kore/Log.h>
 #include <stdlib.h>
 #include <string.h>
 #include <windows.h>
@@ -9,38 +11,34 @@
 extern "C" void filechanged(char* file);
 
 namespace {
-	void checkDirectory(HANDLE handle) {
-		char path[256];
-		DWORD bytesReturned;
-		ReadDirectoryChangesW(handle, path, 256, TRUE, FILE_NOTIFY_CHANGE_LAST_WRITE, &bytesReturned, nullptr, nullptr);
-		int a = 3;
-		++a;
-	}
-
 	void watch(void* data) {
-		char** paths = (char**)data;
-		HANDLE changeHandle1 = FindFirstChangeNotificationA(paths[0], TRUE, FILE_NOTIFY_CHANGE_LAST_WRITE);
-		HANDLE changeHandle2 = FindFirstChangeNotificationA(paths[1], TRUE, FILE_NOTIFY_CHANGE_LAST_WRITE);
-		HANDLE handles[] = { changeHandle1, changeHandle2 };
-		DWORD waitStatus = WaitForMultipleObjects(2, handles, FALSE, INFINITE);
+		HANDLE handle = ::CreateFileA((char*)data, FILE_LIST_DIRECTORY, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, NULL, OPEN_EXISTING, FILE_FLAG_BACKUP_SEMANTICS | FILE_FLAG_OVERLAPPED, NULL);
+		
+		union {
+			FILE_NOTIFY_INFORMATION i;
+			char d[sizeof(FILE_NOTIFY_INFORMATION) + MAX_PATH];
+		} info;
+
+		char path[MAX_PATH];
+
+		DWORD bytesReturned = 0;
+
 		for (;;) {
-			switch (waitStatus) {
-			case WAIT_OBJECT_0:
-				checkDirectory(changeHandle1);
-				FindNextChangeNotification(changeHandle1);
-				break;
-			case WAIT_OBJECT_0 + 1:
-				checkDirectory(changeHandle2);
-				FindNextChangeNotification(changeHandle2);
-				break;
+			ReadDirectoryChangesW(handle, &info, sizeof(info), TRUE, FILE_NOTIFY_CHANGE_LAST_WRITE, &bytesReturned, nullptr, nullptr);
+			info.i.FileName[info.i.FileNameLength] = 0;
+			for (unsigned i = 0; i < info.i.FileNameLength; ++i) {
+				path[i] = (char)info.i.FileName[i];
 			}
+			path[info.i.FileNameLength / 2] = 0;
+			filechanged(path);
 		}
 	}
 }
 
 extern "C" void watchDirectories(char* path1, char* path2) {
-	char* paths[] = { path1, path2 };
-	Kore::createAndRunThread(watch, paths);
+	Kore::threadsInit();
+	Kore::createAndRunThread(watch, path1);
+	Kore::createAndRunThread(watch, path2);
 }
 
 #endif
