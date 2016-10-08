@@ -14,11 +14,12 @@
 #include <Kore/Audio/SoundStream.h>
 #include <Kore/Math/Random.h>
 #include <Kore/System.h>
-#include <stdio.h>
+#include <Kore/Log.h>
 
 #include "../V8/include/libplatform/libplatform.h"
 #include "../V8/include/v8.h"
 
+#include <stdio.h>
 #include <fstream>
 #include <map>
 #include <sstream>
@@ -450,7 +451,7 @@ namespace {
 			String::Utf8Value filename(tex->ToObject()->Get(String::NewFromUtf8(isolate, "filename")));
 			if (imageChanges[*filename]) {
 				imageChanges[*filename] = false;
-				printf("Image %s changed.\n", *filename);
+				Kore::log(Kore::Info, "Image %s changed.", *filename);
 				texture = new Kore::Texture(*filename);
 				args[1]->ToObject()->SetInternalField(0, External::New(isolate, texture));
 			}
@@ -466,7 +467,54 @@ namespace {
 			renderTarget->useColorAsTexture(*unit);
 		}
 	}
+
+	Kore::TextureAddressing convertTextureAddressing(int index) {
+		switch (index) {
+		default:
+		case 0: // Repeat
+			return Kore::Repeat;
+		case 1: // Mirror
+			return Kore::Mirror;
+		case 2: // Clamp
+			return Kore::Clamp;
+		}
+	}
+
+	Kore::TextureFilter convertTextureFilter(int index) {
+		switch (index) {
+		default:
+		case 0: // PointFilter
+			return Kore::PointFilter;
+		case 1: // LinearFilter
+			return Kore::LinearFilter;
+		case 2: // AnisotropicFilter
+			return Kore::AnisotropicFilter;
+		}
+	}
+
+	Kore::MipmapFilter convertMipmapFilter(int index) {
+		switch (index) {
+		default:
+		case 0: // NoMipFilter
+			return Kore::NoMipFilter;
+		case 1: // PointMipFilter
+			return Kore::PointMipFilter;
+		case 2: // LinearMipFilter
+			return Kore::LinearMipFilter;
+		}
+	}
 	
+	void krom_set_texture_parameters(const FunctionCallbackInfo<Value>& args) {
+		HandleScope scope(args.GetIsolate());
+		Local<External> unitfield = Local<External>::Cast(args[0]->ToObject()->GetInternalField(0));
+		Kore::TextureUnit* unit = (Kore::TextureUnit*)unitfield->Value();
+		Kore::Graphics::setTextureAddressing(*unit, Kore::U, convertTextureAddressing(args[1]->ToInt32()->Int32Value()));
+		Kore::Graphics::setTextureAddressing(*unit, Kore::V, convertTextureAddressing(args[2]->ToInt32()->Int32Value()));
+		Kore::Graphics::setTextureMinificationFilter(*unit, convertTextureFilter(args[3]->ToInt32()->Int32Value()));
+		Kore::Graphics::setTextureMagnificationFilter(*unit, convertTextureFilter(args[4]->ToInt32()->Int32Value()));
+		Kore::Graphics::setTextureMipmapFilter(*unit, convertMipmapFilter(args[5]->ToInt32()->Int32Value()));
+	}
+
 	void krom_set_bool(const FunctionCallbackInfo<Value>& args) {
 		HandleScope scope(args.GetIsolate());
 		Local<External> locationfield = Local<External>::Cast(args[0]->ToObject()->GetInternalField(0));
@@ -642,6 +690,7 @@ namespace {
 		krom->Set(String::NewFromUtf8(isolate, "getConstantLocation"), FunctionTemplate::New(isolate, krom_get_constant_location));
 		krom->Set(String::NewFromUtf8(isolate, "getTextureUnit"), FunctionTemplate::New(isolate, krom_get_texture_unit));
 		krom->Set(String::NewFromUtf8(isolate, "setTexture"), FunctionTemplate::New(isolate, krom_set_texture));
+		krom->Set(String::NewFromUtf8(isolate, "setTextureParameters"), FunctionTemplate::New(isolate, krom_set_texture_parameters));
 		krom->Set(String::NewFromUtf8(isolate, "setBool"), FunctionTemplate::New(isolate, krom_set_bool));
 		krom->Set(String::NewFromUtf8(isolate, "setInt"), FunctionTemplate::New(isolate, krom_set_int));
 		krom->Set(String::NewFromUtf8(isolate, "setFloat"), FunctionTemplate::New(isolate, krom_set_float));
