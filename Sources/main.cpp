@@ -673,6 +673,16 @@ namespace {
 		}
 		Kore::Graphics::setRenderState(Kore::DepthWrite, write);
 	}
+
+	void krom_render_targets_inverted_y(const FunctionCallbackInfo<Value>& args) {
+		HandleScope scope(args.GetIsolate());
+		
+#ifdef OPENGL
+		args.GetReturnValue().Set(Boolean::New(isolate, true));
+#else
+		args.GetReturnValue().Set(Boolean::New(isolate, false));
+#endif
+	}
 	
 	void krom_begin(const FunctionCallbackInfo<Value>& args) {
 		HandleScope scope(args.GetIsolate());
@@ -756,6 +766,7 @@ namespace {
 		krom->Set(String::NewFromUtf8(isolate, "createRenderTarget"), FunctionTemplate::New(isolate, krom_create_render_target));
 		krom->Set(String::NewFromUtf8(isolate, "viewport"), FunctionTemplate::New(isolate, krom_viewport));
 		krom->Set(String::NewFromUtf8(isolate, "setDepthMode"), FunctionTemplate::New(isolate, krom_set_depth_mode));
+		krom->Set(String::NewFromUtf8(isolate, "renderTargetsInvertedY"), FunctionTemplate::New(isolate, krom_render_targets_inverted_y));
 		krom->Set(String::NewFromUtf8(isolate, "begin"), FunctionTemplate::New(isolate, krom_begin));
 		krom->Set(String::NewFromUtf8(isolate, "end"), FunctionTemplate::New(isolate, krom_end));
 		
