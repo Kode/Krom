@@ -24,20 +24,20 @@ namespace {
     void watch(void*) {
         int fd = inotify_init();
         assert(fd >= 0);
-        inotify_add_watch(fd, path1, IN_MODIFY);
-        inotify_add_watch(fd, path2, IN_MODIFY);
+        inotify_add_watch(fd, path1, IN_MODIFY | IN_MOVE);
+        inotify_add_watch(fd, path2, IN_MODIFY | IN_MOVE);
         char buffer[EVENT_BUF_LEN];
-        int length = read(fd, buffer, EVENT_BUF_LEN);
-        assert(length >= 0);
-        int i = 0;
-        while (i < length) {
-            inotify_event* event = (inotify_event*)&buffer[i];
-            if (event->len) {
-                if (event->mask & IN_MODIFY) {
-                    Kore::log(Kore::Info, "File changed: %s", event->name);
+        for (;;) {
+            int length = read(fd, buffer, EVENT_BUF_LEN);
+            assert(length >= 0);
+            int i = 0;
+            while (i < length) {
+                inotify_event* event = (inotify_event*)&buffer[i];
+                if (event->len) {
+                    filechanged(event->name);
                 }
+                i += EVENT_SIZE + event->len;
             }
-            i += EVENT_SIZE + event->len;
         }
     }
 }
