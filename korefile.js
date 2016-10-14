@@ -5,6 +5,12 @@ let project = new Project('Krom', __dirname);
 const release = false;
 const build = release ? 'release' : 'debug';
 let system = 'linux';
+if (os.platform() === 'darwin') {
+	system = 'macos';
+}
+else if (os.platform === 'win32') {
+	system = 'win32';
+}
 const libdir = 'V8/Libraries/' + system + '/' + build + '/';
 
 project.cpp11 = true;
@@ -23,13 +29,11 @@ if (platform === Platform.Windows) {
 }
 
 if (platform === Platform.OSX) {
-	project.addLib('V8/Libraries/osx/debug/libicudata.a');
-	project.addLib('V8/Libraries/osx/debug/libicui18n.a');
-	project.addLib('V8/Libraries/osx/debug/libicuuc.a');
-	project.addLib('V8/Libraries/osx/debug/libv8_base.a');
-	project.addLib('V8/Libraries/osx/debug/libv8_external_snapshot.a');
-	project.addLib('V8/Libraries/osx/debug/libv8_libbase.a');
-	project.addLib('V8/Libraries/osx/debug/libv8_libplatform.a');
+	project.addLib(libdir + 'libv8.dylib');
+	project.addLib(libdir + 'libv8_libplatform.a');
+	project.addLib(libdir + 'libv8_libbase.dylib');
+	project.addLib(libdir + 'libicui18n.dylib');
+	project.addLib(libdir + 'libicuuc.dylib');
 }
 
 if (platform === Platform.Linux) {

@@ -707,7 +707,7 @@ namespace {
 		char filepath[256];
 		strcpy(filepath, macgetresourcepath());
 		strcat(filepath, "/");
-		strcat(filepath, "Deployment");
+		strcat(filepath, "macos");
 		strcat(filepath, "/");
 		V8::InitializeICUDefaultLocation(filepath);
 		V8::InitializeExternalStartupData(filepath);
