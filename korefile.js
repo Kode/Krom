@@ -8,7 +8,7 @@ let system = 'linux';
 if (os.platform() === 'darwin') {
 	system = 'macos';
 }
-else if (os.platform === 'win32') {
+else if (os.platform() === 'win32') {
 	system = 'win32';
 }
 const libdir = 'V8/Libraries/' + system + '/' + build + '/';
@@ -23,9 +23,9 @@ if (platform === Platform.Windows) {
 		project.addLib('Shlwapi');
 	}
 	project.addLib('Winmm');
-	project.addLib('V8/Libraries/win32/debug/v8.dll');
-	project.addLib('V8/Libraries/win32/debug/v8_libbase');
-	project.addLib('V8/Libraries/win32/debug/v8_libplatform');
+	project.addLib(libdir + 'v8.dll');
+	project.addLib(libdir + 'v8_libbase.dll');
+	project.addLib(libdir + 'v8_libplatform');
 }
 
 if (platform === Platform.OSX) {

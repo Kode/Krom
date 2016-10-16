@@ -1174,7 +1174,7 @@ int kore(int argc, char** argv) {
 	watchDirectories(argv[1], argv[2]);
 	
 	if (started) {
-		//startDebugger(isolate);
+		//**startDebugger(isolate);
 		Kore::System::start();
 	}
 	

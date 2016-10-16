@@ -1,7 +1,9 @@
 #include "../V8/include/v8.h"
 #include "../V8/include/v8-debug.h"
+#include <v8-inspector.h>
 #include "pch.h"
 #include <Kore/Threads/Thread.h>
+#include <Kore/Network/Socket.h>
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -129,15 +131,47 @@ namespace {
 			}
 		}*/
 	}
+
+
+	class DebugChannel : public v8_inspector::V8Inspector::Channel {
+		void sendProtocolResponse(int callId, const v8_inspector::StringView& message) {
+			int a = 3;
+			++a;
+		}
+
+		void sendProtocolNotification(const v8_inspector::StringView& message) {
+			int a = 3;
+			++a;
+		}
+
+		void flushProtocolNotifications() {
+
+		}
+	};
+
+	v8_inspector::V8InspectorClient* v8client;
+	std::unique_ptr<v8_inspector::V8Inspector> v8inspector;
+	DebugChannel* v8channel;
+	std::unique_ptr<v8_inspector::V8InspectorSession> v8session;
+
+	void initDebugger(v8::Isolate* isolate) {
+		v8client = new v8_inspector::V8InspectorClient;
+		v8inspector = v8_inspector::V8Inspector::create(isolate, v8client);
+		v8channel = new DebugChannel;
+		v8_inspector::StringView state;
+		v8session = v8inspector->connect(0, v8channel, state);
+	}
 }
 
 void startDebugger(v8::Isolate* isolate) {
-	v8::HandleScope scope(isolate);
-	v8::Debug::SetMessageHandler(isolate, messageHandler);
-	Kore::createAndRunThread(run, isolate);
+	//v8::HandleScope scope(isolate);
+	//v8::Debug::SetMessageHandler(isolate, messageHandler);
+	
+	//**Kore::createAndRunThread(run, isolate);
+	run(isolate);
 }
 
-#define PORT 9911
+#define PORT 9222
 #define RCVBUFSIZE 1024
 
 static void error_exit(const char *errorMessage);
@@ -157,26 +191,29 @@ static void echo(v8::Isolate* isolate, int client_socket)
 		if ((recv_size = recv(client_socket, echo_buffer, RCVBUFSIZE,0)) < 0) error_exit("recv() error");
 		echo_buffer[recv_size] = '\0';
 		
-		int first_bracket = 0;
+		/*int first_bracket = 0;
 		for (int i = 0; i < recv_size; ++i) {
 			if (echo_buffer[i] == '{') {
 				first_bracket = i;
 				break;
 			}
-		}
+		}*/
 	
-		if (first_bracket > 0) {
+		//if (first_bracket > 0) {
 			time(&zeit);
 			printf("Client Message: %s \t%s", echo_buffer, ctime(&zeit));
 			
 			//v8::Local<v8::String> string = v8::String::NewFromUtf8(isolate, echo_buffer);
 			//v8::String::Value value(string);
 	
-			char* json = &echo_buffer[first_bracket];
-			std::vector<uint16_t> value = utf8_to_utf16(json);
+			//char* json = &echo_buffer[first_bracket];
+			//std::vector<uint16_t> value = utf8_to_utf16(json);
 	
-			v8::Debug::SendCommand(isolate, value.data(), value.size());
-		}
+			//v8::Debug::SendCommand(isolate, value.data(), value.size());
+
+			v8_inspector::StringView message((uint8_t*)echo_buffer, recv_size);
+			v8session->dispatchProtocolMessage(message);
+		//}
 	//}
 }
 
@@ -188,6 +225,7 @@ static void error_exit(const char *error_message) {
 #endif
 	exit(EXIT_FAILURE);
 }
+
 
 void startserver(v8::Isolate* isolate) {
 	struct sockaddr_in server, client;
