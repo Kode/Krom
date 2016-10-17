@@ -4,6 +4,7 @@
 #include "pch.h"
 #include <Kore/Threads/Thread.h>
 #include <Kore/Network/Socket.h>
+#include <Kore/Log.h>
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -103,8 +104,12 @@ std::vector<uint16_t> utf8_to_utf16(const std::string& utf8)
 void startserver(v8::Isolate* isolate);
 
 namespace {
+#ifdef SYS_WINDOWS
+	SOCKET client_socket;
+#else
 	int client_socket;
-	
+#endif
+
 	void messageHandler(const v8::Debug::Message& message) {
 		if (message.IsResponse()) {
 			v8::Local<v8::String> string = message.GetJSON();
@@ -171,6 +176,8 @@ void startDebugger(v8::Isolate* isolate) {
 	run(isolate);
 }
 
+std::string sha1(const char* data, int length);
+
 #define PORT 9222
 #define RCVBUFSIZE 1024
 
@@ -188,7 +195,7 @@ static void echo(v8::Isolate* isolate, int client_socket)
 		int recv_size;
 		time_t zeit;
 	
-		if ((recv_size = recv(client_socket, echo_buffer, RCVBUFSIZE,0)) < 0) error_exit("recv() error");
+		if ((recv_size = recv(client_socket, echo_buffer, RCVBUFSIZE, 0)) < 0) error_exit("recv() error");
 		echo_buffer[recv_size] = '\0';
 		
 		/*int first_bracket = 0;
@@ -201,7 +208,7 @@ static void echo(v8::Isolate* isolate, int client_socket)
 	
 		//if (first_bracket > 0) {
 			time(&zeit);
-			printf("Client Message: %s \t%s", echo_buffer, ctime(&zeit));
+			Kore::log(Kore::Info, "Client Message: %s \t%s", echo_buffer, ctime(&zeit));
 			
 			//v8::Local<v8::String> string = v8::String::NewFromUtf8(isolate, echo_buffer);
 			//v8::String::Value value(string);
@@ -213,6 +220,62 @@ static void echo(v8::Isolate* isolate, int client_socket)
 
 			v8_inspector::StringView message((uint8_t*)echo_buffer, recv_size);
 			v8session->dispatchProtocolMessage(message);
+
+			static bool first = true;
+
+			if (first) {
+				char* httpheader =
+"HTTP/1.1 200 OK\r\n\
+Server: Krom\r\n\
+Content-Length: 371\r\n\
+Content-Language: en\r\n\
+Connection: close\r\n\
+Content-Type: text/json\r\n\
+\r\n\r\n";
+
+				char* httpdata =
+"[{\r\n\
+\"description\": \"\",\r\n\
+\"devtoolsFrontendUrl\": \"/devtools/inspector.html?ws=localhost:9222/devtools/page/dc5c7352-a3c4-40d2-9bec-30a329ef40e0\",\r\n\
+\"id\": \"dc5c7352-a3c4-40d2-9bec-30a329ef40e0\",\r\n\
+\"title\": \"localhost:9222/json\",\r\n\
+\"type\": \"page\",\r\n\
+\"url\": \"http://krom\",\r\n\
+\"webSocketDebuggerUrl\": \"ws://localhost:9222/devtools/page/dc5c7352-a3c4-40d2-9bec-30a329ef40e0\"\r\n\
+}]";
+
+				char data[4096];
+				strcpy(data, httpheader);
+				strcat(data, httpdata);
+				//int a = strlen(httpdata);
+				send(client_socket, data, strlen(data), 0);
+
+				first = false;
+			}
+			else {
+				std::string buffer = echo_buffer;
+				std::string search = "Sec-WebSocket-Key: ";
+				size_t start = buffer.find(search, 0);
+				size_t end = buffer.find_first_of('\r', start);
+				std::string key = buffer.substr(start + search.length(), end - start - search.length()) + "258EAFA5-E914-47DA-95CA-C5AB0DC85B11";
+				//std::string key = "dGhlIHNhbXBsZSBub25jZQ==258EAFA5-E914-47DA-95CA-C5AB0DC85B11";
+				std::string sha = sha1(key.c_str(), key.length());
+				while (sha[sha.length() - 1] == '\n' || sha[sha.length() - 1] == '\r') {
+					sha = sha.substr(0, sha.length() - 1);
+				}
+
+				char data[4096];
+				strcpy(data,
+					"HTTP/1.1 101 Switching Protocols\r\n\
+Upgrade: websocket\r\n\
+Connection: Upgrade\r\n\
+Sec-WebSocket-Accept: ");
+				strcat(data, sha.c_str());
+				strcat(data, "\r\n");
+				strcat(data, "Sec-WebSocket-Extensions: permessage-deflate");
+				strcat(data, "\r\n\r\n");
+				send(client_socket, data, strlen(data), 0);
+			}
 		//}
 	//}
 }
@@ -228,6 +291,8 @@ static void error_exit(const char *error_message) {
 
 
 void startserver(v8::Isolate* isolate) {
+	initDebugger(isolate);
+
 	struct sockaddr_in server, client;
 	
 #ifdef _WIN32

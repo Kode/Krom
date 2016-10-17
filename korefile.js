@@ -22,6 +22,8 @@ if (platform === Platform.Windows) {
 		project.addLib('Dbghelp');
 		project.addLib('Shlwapi');
 	}
+	project.addLib('bcrypt');
+	project.addLib('Crypt32');
 	project.addLib('Winmm');
 	project.addLib(libdir + 'v8.dll');
 	project.addLib(libdir + 'v8_libbase.dll');
