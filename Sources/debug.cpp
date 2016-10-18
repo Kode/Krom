@@ -1,3 +1,4 @@
+#include "pch.h"
 #include "../V8/include/v8.h"
 #include "../V8/include/v8-debug.h"
 #include <v8-inspector.h>
@@ -12,6 +13,7 @@
 #include <fcntl.h>
 #include <errno.h>
 #include <time.h>
+#include <assert.h>
 
 #ifdef _WIN32
 #include <winsock.h>
@@ -140,13 +142,35 @@ namespace {
 
 	class DebugChannel : public v8_inspector::V8Inspector::Channel {
 		void sendProtocolResponse(int callId, const v8_inspector::StringView& message) {
-			int a = 3;
-			++a;
+			if (!message.is8Bit()) {
+				char* eightbit = (char*)alloca(message.length() + 1);
+				for (int i = 0; i < message.length(); ++i) {
+					eightbit[i] = message.characters16()[i];
+				}
+				eightbit[message.length()] = 0;
+				int a = 3;
+				++a;
+			}
+			else {
+				int a = 3;
+				++a;
+			}
 		}
 
 		void sendProtocolNotification(const v8_inspector::StringView& message) {
-			int a = 3;
-			++a;
+			if (!message.is8Bit()) {
+				char* eightbit = (char*)alloca(message.length() + 1);
+				for (int i = 0; i < message.length(); ++i) {
+					eightbit[i] = message.characters16()[i];
+				}
+				eightbit[message.length()] = 0;
+				int a = 3;
+				++a;
+			}
+			else {
+				int a = 3;
+				++a;
+			}
 		}
 
 		void flushProtocolNotifications() {
@@ -189,7 +213,7 @@ static void echo(v8::Isolate* isolate, SOCKET client_socket)
 static void echo(v8::Isolate* isolate, int client_socket)
 #endif
 {
-	//for (;;) {
+	for (;;) {
 		::client_socket = client_socket;
 		char echo_buffer[RCVBUFSIZE];
 		int recv_size;
@@ -207,8 +231,10 @@ static void echo(v8::Isolate* isolate, int client_socket)
 		}*/
 	
 		//if (first_bracket > 0) {
+			static int step = 0;
+
 			time(&zeit);
-			Kore::log(Kore::Info, "Client Message: %s \t%s", echo_buffer, ctime(&zeit));
+			if (step < 2) Kore::log(Kore::Info, "Client Message: %s \t%s", echo_buffer, ctime(&zeit));
 			
 			//v8::Local<v8::String> string = v8::String::NewFromUtf8(isolate, echo_buffer);
 			//v8::String::Value value(string);
@@ -218,12 +244,10 @@ static void echo(v8::Isolate* isolate, int client_socket)
 	
 			//v8::Debug::SendCommand(isolate, value.data(), value.size());
 
-			v8_inspector::StringView message((uint8_t*)echo_buffer, recv_size);
-			v8session->dispatchProtocolMessage(message);
+			//**v8_inspector::StringView message((uint8_t*)echo_buffer, recv_size);
+			//**v8session->dispatchProtocolMessage(message);
 
-			static bool first = true;
-
-			if (first) {
+			if (step == 0) {
 				char* httpheader =
 "HTTP/1.1 200 OK\r\n\
 Server: Krom\r\n\
@@ -250,9 +274,11 @@ Content-Type: text/json\r\n\
 				//int a = strlen(httpdata);
 				send(client_socket, data, strlen(data), 0);
 
-				first = false;
+				++step;
+
+				return;
 			}
-			else {
+			else if (step == 1) {
 				std::string buffer = echo_buffer;
 				std::string search = "Sec-WebSocket-Key: ";
 				size_t start = buffer.find(search, 0);
@@ -272,11 +298,58 @@ Connection: Upgrade\r\n\
 Sec-WebSocket-Accept: ");
 				strcat(data, sha.c_str());
 				strcat(data, "\r\n");
-				strcat(data, "Sec-WebSocket-Extensions: permessage-deflate");
+				strcat(data, "Sec-WebSocket-Extensions:");
 				strcat(data, "\r\n\r\n");
 				send(client_socket, data, strlen(data), 0);
+
+				++step;
 			}
-		//}
+			else {
+				unsigned char* buffer = (unsigned char*)echo_buffer;
+
+				unsigned char fin = buffer[0] >> 7;
+				unsigned char opcode = buffer[0] & 0xf;
+				unsigned char maskbit = buffer[1] >> 7;
+				unsigned char payload1 = buffer[1] & 0x7f;
+				
+				int position = 0;
+				
+				Kore::u64 payload = 0;
+				if (payload1 <= 125) {
+					payload = payload1;
+					position = 2;
+				}
+				else if (payload1 == 126) {
+					unsigned short payload2 = *(unsigned short*)buffer[2];
+					payload = payload2;
+					position = 4;
+				}
+				else {
+					assert(payload1 == 127);
+					payload = *(Kore::u64*)buffer[2];
+					position = 10;
+				}
+
+				unsigned char mask[4];
+				if (maskbit) {
+					for (int i = 0; i < 4; ++i) {
+						mask[i] = buffer[position++];
+					}
+				}
+
+				unsigned char* encoded = &buffer[position];
+				unsigned char decoded[RCVBUFSIZE];
+				for (Kore::u64 i = 0; i < payload; ++i) {
+					decoded[i] = encoded[i] ^ mask[i % 4];
+				}
+				decoded[payload] = 0;
+
+				Kore::log(Kore::Info, "WebSocket message: %s", decoded);
+
+				v8_inspector::StringView message(decoded, payload);
+				v8session->dispatchProtocolMessage(message);
+			}
+		}
 	//}
 }
 
@@ -332,7 +405,7 @@ void startserver(v8::Isolate* isolate) {
 		len = sizeof(client);
 		fd = accept(sock, (struct sockaddr*)&client, &len);
 		if (fd < 0) error_exit("accept() error");
-		printf("Data from address: %s\n", inet_ntoa(client.sin_addr));
+		Kore::log(Kore::Info, "Data from address: %s\n", inet_ntoa(client.sin_addr));
 		echo(isolate, fd);
 		
 #ifdef _WIN32
