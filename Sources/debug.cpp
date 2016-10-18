@@ -139,6 +139,22 @@ namespace {
 		}*/
 	}
 
+	std::string encodeMessage(std::string message) {
+		std::string encoded;
+		encoded += (unsigned char)0x81;
+		if (message.length() <= 125) {
+			encoded += (unsigned char)message.length();
+		}
+		else {
+			encoded += (unsigned char)126;
+			unsigned short payload = (unsigned short)message.length();
+			unsigned char* payloadparts = (unsigned char*)&payload;
+			encoded += payloadparts[1];
+			encoded += payloadparts[0];
+		}
+		encoded += message;
+		return encoded;
+	}
 
 	class DebugChannel : public v8_inspector::V8Inspector::Channel {
 		void sendProtocolResponse(int callId, const v8_inspector::StringView& message) {
@@ -148,8 +164,9 @@ namespace {
 					eightbit[i] = message.characters16()[i];
 				}
 				eightbit[message.length()] = 0;
-				int a = 3;
-				++a;
+				
+				std::string encoded = encodeMessage(eightbit);
+				send(client_socket, encoded.c_str(), encoded.length(), 0);
 			}
 			else {
 				int a = 3;
@@ -164,8 +181,9 @@ namespace {
 					eightbit[i] = message.characters16()[i];
 				}
 				eightbit[message.length()] = 0;
-				int a = 3;
-				++a;
+				
+				std::string encoded = encodeMessage(eightbit);
+				send(client_socket, encoded.c_str(), encoded.length(), 0);
 			}
 			else {
 				int a = 3;
