@@ -35,6 +35,7 @@ namespace {
 
 	Kore::Mutex mutex;
 	std::vector<std::string> queuedMessages;
+	volatile int step = 0;
 
 #ifdef SYS_WINDOWS
 	SOCKET client_socket;
@@ -65,8 +66,6 @@ namespace {
 
 			if ((recv_size = recv(client_socket, echo_buffer, RCVBUFSIZE, 0)) < 0) error_exit("recv() error");
 			echo_buffer[recv_size] = '\0';
-
-			static int step = 0;
 
 			time(&zeit);
 			if (step < 2) Kore::log(Kore::Info, "Client Message: %s - %s", echo_buffer, ctime(&zeit));
@@ -134,43 +133,47 @@ Sec-WebSocket-Accept: ");
 				unsigned char maskbit = buffer[1] >> 7;
 				unsigned char payload1 = buffer[1] & 0x7f;
 
-				int position = 0;
+				if (opcode == 1) {
+					int position = 0;
 
-				Kore::u64 payload = 0;
-				if (payload1 <= 125) {
-					payload = payload1;
-					position = 2;
-				}
-				else if (payload1 == 126) {
-					unsigned short payload2 = *(unsigned short*)buffer[2];
-					payload = payload2;
-					position = 4;
-				}
-				else {
-					assert(payload1 == 127);
-					payload = *(Kore::u64*)buffer[2];
-					position = 10;
-				}
-
-				unsigned char mask[4];
-				if (maskbit) {
-					for (int i = 0; i < 4; ++i) {
-						mask[i] = buffer[position++];
+					Kore::u64 payload = 0;
+					if (payload1 <= 125) {
+						payload = payload1;
+						position = 2;
 					}
+					else if (payload1 == 126) {
+						unsigned short payload2 = *(unsigned short*)buffer[2];
+						payload = payload2;
+						position = 4;
+					}
+					else {
+						assert(payload1 == 127);
+						payload = *(Kore::u64*)buffer[2];
+						position = 10;
+					}
+
+					unsigned char mask[4];
+					if (maskbit) {
+						for (int i = 0; i < 4; ++i) {
+							mask[i] = buffer[position++];
+						}
+					}
+
+					unsigned char* encoded = &buffer[position];
+					unsigned char decoded[RCVBUFSIZE];
+					for (Kore::u64 i = 0; i < payload; ++i) {
+						decoded[i] = encoded[i] ^ mask[i % 4];
+					}
+					decoded[payload] = 0;
+
+					Kore::log(Kore::Info, "WebSocket message: %s", decoded);
+
+					mutex.Lock();
+					queuedMessages.push_back((char*)decoded);
+					mutex.Unlock();
+
+					step = 3;
 				}
-
-				unsigned char* encoded = &buffer[position];
-				unsigned char decoded[RCVBUFSIZE];
-				for (Kore::u64 i = 0; i < payload; ++i) {
-					decoded[i] = encoded[i] ^ mask[i % 4];
-				}
-				decoded[payload] = 0;
-
-				Kore::log(Kore::Info, "WebSocket message: %s", decoded);
-
-				mutex.Lock();
-				queuedMessages.push_back((char*)decoded);
-				mutex.Unlock();
 			}
 		}
 	}
@@ -267,4 +270,6 @@ std::string receiveMessage() {
 void startServer() {
 	mutex.Create();
 	Kore::createAndRunThread(startServerInThread, nullptr);
+
+	//while (step < 3) { }
 }

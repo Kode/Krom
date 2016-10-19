@@ -82,7 +82,8 @@ void startDebugger(v8::Isolate* isolate) {
 void tickDebugger() {
 	std::string message = receiveMessage();
 	while (message.size() > 0) {
-		v8_inspector::StringView message((const uint8_t*)message.c_str(), message.size());
-		v8session->dispatchProtocolMessage(message);
+		v8_inspector::StringView messageview((const uint8_t*)message.c_str(), message.size());
+		v8session->dispatchProtocolMessage(messageview);
+		message = receiveMessage();
 	}
 }
