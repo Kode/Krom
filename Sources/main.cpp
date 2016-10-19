@@ -16,6 +16,8 @@
 #include <Kore/System.h>
 #include <Kore/Log.h>
 
+#include "debug.h"
+
 #include "../V8/include/libplatform/libplatform.h"
 #include "../V8/include/v8.h"
 
@@ -32,10 +34,11 @@ using namespace v8;
 const char* macgetresourcepath();
 #endif
 
+Global<Context> globalContext;
+
 namespace {
 	Platform* plat;
 	Isolate* isolate;
-	Global<Context> globalContext;
 	Global<Function> updateFunction;
 	Global<Function> keyboardDownFunction;
 	Global<Function> keyboardUpFunction;
@@ -1119,8 +1122,6 @@ extern "C" void filechanged(char* path) {
 	}
 }
 
-void startDebugger(v8::Isolate* isolate);
-
 int kore(int argc, char** argv) {
 	int w = 1024;
 	int h = 768;
@@ -1174,7 +1175,7 @@ int kore(int argc, char** argv) {
 	watchDirectories(argv[1], argv[2]);
 	
 	if (started) {
-		//**startDebugger(isolate);
+		startDebugger(isolate);
 		Kore::System::start();
 	}
 	

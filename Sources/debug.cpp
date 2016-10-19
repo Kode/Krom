@@ -1,10 +1,9 @@
 #include "pch.h"
-#include "../V8/include/v8.h"
+#include "debug.h"
 #include "../V8/include/v8-debug.h"
 #include <v8-inspector.h>
 #include "pch.h"
 #include <Kore/Threads/Thread.h>
-#include <Kore/Network/Socket.h>
 #include <Kore/Log.h>
 
 #include <stdio.h>
@@ -30,78 +29,7 @@
 #include <string>
 #include <stdexcept>
 
-std::vector<uint16_t> utf8_to_utf16(const std::string& utf8)
-{
-	std::vector<uint16_t> unicode;
-	size_t i = 0;
-	while (i < utf8.size())
-	{
-		unsigned long uni;
-		size_t todo;
-		bool error = false;
-		unsigned char ch = utf8[i++];
-		if (ch <= 0x7F)
-		{
-			uni = ch;
-			todo = 0;
-		}
-		else if (ch <= 0xBF)
-		{
-			throw std::logic_error("not a UTF-8 string");
-		}
-		else if (ch <= 0xDF)
-		{
-			uni = ch&0x1F;
-			todo = 1;
-		}
-		else if (ch <= 0xEF)
-		{
-			uni = ch&0x0F;
-			todo = 2;
-		}
-		else if (ch <= 0xF7)
-		{
-			uni = ch&0x07;
-			todo = 3;
-		}
-		else
-		{
-			throw std::logic_error("not a UTF-8 string");
-		}
-		for (size_t j = 0; j < todo; ++j)
-		{
-			if (i == utf8.size())
-				throw std::logic_error("not a UTF-8 string");
-			unsigned char ch = utf8[i++];
-			if (ch < 0x80 || ch > 0xBF)
-				throw std::logic_error("not a UTF-8 string");
-			uni <<= 6;
-			uni += ch & 0x3F;
-		}
-		if (uni >= 0xD800 && uni <= 0xDFFF)
-			throw std::logic_error("not a UTF-8 string");
-		if (uni > 0x10FFFF)
-			throw std::logic_error("not a UTF-8 string");
-		unicode.push_back(uni);
-	}
-	/*std::wstring utf16;
-	for (size_t i = 0; i < unicode.size(); ++i)
-	{
-		unsigned long uni = unicode[i];
-		if (uni <= 0xFFFF)
-		{
-			utf16 += (wchar_t)uni;
-		}
-		else
-		{
-			uni -= 0x10000;
-			utf16 += (wchar_t)((uni >> 10) + 0xD800);
-			utf16 += (wchar_t)((uni & 0x3FF) + 0xDC00);
-		}
-	}
-	return utf16;*/
-	return unicode;
-}
+extern v8::Global<v8::Context> globalContext;
 
 void startserver(v8::Isolate* isolate);
 
@@ -125,18 +53,6 @@ namespace {
 	
 	void run(void* isolate) {
 		startserver((v8::Isolate*)isolate);
-		/*Kore::Socket socket;
-		socket.open(9911);
-		const int maxsize = 512;
-		unsigned char data[maxsize];
-		unsigned fromAddress;
-		unsigned fromPort;
-		for (;;) {
-			int size = socket.receive(data, maxsize, fromAddress, fromPort);
-			if (size > 0) {
-				v8::Debug::SendCommand((v8::Isolate*)isolate, (uint16_t*)data, size);
-			}
-		}*/
 	}
 
 	std::string encodeMessage(std::string message) {
@@ -202,25 +118,24 @@ namespace {
 	std::unique_ptr<v8_inspector::V8InspectorSession> v8session;
 
 	void initDebugger(v8::Isolate* isolate) {
+		v8::HandleScope scope(isolate);
 		v8client = new v8_inspector::V8InspectorClient;
 		v8inspector = v8_inspector::V8Inspector::create(isolate, v8client);
 		v8channel = new DebugChannel;
 		v8_inspector::StringView state;
 		v8session = v8inspector->connect(0, v8channel, state);
+		v8inspector->contextCreated(v8_inspector::V8ContextInfo(globalContext.Get(isolate), 0, v8_inspector::StringView()));
 	}
 }
 
 void startDebugger(v8::Isolate* isolate) {
-	//v8::HandleScope scope(isolate);
-	//v8::Debug::SetMessageHandler(isolate, messageHandler);
-	
 	//**Kore::createAndRunThread(run, isolate);
 	run(isolate);
 }
 
 std::string sha1(const char* data, int length);
 
-#define PORT 9222
+#define PORT 9224
 #define RCVBUFSIZE 1024
 
 static void error_exit(const char *errorMessage);
@@ -240,33 +155,13 @@ static void echo(v8::Isolate* isolate, int client_socket)
 		if ((recv_size = recv(client_socket, echo_buffer, RCVBUFSIZE, 0)) < 0) error_exit("recv() error");
 		echo_buffer[recv_size] = '\0';
 		
-		/*int first_bracket = 0;
-		for (int i = 0; i < recv_size; ++i) {
-			if (echo_buffer[i] == '{') {
-				first_bracket = i;
-				break;
-			}
-		}*/
-	
-		//if (first_bracket > 0) {
-			static int step = 0;
+		static int step = 0;
 
-			time(&zeit);
-			if (step < 2) Kore::log(Kore::Info, "Client Message: %s \t%s", echo_buffer, ctime(&zeit));
-			
-			//v8::Local<v8::String> string = v8::String::NewFromUtf8(isolate, echo_buffer);
-			//v8::String::Value value(string);
-	
-			//char* json = &echo_buffer[first_bracket];
-			//std::vector<uint16_t> value = utf8_to_utf16(json);
-	
-			//v8::Debug::SendCommand(isolate, value.data(), value.size());
-
-			//**v8_inspector::StringView message((uint8_t*)echo_buffer, recv_size);
-			//**v8session->dispatchProtocolMessage(message);
-
-			if (step == 0) {
-				char* httpheader =
+		time(&zeit);
+		if (step < 2) Kore::log(Kore::Info, "Client Message: %s \t%s", echo_buffer, ctime(&zeit));
+		
+		if (step == 0) {
+			char* httpheader =
 "HTTP/1.1 200 OK\r\n\
 Server: Krom\r\n\
 Content-Length: 371\r\n\
@@ -275,100 +170,97 @@ Connection: close\r\n\
 Content-Type: text/json\r\n\
 \r\n\r\n";
 
-				char* httpdata =
+			char* httpdata =
 "[{\r\n\
 \"description\": \"\",\r\n\
-\"devtoolsFrontendUrl\": \"/devtools/inspector.html?ws=localhost:9222/devtools/page/dc5c7352-a3c4-40d2-9bec-30a329ef40e0\",\r\n\
+\"devtoolsFrontendUrl\": \"/devtools/inspector.html?ws=localhost:9224/devtools/page/dc5c7352-a3c4-40d2-9bec-30a329ef40e0\",\r\n\
 \"id\": \"dc5c7352-a3c4-40d2-9bec-30a329ef40e0\",\r\n\
-\"title\": \"localhost:9222/json\",\r\n\
+\"title\": \"localhost:9224/json\",\r\n\
 \"type\": \"page\",\r\n\
 \"url\": \"http://krom\",\r\n\
-\"webSocketDebuggerUrl\": \"ws://localhost:9222/devtools/page/dc5c7352-a3c4-40d2-9bec-30a329ef40e0\"\r\n\
+\"webSocketDebuggerUrl\": \"ws://localhost:9224/devtools/page/dc5c7352-a3c4-40d2-9bec-30a329ef40e0\"\r\n\
 }]";
 
-				char data[4096];
-				strcpy(data, httpheader);
-				strcat(data, httpdata);
-				//int a = strlen(httpdata);
-				send(client_socket, data, strlen(data), 0);
+			char data[4096];
+			strcpy(data, httpheader);
+			strcat(data, httpdata);
+			send(client_socket, data, strlen(data), 0);
 
-				++step;
+			++step;
 
-				return;
+			return;
+		}
+		else if (step == 1) {
+			std::string buffer = echo_buffer;
+			std::string search = "Sec-WebSocket-Key: ";
+			size_t start = buffer.find(search, 0);
+			size_t end = buffer.find_first_of('\r', start);
+			std::string key = buffer.substr(start + search.length(), end - start - search.length()) + "258EAFA5-E914-47DA-95CA-C5AB0DC85B11";
+			std::string sha = sha1(key.c_str(), key.length());
+			while (sha[sha.length() - 1] == '\n' || sha[sha.length() - 1] == '\r') {
+				sha = sha.substr(0, sha.length() - 1);
 			}
-			else if (step == 1) {
-				std::string buffer = echo_buffer;
-				std::string search = "Sec-WebSocket-Key: ";
-				size_t start = buffer.find(search, 0);
-				size_t end = buffer.find_first_of('\r', start);
-				std::string key = buffer.substr(start + search.length(), end - start - search.length()) + "258EAFA5-E914-47DA-95CA-C5AB0DC85B11";
-				//std::string key = "dGhlIHNhbXBsZSBub25jZQ==258EAFA5-E914-47DA-95CA-C5AB0DC85B11";
-				std::string sha = sha1(key.c_str(), key.length());
-				while (sha[sha.length() - 1] == '\n' || sha[sha.length() - 1] == '\r') {
-					sha = sha.substr(0, sha.length() - 1);
-				}
 
-				char data[4096];
-				strcpy(data,
-					"HTTP/1.1 101 Switching Protocols\r\n\
+			char data[4096];
+			strcpy(data,
+				"HTTP/1.1 101 Switching Protocols\r\n\
 Upgrade: websocket\r\n\
 Connection: Upgrade\r\n\
 Sec-WebSocket-Accept: ");
-				strcat(data, sha.c_str());
-				strcat(data, "\r\n");
-				strcat(data, "Sec-WebSocket-Extensions:");
-				strcat(data, "\r\n\r\n");
-				send(client_socket, data, strlen(data), 0);
+			strcat(data, sha.c_str());
+			strcat(data, "\r\n");
+			strcat(data, "Sec-WebSocket-Extensions:");
+			strcat(data, "\r\n\r\n");
+			send(client_socket, data, strlen(data), 0);
 
-				++step;
+			++step;
+		}
+		else {
+			unsigned char* buffer = (unsigned char*)echo_buffer;
+
+			unsigned char fin = buffer[0] >> 7;
+			unsigned char opcode = buffer[0] & 0xf;
+			unsigned char maskbit = buffer[1] >> 7;
+			unsigned char payload1 = buffer[1] & 0x7f;
+				
+			int position = 0;
+				
+			Kore::u64 payload = 0;
+			if (payload1 <= 125) {
+				payload = payload1;
+				position = 2;
+			}
+			else if (payload1 == 126) {
+				unsigned short payload2 = *(unsigned short*)buffer[2];
+				payload = payload2;
+				position = 4;
 			}
 			else {
-				unsigned char* buffer = (unsigned char*)echo_buffer;
-
-				unsigned char fin = buffer[0] >> 7;
-				unsigned char opcode = buffer[0] & 0xf;
-				unsigned char maskbit = buffer[1] >> 7;
-				unsigned char payload1 = buffer[1] & 0x7f;
-				
-				int position = 0;
-				
-				Kore::u64 payload = 0;
-				if (payload1 <= 125) {
-					payload = payload1;
-					position = 2;
-				}
-				else if (payload1 == 126) {
-					unsigned short payload2 = *(unsigned short*)buffer[2];
-					payload = payload2;
-					position = 4;
-				}
-				else {
-					assert(payload1 == 127);
-					payload = *(Kore::u64*)buffer[2];
-					position = 10;
-				}
-
-				unsigned char mask[4];
-				if (maskbit) {
-					for (int i = 0; i < 4; ++i) {
-						mask[i] = buffer[position++];
-					}
-				}
-
-				unsigned char* encoded = &buffer[position];
-				unsigned char decoded[RCVBUFSIZE];
-				for (Kore::u64 i = 0; i < payload; ++i) {
-					decoded[i] = encoded[i] ^ mask[i % 4];
-				}
-				decoded[payload] = 0;
-
-				Kore::log(Kore::Info, "WebSocket message: %s", decoded);
-
-				v8_inspector::StringView message(decoded, payload);
-				v8session->dispatchProtocolMessage(message);
+				assert(payload1 == 127);
+				payload = *(Kore::u64*)buffer[2];
+				position = 10;
 			}
+
+			unsigned char mask[4];
+			if (maskbit) {
+				for (int i = 0; i < 4; ++i) {
+					mask[i] = buffer[position++];
+				}
+			}
+
+			unsigned char* encoded = &buffer[position];
+			unsigned char decoded[RCVBUFSIZE];
+			for (Kore::u64 i = 0; i < payload; ++i) {
+				decoded[i] = encoded[i] ^ mask[i % 4];
+			}
+			decoded[payload] = 0;
+
+			Kore::log(Kore::Info, "WebSocket message: %s", decoded);
+
+			v8_inspector::StringView message(decoded, payload);
+			v8session->dispatchProtocolMessage(message);
 		}
-	//}
+	}
 }
 
 static void error_exit(const char *error_message) {
