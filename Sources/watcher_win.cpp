@@ -36,7 +36,6 @@ namespace {
 }
 
 extern "C" void watchDirectories(char* path1, char* path2) {
-	Kore::threadsInit();
 	Kore::createAndRunThread(watch, path1);
 	Kore::createAndRunThread(watch, path2);
 }

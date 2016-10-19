@@ -15,6 +15,7 @@
 #include <Kore/Math/Random.h>
 #include <Kore/System.h>
 #include <Kore/Log.h>
+#include <Kore/Threads/Thread.h>
 
 #include "debug.h"
 
@@ -833,6 +834,7 @@ namespace {
 	void update() {
 		Kore::Graphics::begin();
 		runV8();
+		tickDebugger();
 		Kore::Graphics::end();
 		Kore::Graphics::swapBuffers();
 	}
@@ -1171,6 +1173,8 @@ int kore(int argc, char** argv) {
 	bool started = startV8(code);
 
 	parseCode();
+
+	Kore::threadsInit();
 
 	watchDirectories(argv[1], argv[2]);
 	
