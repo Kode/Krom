@@ -27,7 +27,7 @@ if (platform === Platform.Windows) {
 	project.addLib('Winmm');
 	project.addLib(libdir + 'v8.dll');
 	project.addLib(libdir + 'v8_libbase.dll');
-	project.addLib(libdir + 'v8_libplatform');
+	project.addLib(libdir + 'v8_libplatform.dll');
 }
 
 if (platform === Platform.OSX) {
