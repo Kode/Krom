@@ -19,10 +19,37 @@
 #include <stdexcept>
 
 extern v8::Global<v8::Context> globalContext;
+extern v8::Isolate* isolate;
 
-void startserver(v8::Isolate* isolate);
+std::unique_ptr<v8_inspector::V8Inspector> v8inspector;
+
+bool v8paused = false;
 
 namespace {
+	class InspectorClient : public v8_inspector::V8InspectorClient {
+	public:
+		void runMessageLoopOnPause(int contextGroupId) override {
+			int a = 3;
+			++a;
+		}
+		
+		void quitMessageLoopOnPause() override {
+			int a = 3;
+			++a;
+		}
+		
+		void runIfWaitingForDebugger(int contextGroupId) override {
+			int a = 3;
+			++a;
+			//v8paused = true;
+			Kore::log(Kore::Info, "Waiting for debugger.");
+		}
+
+		v8::Local<v8::Context> ensureDefaultContextInGroup(int) override {
+			return globalContext.Get(isolate);
+		}
+	};
+
 	class DebugChannel : public v8_inspector::V8Inspector::Channel {
 		void sendProtocolResponse(int callId, const v8_inspector::StringView& message) {
 			if (!message.is8Bit()) {
@@ -61,8 +88,7 @@ namespace {
 		}
 	};
 
-	v8_inspector::V8InspectorClient* v8client;
-	std::unique_ptr<v8_inspector::V8Inspector> v8inspector;
+	InspectorClient* v8client;
 	DebugChannel* v8channel;
 	std::unique_ptr<v8_inspector::V8InspectorSession> v8session;
 }
@@ -71,7 +97,7 @@ void startDebugger(v8::Isolate* isolate) {
 	startServer();
 
 	v8::HandleScope scope(isolate);
-	v8client = new v8_inspector::V8InspectorClient;
+	v8client = new InspectorClient;
 	v8inspector = v8_inspector::V8Inspector::create(isolate, v8client);
 	v8channel = new DebugChannel;
 	v8_inspector::StringView state;

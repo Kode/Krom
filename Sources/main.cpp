@@ -21,6 +21,7 @@
 
 #include "../V8/include/libplatform/libplatform.h"
 #include "../V8/include/v8.h"
+#include <v8-inspector.h>
 
 #include <stdio.h>
 #include <fstream>
@@ -36,10 +37,12 @@ const char* macgetresourcepath();
 #endif
 
 Global<Context> globalContext;
+Isolate* isolate;
+
+extern std::unique_ptr<v8_inspector::V8Inspector> v8inspector;
 
 namespace {
 	Platform* plat;
-	Isolate* isolate;
 	Global<Function> updateFunction;
 	Global<Function> keyboardDownFunction;
 	Global<Function> keyboardUpFunction;
@@ -803,6 +806,8 @@ namespace {
 	void parseCode();
 	
 	void runV8() {
+		if (v8paused) return;
+
 		if (codechanged) {
 			parseCode();
 			codechanged = false;
@@ -816,10 +821,13 @@ namespace {
 		TryCatch try_catch(isolate);
 		v8::Local<v8::Function> func = v8::Local<v8::Function>::New(isolate, updateFunction);
 		Local<Value> result;
+
+		v8inspector->willExecuteScript(context, func->ScriptId());
 		if (!func->Call(context, context->Global(), 0, NULL).ToLocal(&result)) {
 			v8::String::Utf8Value stack_trace(try_catch.StackTrace());
 			printf("Trace: %s\n", *stack_trace);
 		}
+		v8inspector->didExecuteScript(context);
 	}
 
 	void endV8() {
@@ -1124,7 +1132,7 @@ extern "C" void filechanged(char* path) {
 	}
 }
 
-int kore(int argc, char** argv) {
+int kore_old(int argc, char** argv) {
 	int w = 1024;
 	int h = 768;
 	

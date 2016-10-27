@@ -4,3 +4,5 @@
 
 void startDebugger(v8::Isolate* isolate);
 void tickDebugger();
+
+extern bool v8paused;
