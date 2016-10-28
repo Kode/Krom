@@ -27,6 +27,8 @@
 #include <unistd.h>
 #endif
 
+void(*receiveMessageCallback)(char*) = nullptr;
+
 std::string sha1(const char* data, int length);
 
 namespace {
@@ -169,7 +171,8 @@ Sec-WebSocket-Accept: ");
 					Kore::log(Kore::Info, "WebSocket message: %s", decoded);
 
 					mutex.Lock();
-					queuedMessages.push_back((char*)decoded);
+					//**queuedMessages.push_back((char*)decoded);
+					receiveMessageCallback((char*)decoded);
 					mutex.Unlock();
 
 					step = 3;
@@ -268,6 +271,7 @@ std::string receiveMessage() {
 }
 
 void startServer() {
+	Kore::threadsInit();
 	mutex.Create();
 	Kore::createAndRunThread(startServerInThread, nullptr);
 

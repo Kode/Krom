@@ -6,6 +6,8 @@
 #include <unistd.h>  // NOLINT
 #endif               // !defined(_WIN32) && !defined(_WIN64)
 
+#include "debug_server.h"
+
 #include <locale.h>
 
 #include <libplatform/libplatform.h>
@@ -236,33 +238,76 @@ class FrontendChannelImpl : public InspectorClientImpl::FrontendChannel {
     v8::Isolate* isolate = v8::Isolate::GetCurrent();
     v8::HandleScope scope(v8::Isolate::GetCurrent());
 
-    v8::Local<v8::String> prefix =
-        v8::String::NewFromUtf8(isolate, "InspectorTest._dispatchMessage(",
-                                v8::NewStringType::kInternalized)
-            .ToLocalChecked();
     v8::Local<v8::String> message_string = ToString(isolate, message);
-    v8::Local<v8::String> suffix =
-        v8::String::NewFromUtf8(isolate, ")", v8::NewStringType::kInternalized)
-            .ToLocalChecked();
 
-    v8::Local<v8::String> result = v8::String::Concat(prefix, message_string);
-    result = v8::String::Concat(result, suffix);
-
-    frontend_task_runner_->Append(new ExecuteStringTask(ToVector(result)));
+	if (message.is8Bit()) {
+		sendMessage((const char*)message.characters8());
+	}
+	else {
+		char msg[2048];
+		for (size_t i = 0; i < message.length(); ++i) {
+			msg[i] = (char)message.characters16()[i];
+		}
+		msg[message.length()] = 0;
+		sendMessage(msg);
+	}
   }
 
  private:
   TaskRunner* frontend_task_runner_;
 };
 
+class SendMessageToBackendTask : public TaskRunner::Task {
+public:
+	explicit SendMessageToBackendTask(std::string message) : message_(message) {}
+
+	bool is_inspector_task() final { return true; }
+
+	void Run(v8::Isolate* isolate,
+		const v8::Global<v8::Context>& global_context) override {
+		v8_inspector::V8InspectorSession* session = nullptr;
+		{
+			v8::HandleScope handle_scope(isolate);
+			v8::Local<v8::Context> context = global_context.Get(isolate);
+			session = InspectorClientImpl::SessionFromContext(context);
+			CHECK(session);
+		}
+		v8_inspector::StringView message_view((const uint8_t*)message_.c_str(), message_.length());
+		session->dispatchProtocolMessage(message_view);
+	}
+
+private:
+	std::string message_;
+};
+
+TaskRunner* backend_task_runner = nullptr;
+
+/*void sendMessageToBackend(v8::Isolate* isolate, const char* msg) {
+	v8::HandleScope handle_scope(isolate);
+	v8::Local<v8::String> message = v8::String::NewFromUtf8(isolate, msg);
+	backend_task_runner->Append(new SendMessageToBackendTask(ToVector(message)));
+}*/
+
+void receiveMessage_(char* message) {
+	//sendMessageToBackend(v8::Isolate::GetCurrent(), message);
+	/*size_t length = strlen(message);
+	v8::internal::Vector<uint16_t> buffer =
+		v8::internal::Vector<uint16_t>::New(length + 1);
+	for (size_t i = 0; i < length; ++i) {
+		buffer[i] = message[i];
+	}
+	buffer[length] = 0;*/
+	backend_task_runner->Append(new SendMessageToBackendTask(message));
+}
+
 }  //  namespace
 
 int kore(int argc, char** argv) {
-  v8::V8::InitializeICUDefaultLocation(argv[0]);
+  v8::V8::InitializeICUDefaultLocation("./");
   v8::Platform* platform = v8::platform::CreateDefaultPlatform();
   v8::V8::InitializePlatform(platform);
   v8::V8::SetFlagsFromCommandLine(&argc, argv, true);
-  v8::V8::InitializeExternalStartupData(argv[0]);
+  v8::V8::InitializeExternalStartupData("./");
   v8::V8::Initialize();
 
   SetTimeoutExtension set_timeout_extension;
@@ -278,6 +323,7 @@ int kore(int argc, char** argv) {
   v8::ExtensionConfiguration backend_configuration(
       arraysize(backend_extensions), backend_extensions);
   TaskRunner backend_runner(&backend_configuration, false, &ready_semaphore);
+  backend_task_runner = &backend_runner;
   ready_semaphore.Wait();
   SendMessageToBackendExtension::set_backend_task_runner(&backend_runner);
 
@@ -296,19 +342,22 @@ int kore(int argc, char** argv) {
   task_runners.push_back(&frontend_runner);
   task_runners.push_back(&backend_runner);
 
-  for (int i = 1; i < argc; ++i) {
-    if (argv[i][0] == '-') break;
+  receiveMessageCallback = receiveMessage_;
+  startServer();
+
+  //for (int i = 1; i < argc; ++i) {
+  //  if (argv[i][0] == '-') break;
 
     bool exists = false;
     v8::internal::Vector<const char> chars =
-        v8::internal::ReadFile(argv[i], &exists, true);
+        v8::internal::ReadFile("C:\\Users\\Robert\\Projekte\\BlocksFromHeaven\\build\\krom\\test.js", &exists, true);
     if (!exists) {
       fprintf(stderr, "Internal error: script file doesn't exists: %s\n",
-              argv[i]);
+              "test.js");
       Exit();
     }
     frontend_runner.Append(new ExecuteStringTask(chars));
-  }
+  //}
 
   frontend_runner.Join();
   backend_runner.Join();

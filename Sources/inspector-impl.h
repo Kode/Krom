@@ -27,7 +27,8 @@ class InspectorClientImpl : public v8_inspector::V8InspectorClient {
 
   static v8_inspector::V8Inspector* InspectorFromContext(
       v8::Local<v8::Context> context);
-
+  static v8_inspector::V8InspectorSession* SessionFromContext(
+	  v8::Local<v8::Context> context);
  private:
   // V8InspectorClient implementation.
   v8::Local<v8::Context> ensureDefaultContextInGroup(
@@ -35,9 +36,6 @@ class InspectorClientImpl : public v8_inspector::V8InspectorClient {
   double currentTimeMS() override;
   void runMessageLoopOnPause(int context_group_id) override;
   void quitMessageLoopOnPause() override;
-
-  static v8_inspector::V8InspectorSession* SessionFromContext(
-      v8::Local<v8::Context> context);
 
   friend class SendMessageToBackendTask;
 
