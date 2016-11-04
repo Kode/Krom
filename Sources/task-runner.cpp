@@ -65,7 +65,11 @@ void TaskRunner::RunMessageLoop(bool only_protocol) {
   int loop_number = ++nested_loop_count_;
   while (nested_loop_count_ == loop_number && !is_terminated_.Value()) {
     TaskRunner::Task* task = GetNext(only_protocol);
-    if (!task) return;
+	if (!task) {
+		int a = 3;
+		++a;
+		return;
+	}
     v8::Isolate::Scope isolate_scope(isolate_);
     if (catch_exceptions_) {
       v8::TryCatch try_catch(isolate_);
@@ -82,6 +86,10 @@ void TaskRunner::RunMessageLoop(bool only_protocol) {
       delete task;
     }
   }
+  {
+	  int a = 3;
+	  ++a;
+  }
 }
 
 void TaskRunner::QuitMessageLoop() {
@@ -90,6 +98,7 @@ void TaskRunner::QuitMessageLoop() {
 }
 
 void TaskRunner::Append(Task* task) {
+	Sleep(1000);
   queue_.Enqueue(task);
   process_queue_semaphore_.Signal();
 }
@@ -139,6 +148,8 @@ void ExecuteStringTask::Run(v8::Isolate* isolate,
   v8::Local<v8::Context> local_context = context.Get(isolate);
   v8::Context::Scope context_scope(local_context);
 
+  //v8::Local<v8::String> filename = v8::String::NewFromUtf8(isolate, "test.js", v8::NewStringType::kNormal).ToLocalChecked();
+  //v8::ScriptOrigin origin(v8::String::NewFromUtf8(isolate, "c:\\Users\\Robert\\Projekte\\BlocksFromHeaven\\build\\krom\\test.js"));
   v8::ScriptOrigin origin(v8::String::Empty(isolate));
   v8::Local<v8::String> source;
   if (expression_.length()) {
@@ -158,6 +169,9 @@ void ExecuteStringTask::Run(v8::Isolate* isolate,
   if (!v8::ScriptCompiler::Compile(local_context, &scriptSource)
            .ToLocal(&script))
     return;
+
+  //v8::Local<v8::Script> script = v8::Script::Compile(source, filename);
+
   v8::MaybeLocal<v8::Value> result;
   result = script->Run(local_context);
 }

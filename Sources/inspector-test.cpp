@@ -302,6 +302,10 @@ void receiveMessage_(char* message) {
 
 }  //  namespace
 
+void signalSemaphore(v8::base::Semaphore* semaphore) {
+	semaphore->Signal();
+}
+
 int kore(int argc, char** argv) {
   v8::V8::InitializeICUDefaultLocation("./");
   v8::Platform* platform = v8::platform::CreateDefaultPlatform();
@@ -343,7 +347,11 @@ int kore(int argc, char** argv) {
   task_runners.push_back(&backend_runner);
 
   receiveMessageCallback = receiveMessage_;
-  startServer();
+  startServer(&ready_semaphore);
+
+  //ready_semaphore.Wait();
+
+  while (true) {}
 
   //for (int i = 1; i < argc; ++i) {
   //  if (argv[i][0] == '-') break;
@@ -358,6 +366,14 @@ int kore(int argc, char** argv) {
     }
     frontend_runner.Append(new ExecuteStringTask(chars));
   //}
+
+	v8::internal::Vector<const char> chars2 =
+		v8::internal::ReadFile("C:\\Users\\Robert\\Projekte\\BlocksFromHeaven\\build\\krom\\test2.js", &exists, true);
+  while (true) {
+	  
+	  frontend_runner.Append(new ExecuteStringTask(chars2));
+	  Sleep(1000);
+  }
 
   frontend_runner.Join();
   backend_runner.Join();
