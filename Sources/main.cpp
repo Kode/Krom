@@ -1132,7 +1132,7 @@ extern "C" void filechanged(char* path) {
 	}
 }
 
-int kore_old(int argc, char** argv) {
+int kore(int argc, char** argv) {
 	int w = 1024;
 	int h = 768;
 	

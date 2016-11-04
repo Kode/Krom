@@ -306,7 +306,7 @@ void signalSemaphore(v8::base::Semaphore* semaphore) {
 	semaphore->Signal();
 }
 
-int kore(int argc, char** argv) {
+int kore_test(int argc, char** argv) {
   v8::V8::InitializeICUDefaultLocation("./");
   v8::Platform* platform = v8::platform::CreateDefaultPlatform();
   v8::V8::InitializePlatform(platform);
@@ -347,7 +347,7 @@ int kore(int argc, char** argv) {
   task_runners.push_back(&backend_runner);
 
   receiveMessageCallback = receiveMessage_;
-  startServer(&ready_semaphore);
+  startServer(); // &ready_semaphore);
 
   //ready_semaphore.Wait();
 

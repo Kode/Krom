@@ -47,7 +47,7 @@ namespace {
 	int client_socket;
 #endif
 
-	v8::base::Semaphore* ready_semaphore;
+	//v8::base::Semaphore* ready_semaphore;
 
 	bool readHttp(const char* http) {
 		Kore::log(Kore::Info, "Http message: %s", http);
@@ -195,7 +195,7 @@ Sec-WebSocket-Accept: ");
 			step = 3;
 
 			if (strcmp((char*)decoded, "{\"id\":4,\"method\":\"Runtime.run\"}") == 0) {
-				signalSemaphore(ready_semaphore);
+				//signalSemaphore(ready_semaphore);
 			}
 			return position + payload;
 		}
@@ -351,8 +351,8 @@ std::string receiveMessage() {
 	}
 }
 
-void startServer(v8::base::Semaphore* semaphore) {
-	ready_semaphore = semaphore;
+void startServer() { // v8::base::Semaphore* semaphore) {
+	//ready_semaphore = semaphore;
 	Kore::threadsInit();
 	mutex.Create();
 	Kore::createAndRunThread(startServerInThread, nullptr);

@@ -94,7 +94,7 @@ namespace {
 }
 
 void startDebugger(v8::Isolate* isolate) {
-	//**startServer();
+	startServer();
 
 	v8::HandleScope scope(isolate);
 	v8client = new InspectorClient;
