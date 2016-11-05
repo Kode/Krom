@@ -709,7 +709,7 @@ namespace {
 		
 	}
 	
-	bool startV8(char* scriptfile) {
+	void startV8() {
 #ifdef SYS_OSX
 		char filepath[256];
 		strcpy(filepath, macgetresourcepath());
@@ -722,7 +722,7 @@ namespace {
 		V8::InitializeICUDefaultLocation("./");
 		V8::InitializeExternalStartupData("./");
 #endif
-	
+
 		plat = platform::CreateDefaultPlatform();
 		V8::InitializePlatform(plat);
 		V8::Initialize();
@@ -730,10 +730,10 @@ namespace {
 		Isolate::CreateParams create_params;
 		create_params.array_buffer_allocator = v8::ArrayBuffer::Allocator::NewDefaultAllocator();
 		isolate = Isolate::New(create_params);
-	
+
 		Isolate::Scope isolate_scope(isolate);
 		HandleScope handle_scope(isolate);
-	
+
 		Local<ObjectTemplate> krom = ObjectTemplate::New(isolate);
 		krom->Set(String::NewFromUtf8(isolate, "log"), FunctionTemplate::New(isolate, LogCallback));
 		krom->Set(String::NewFromUtf8(isolate, "clear"), FunctionTemplate::New(isolate, graphics_clear));
@@ -776,14 +776,20 @@ namespace {
 		krom->Set(String::NewFromUtf8(isolate, "renderTargetsInvertedY"), FunctionTemplate::New(isolate, krom_render_targets_inverted_y));
 		krom->Set(String::NewFromUtf8(isolate, "begin"), FunctionTemplate::New(isolate, krom_begin));
 		krom->Set(String::NewFromUtf8(isolate, "end"), FunctionTemplate::New(isolate, krom_end));
-		
+
 		Local<ObjectTemplate> global = ObjectTemplate::New(isolate);
 		global->Set(String::NewFromUtf8(isolate, "Krom"), krom);
-		
+
 		Local<Context> context = Context::New(isolate, NULL, global);
 		globalContext.Reset(isolate, context);
+	}
 	
+	bool startKrom(char* scriptfile) {
+		Isolate::Scope isolate_scope(isolate);
+		HandleScope handle_scope(isolate);
+		Local<Context> context = Local<Context>::New(isolate, globalContext);
 		Context::Scope context_scope(context);
+
 		Local<String> source = String::NewFromUtf8(isolate, scriptfile, NewStringType::kNormal).ToLocalChecked();
 		Local<String> filename = String::NewFromUtf8(isolate, "krom.js", NewStringType::kNormal).ToLocalChecked();
 
@@ -815,11 +821,11 @@ namespace {
 		
 		Isolate::Scope isolate_scope(isolate);
 		HandleScope handle_scope(isolate);
-		v8::Local<v8::Context> context = v8::Local<v8::Context>::New(isolate, globalContext);
+		Local<Context> context = Local<Context>::New(isolate, globalContext);
 		Context::Scope context_scope(context);
 		
 		TryCatch try_catch(isolate);
-		v8::Local<v8::Function> func = v8::Local<v8::Function>::New(isolate, updateFunction);
+		Local<v8::Function> func = Local<v8::Function>::New(isolate, updateFunction);
 		Local<Value> result;
 
 		v8inspector->willExecuteScript(context, func->ScriptId());
@@ -1178,7 +1184,7 @@ int kore(int argc, char** argv) {
 	code[reader.size()] = 0;
 	reader.close();
 
-	bool started = startV8(code);
+	startV8();
 
 	parseCode();
 
@@ -1186,11 +1192,10 @@ int kore(int argc, char** argv) {
 
 	watchDirectories(argv[1], argv[2]);
 	
-	if (started) {
-		startDebugger(isolate);
-		Kore::System::start();
-	}
-	
+	startDebugger(isolate);
+	startKrom(code);
+	Kore::System::start();
+		
 	exit(0); // TODO
 	
 	endV8();

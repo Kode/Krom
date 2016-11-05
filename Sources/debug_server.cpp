@@ -188,8 +188,8 @@ Sec-WebSocket-Accept: ");
 			Kore::log(Kore::Info, "WebSocket message: %s", decoded);
 
 			mutex.Lock();
-			//**queuedMessages.push_back((char*)decoded);
-			receiveMessageCallback((char*)decoded);
+			queuedMessages.push_back((char*)decoded);
+			//**receiveMessageCallback((char*)decoded);
 			mutex.Unlock();
 
 			step = 3;
@@ -353,7 +353,7 @@ std::string receiveMessage() {
 
 void startServer() { // v8::base::Semaphore* semaphore) {
 	//ready_semaphore = semaphore;
-	Kore::threadsInit();
+	//Kore::threadsInit();
 	mutex.Create();
 	Kore::createAndRunThread(startServerInThread, nullptr);
 
