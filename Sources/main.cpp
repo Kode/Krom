@@ -820,6 +820,7 @@ namespace {
 		}
 		
 		Isolate::Scope isolate_scope(isolate);
+		v8::MicrotasksScope microtasks_scope(isolate, v8::MicrotasksScope::kRunMicrotasks);
 		HandleScope handle_scope(isolate);
 		Local<Context> context = Local<Context>::New(isolate, globalContext);
 		Context::Scope context_scope(context);
@@ -1138,6 +1139,8 @@ extern "C" void filechanged(char* path) {
 	}
 }
 
+//__declspec(dllimport) extern "C" void __stdcall Sleep(unsigned long milliseconds);
+
 int kore(int argc, char** argv) {
 	int w = 1024;
 	int h = 768;
@@ -1193,6 +1196,9 @@ int kore(int argc, char** argv) {
 	watchDirectories(argv[1], argv[2]);
 	
 	startDebugger(isolate);
+	while (!tickDebugger()) {}
+	//Sleep(1000);
+
 	startKrom(code);
 	Kore::System::start();
 		

@@ -88,7 +88,7 @@ namespace {
 		}
 	};
 
-	InspectorClient* v8client;
+	v8_inspector::V8InspectorClient* v8client;
 	DebugChannel* v8channel;
 	std::unique_ptr<v8_inspector::V8InspectorSession> v8session;
 }
@@ -98,6 +98,7 @@ void startDebugger(v8::Isolate* isolate) {
 
 	v8::HandleScope scope(isolate);
 	v8client = new InspectorClient;
+	//v8client = new v8_inspector::V8InspectorClient;
 	v8inspector = v8_inspector::V8Inspector::create(isolate, v8client);
 	v8channel = new DebugChannel;
 	v8_inspector::StringView state;
@@ -105,11 +106,16 @@ void startDebugger(v8::Isolate* isolate) {
 	v8inspector->contextCreated(v8_inspector::V8ContextInfo(globalContext.Get(isolate), 0, v8_inspector::StringView()));
 }
 
-void tickDebugger() {
+bool tickDebugger() {
+	bool started = false;
 	std::string message = receiveMessage();
 	while (message.size() > 0) {
+		if (message == "{\"id\":4,\"method\":\"Runtime.run\"}") {
+			started = true;
+		}
 		v8_inspector::StringView messageview((const uint8_t*)message.c_str(), message.size());
 		v8session->dispatchProtocolMessage(messageview);
 		message = receiveMessage();
 	}
+	return started;
 }
