@@ -110,7 +110,7 @@ bool tickDebugger() {
 	bool started = false;
 	std::string message = receiveMessage();
 	while (message.size() > 0) {
-		if (message == "{\"id\":4,\"method\":\"Runtime.run\"}") {
+		if (message.find("Runtime.run", 0) != std::string::npos) {
 			started = true;
 		}
 		v8_inspector::StringView messageview((const uint8_t*)message.c_str(), message.size());
