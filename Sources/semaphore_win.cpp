@@ -1,4 +1,8 @@
+#include "pch.h"
+
 #include "semaphore.h"
+
+#ifdef SYS_WINDOWS
 
 #include <Windows.h>
 
@@ -17,3 +21,5 @@ void Semaphore::wait() {
 void Semaphore::signal() {
 	ReleaseSemaphore(semaphore, 1, nullptr);
 }
+
+#endif

@@ -109,6 +109,9 @@ Sec-WebSocket-Accept: ");
 
 			return true;
 		}
+		else {
+			return true;
+		}
 	}
 
 	char httpBuffer[4096];
@@ -241,7 +244,7 @@ Sec-WebSocket-Accept: ");
 #ifdef SYS_WINDOWS
 	static void echo(SOCKET client_socket)
 #else
-	static void echo(v8::Isolate* isolate, int client_socket)
+	static void echo(int client_socket)
 #endif
 	{
 		for (;;) {
