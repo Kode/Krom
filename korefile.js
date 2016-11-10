@@ -32,7 +32,7 @@ if (platform === Platform.Windows) {
 
 if (platform === Platform.OSX) {
 	project.addLib(libdir + 'libv8.dylib');
-	project.addLib(libdir + 'libv8_libplatform.a');
+	project.addLib(libdir + 'libv8_libplatform.dylib');
 	project.addLib(libdir + 'libv8_libbase.dylib');
 	project.addLib(libdir + 'libicui18n.dylib');
 	project.addLib(libdir + 'libicuuc.dylib');
@@ -40,10 +40,12 @@ if (platform === Platform.OSX) {
 
 if (platform === Platform.Linux) {
 	project.addLib('../' + libdir + 'libv8.so');
-	project.addLib('../' + libdir + 'libv8_libplatform.a');
+	project.addLib('../' + libdir + 'libv8_libplatform.so');
 	project.addLib('../' + libdir + 'libv8_libbase.so');
 	project.addLib('../' + libdir + 'libicui18n.so');
 	project.addLib('../' + libdir + 'libicuuc.so');
+	project.addLib('libssl');
+	project.addLib('libcrypto');
 }
 
 project.setDebugDir('Deployment/' + build + '/' + system);
