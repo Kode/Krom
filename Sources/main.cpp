@@ -62,7 +62,12 @@ namespace {
 	}
 	
 	void graphics_clear(const v8::FunctionCallbackInfo<v8::Value>& args) {
-		Kore::Graphics::clear(Kore::Graphics::ClearColorFlag, 0);
+		HandleScope scope(args.GetIsolate());
+		int flags = args[0]->ToInt32()->Value();
+		int color = args[1]->ToInt32()->Value();
+		float depth = args[2]->ToNumber()->Value();
+		int stencil = args[3]->ToInt32()->Value();
+		Kore::Graphics::clear(flags, color, depth, stencil);
 	}
 	
 	void krom_set_callback(const FunctionCallbackInfo<Value>& args) {
