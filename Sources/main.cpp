@@ -619,6 +619,24 @@ namespace {
 		HandleScope scope(args.GetIsolate());
 		args.GetReturnValue().Set(Number::New(isolate, Kore::System::time()));
 	}
+
+	void krom_window_width(const FunctionCallbackInfo<Value>& args) {
+		HandleScope scope(args.GetIsolate());
+		int windowId = args[0]->ToInt32()->Value();
+		args.GetReturnValue().Set(Int32::New(isolate, Kore::System::windowWidth(windowId)));
+	}
+
+	void krom_window_height(const FunctionCallbackInfo<Value>& args) {
+		HandleScope scope(args.GetIsolate());
+		int windowId = args[0]->ToInt32()->Value();
+		args.GetReturnValue().Set(Int32::New(isolate, Kore::System::windowHeight(windowId)));
+	}
+
+	void krom_screen_dpi(const FunctionCallbackInfo<Value>& args) {
+		HandleScope scope(args.GetIsolate());
+		int windowId = args[0]->ToInt32()->Value();
+		args.GetReturnValue().Set(Int32::New(isolate, Kore::System::screenDpi()));
+	}
 	
 	void krom_create_render_target(const FunctionCallbackInfo<Value>& args) {
 		HandleScope scope(args.GetIsolate());
@@ -777,6 +795,9 @@ namespace {
 		krom->Set(String::NewFromUtf8(isolate, "setFloat4"), FunctionTemplate::New(isolate, krom_set_float4));
 		krom->Set(String::NewFromUtf8(isolate, "setMatrix"), FunctionTemplate::New(isolate, krom_set_matrix));
 		krom->Set(String::NewFromUtf8(isolate, "getTime"), FunctionTemplate::New(isolate, krom_get_time));
+		krom->Set(String::NewFromUtf8(isolate, "windowWidth"), FunctionTemplate::New(isolate, krom_window_width));
+		krom->Set(String::NewFromUtf8(isolate, "windowHeight"), FunctionTemplate::New(isolate, krom_window_height));
+		krom->Set(String::NewFromUtf8(isolate, "screenDpi"), FunctionTemplate::New(isolate, krom_screen_dpi));
 		krom->Set(String::NewFromUtf8(isolate, "createRenderTarget"), FunctionTemplate::New(isolate, krom_create_render_target));
 		krom->Set(String::NewFromUtf8(isolate, "viewport"), FunctionTemplate::New(isolate, krom_viewport));
 		krom->Set(String::NewFromUtf8(isolate, "setDepthMode"), FunctionTemplate::New(isolate, krom_set_depth_mode));
