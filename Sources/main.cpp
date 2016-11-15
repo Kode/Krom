@@ -640,7 +640,7 @@ namespace {
 	
 	void krom_create_render_target(const FunctionCallbackInfo<Value>& args) {
 		HandleScope scope(args.GetIsolate());
-		Kore::RenderTarget* renderTarget = new Kore::RenderTarget(args[0]->ToInt32()->Value(), args[1]->ToInt32()->Value(), 0);
+		Kore::RenderTarget* renderTarget = new Kore::RenderTarget(args[0]->ToInt32()->Value(), args[1]->ToInt32()->Value(), args[2]->ToInt32()->Value(), false, (Kore::RenderTargetFormat)args[3]->ToInt32()->Value(), args[4]->ToInt32()->Value());
 		
 		Local<ObjectTemplate> templ = ObjectTemplate::New(isolate);
 		templ->SetInternalFieldCount(1);
@@ -650,6 +650,44 @@ namespace {
 		obj->Set(String::NewFromUtf8(isolate, "width"), Int32::New(isolate, renderTarget->width));
 		obj->Set(String::NewFromUtf8(isolate, "height"), Int32::New(isolate, renderTarget->height));
 		args.GetReturnValue().Set(obj);
+	}
+
+	void krom_create_texture(const FunctionCallbackInfo<Value>& args) {
+		HandleScope scope(args.GetIsolate());
+		Kore::Texture* texture = new Kore::Texture(args[0]->ToInt32()->Value(), args[1]->ToInt32()->Value(), (Kore::Image::Format)args[2]->ToInt32()->Value(), false);
+		
+		Local<ObjectTemplate> templ = ObjectTemplate::New(isolate);
+		templ->SetInternalFieldCount(1);
+		
+		Local<Object> obj = templ->NewInstance(isolate->GetCurrentContext()).ToLocalChecked();
+		obj->SetInternalField(0, External::New(isolate, texture));
+		obj->Set(String::NewFromUtf8(isolate, "width"), Int32::New(isolate, texture->width));
+		obj->Set(String::NewFromUtf8(isolate, "height"), Int32::New(isolate, texture->height));
+		args.GetReturnValue().Set(obj);
+	}
+
+	void krom_unlock_texture(const FunctionCallbackInfo<Value>& args) {
+		HandleScope scope(args.GetIsolate());
+
+		Local<External> field = Local<External>::Cast(args[0]->ToObject()->GetInternalField(0));
+		Kore::Texture* texture = (Kore::Texture*)field->Value();
+		
+		Local<ArrayBuffer> buffer = Local<ArrayBuffer>::Cast(args[1]);
+		ArrayBuffer::Contents content = buffer->Externalize();
+
+		Kore::u8* b = (Kore::u8*)content.Data();
+		Kore::u8* tex = texture->lock();
+		for (int32_t i = 0; i < ((texture->format == Kore::Image::RGBA32) ? (4 * texture->width * texture->height) : (texture->width * texture->height)); ++i) {
+			tex[i] = b[i];
+		}
+		texture->unlock();
+	}
+
+	void krom_generate_mipmaps(const FunctionCallbackInfo<Value>& args) {
+		HandleScope scope(args.GetIsolate());
+		Local<External> field = Local<External>::Cast(args[0]->ToObject()->GetInternalField(0));
+		Kore::Texture* texture = (Kore::Texture*)field->Value();
+		texture->generateMipmaps(args[0]->ToInt32()->Value());
 	}
 	
 	void krom_viewport(const FunctionCallbackInfo<Value>& args) {
@@ -883,6 +921,9 @@ namespace {
 		krom->Set(String::NewFromUtf8(isolate, "windowHeight"), FunctionTemplate::New(isolate, krom_window_height));
 		krom->Set(String::NewFromUtf8(isolate, "screenDpi"), FunctionTemplate::New(isolate, krom_screen_dpi));
 		krom->Set(String::NewFromUtf8(isolate, "createRenderTarget"), FunctionTemplate::New(isolate, krom_create_render_target));
+		krom->Set(String::NewFromUtf8(isolate, "createTexture"), FunctionTemplate::New(isolate, krom_create_texture));
+		krom->Set(String::NewFromUtf8(isolate, "unlockTexture"), FunctionTemplate::New(isolate, krom_unlock_texture));
+		krom->Set(String::NewFromUtf8(isolate, "generateMipmaps"), FunctionTemplate::New(isolate, krom_generate_mipmaps));
 		krom->Set(String::NewFromUtf8(isolate, "viewport"), FunctionTemplate::New(isolate, krom_viewport));
 		krom->Set(String::NewFromUtf8(isolate, "setDepthMode"), FunctionTemplate::New(isolate, krom_set_depth_mode));
 		krom->Set(String::NewFromUtf8(isolate, "setCullMode"), FunctionTemplate::New(isolate, krom_set_cull_mode));
