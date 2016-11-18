@@ -62,7 +62,12 @@ namespace {
 	}
 	
 	void graphics_clear(const v8::FunctionCallbackInfo<v8::Value>& args) {
-		Kore::Graphics::clear(Kore::Graphics::ClearColorFlag, 0);
+		HandleScope scope(args.GetIsolate());
+		int flags = args[0]->ToInt32()->Value();
+		int color = args[1]->ToInt32()->Value();
+		float depth = args[2]->ToNumber()->Value();
+		int stencil = args[3]->ToInt32()->Value();
+		Kore::Graphics::clear(flags, color, depth, stencil);
 	}
 	
 	void krom_set_callback(const FunctionCallbackInfo<Value>& args) {
@@ -614,6 +619,24 @@ namespace {
 		HandleScope scope(args.GetIsolate());
 		args.GetReturnValue().Set(Number::New(isolate, Kore::System::time()));
 	}
+
+	void krom_window_width(const FunctionCallbackInfo<Value>& args) {
+		HandleScope scope(args.GetIsolate());
+		int windowId = args[0]->ToInt32()->Value();
+		args.GetReturnValue().Set(Int32::New(isolate, Kore::System::windowWidth(windowId)));
+	}
+
+	void krom_window_height(const FunctionCallbackInfo<Value>& args) {
+		HandleScope scope(args.GetIsolate());
+		int windowId = args[0]->ToInt32()->Value();
+		args.GetReturnValue().Set(Int32::New(isolate, Kore::System::windowHeight(windowId)));
+	}
+
+	void krom_screen_dpi(const FunctionCallbackInfo<Value>& args) {
+		HandleScope scope(args.GetIsolate());
+		int windowId = args[0]->ToInt32()->Value();
+		args.GetReturnValue().Set(Int32::New(isolate, Kore::System::screenDpi()));
+	}
 	
 	void krom_create_render_target(const FunctionCallbackInfo<Value>& args) {
 		HandleScope scope(args.GetIsolate());
@@ -681,6 +704,90 @@ namespace {
 			break;
 		}
 		Kore::Graphics::setRenderState(Kore::DepthWrite, write);
+	}
+
+	void krom_set_cull_mode(const FunctionCallbackInfo<Value>& args) {
+		HandleScope scope(args.GetIsolate());
+		int mode = args[0]->ToInt32()->Int32Value();
+		Kore::Graphics::setRenderState(Kore::BackfaceCulling, mode);
+	}
+
+	Kore::ZCompareMode convertCompareMode(int mode) {
+		switch (mode) {
+		case 0:
+			return Kore::ZCompareAlways;
+		case 1:
+			return Kore::ZCompareNever;
+		case 2:
+			return Kore::ZCompareEqual;
+		case 3:
+			return Kore::ZCompareNotEqual;
+		case 4:
+			return Kore::ZCompareLess;
+		case 5:
+			return Kore::ZCompareLessEqual;
+		case 6:
+			return Kore::ZCompareGreater;
+		case 7:
+		default:
+			return Kore::ZCompareGreaterEqual;
+		}
+	}
+
+	Kore::StencilAction convertStencilAction(int action) {
+		switch (action) {
+		case 0:
+			return Kore::Keep;
+		case 1:
+			return Kore::Zero;
+		case 2:
+			return Kore::Replace;
+		case 3:
+			return Kore::Increment;
+		case 4:
+			return Kore::IncrementWrap;
+		case 5:
+			return Kore::Decrement;
+		case 6:
+			return Kore::DecrementWrap;
+		case 7:
+		default:
+			return Kore::Invert;	
+		}
+	}
+
+	void krom_set_stencil_parameters(const FunctionCallbackInfo<Value>& args) {
+		HandleScope scope(args.GetIsolate());		
+		int compareMode = args[0]->ToInt32()->Int32Value();
+		int bothPass = args[1]->ToInt32()->Int32Value();
+		int depthFail = args[2]->ToInt32()->Int32Value();
+		int stencilFail = args[3]->ToInt32()->Int32Value();
+		int referenceValue = args[4]->ToInt32()->Int32Value();
+		int readMask = args[5]->ToInt32()->Int32Value();
+		int writeMask = args[6]->ToInt32()->Int32Value();
+		Kore::Graphics::setStencilParameters(convertCompareMode(compareMode), convertStencilAction(bothPass), convertStencilAction(depthFail), convertStencilAction(stencilFail), referenceValue, readMask, writeMask);
+	}
+
+	void krom_set_blending_mode(const FunctionCallbackInfo<Value>& args) {
+		HandleScope scope(args.GetIsolate());		
+		int source = args[0]->ToInt32()->Int32Value();
+		int destination = args[1]->ToInt32()->Int32Value();
+		if (source == 0 && destination == 1) {
+			Kore::Graphics::setRenderState(Kore::BlendingState, false);
+		}
+		else {
+			Kore::Graphics::setRenderState(Kore::BlendingState, true);
+			Kore::Graphics::setBlendingMode((Kore::BlendingOperation)source, (Kore::BlendingOperation)destination);
+		}
+	}
+
+	void krom_set_color_mask(const FunctionCallbackInfo<Value>& args) {
+		HandleScope scope(args.GetIsolate());		
+		bool red = args[0]->ToBoolean()->Value();
+		bool green = args[1]->ToBoolean()->Value();
+		bool blue = args[2]->ToBoolean()->Value();
+		bool alpha = args[3]->ToBoolean()->Value();
+		Kore::Graphics::setColorMask(red, green, blue, alpha);
 	}
 
 	void krom_render_targets_inverted_y(const FunctionCallbackInfo<Value>& args) {
@@ -772,9 +879,16 @@ namespace {
 		krom->Set(String::NewFromUtf8(isolate, "setFloat4"), FunctionTemplate::New(isolate, krom_set_float4));
 		krom->Set(String::NewFromUtf8(isolate, "setMatrix"), FunctionTemplate::New(isolate, krom_set_matrix));
 		krom->Set(String::NewFromUtf8(isolate, "getTime"), FunctionTemplate::New(isolate, krom_get_time));
+		krom->Set(String::NewFromUtf8(isolate, "windowWidth"), FunctionTemplate::New(isolate, krom_window_width));
+		krom->Set(String::NewFromUtf8(isolate, "windowHeight"), FunctionTemplate::New(isolate, krom_window_height));
+		krom->Set(String::NewFromUtf8(isolate, "screenDpi"), FunctionTemplate::New(isolate, krom_screen_dpi));
 		krom->Set(String::NewFromUtf8(isolate, "createRenderTarget"), FunctionTemplate::New(isolate, krom_create_render_target));
 		krom->Set(String::NewFromUtf8(isolate, "viewport"), FunctionTemplate::New(isolate, krom_viewport));
 		krom->Set(String::NewFromUtf8(isolate, "setDepthMode"), FunctionTemplate::New(isolate, krom_set_depth_mode));
+		krom->Set(String::NewFromUtf8(isolate, "setCullMode"), FunctionTemplate::New(isolate, krom_set_cull_mode));
+		krom->Set(String::NewFromUtf8(isolate, "setStencilParameters"), FunctionTemplate::New(isolate, krom_set_stencil_parameters));
+		krom->Set(String::NewFromUtf8(isolate, "setBlendingMode"), FunctionTemplate::New(isolate, krom_set_blending_mode));
+		krom->Set(String::NewFromUtf8(isolate, "setColorMask"), FunctionTemplate::New(isolate, krom_set_color_mask));
 		krom->Set(String::NewFromUtf8(isolate, "renderTargetsInvertedY"), FunctionTemplate::New(isolate, krom_render_targets_inverted_y));
 		krom->Set(String::NewFromUtf8(isolate, "begin"), FunctionTemplate::New(isolate, krom_begin));
 		krom->Set(String::NewFromUtf8(isolate, "end"), FunctionTemplate::New(isolate, krom_end));
