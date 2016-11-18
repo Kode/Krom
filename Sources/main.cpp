@@ -974,7 +974,8 @@ namespace {
 	enum ParseMode {
 		ParseRegular,
 		ParseMethods,
-		ParseMethod
+		ParseMethod,
+		ParseFunction
 	};
 	
 	void parseCode() {
@@ -992,6 +993,42 @@ namespace {
 				case ParseRegular: {
 					if (endsWith(line, ".prototype = {")) { // parse methods
 						mode = ParseMethods;
+					}
+					else if (line.find(" = function(") != std::string::npos && line.find("var ") == std::string::npos) {
+						size_t first = 0;
+						size_t last = line.find(".");
+						std::string internal_name = line.substr(first, last - first);
+						currentClass = classes[internal_name];
+
+						first = line.find('.') + 1;
+						last = line.find(' ');
+						std::string methodname = line.substr(first, last - first);
+						if (currentClass->methods.find(methodname) == currentClass->methods.end()) {
+							currentFunction = new Function;
+							currentFunction->name = methodname;
+							first = line.find('(') + 1;
+							last = line.find_last_of(')');
+							size_t last_param_start = first;
+							for (size_t i = first; i <= last; ++i) {
+								if (line[i] == ',') {
+									currentFunction->parameters.push_back(line.substr(last_param_start, i - last_param_start));
+									last_param_start = i + 1;
+								}
+								if (line[i] == ')') {
+									currentFunction->parameters.push_back(line.substr(last_param_start, i - last_param_start));
+									break;
+								}
+							}
+
+							//printf("Found method %s.\n", methodname.c_str());
+							currentClass->methods[methodname] = currentFunction;
+						}
+						else {
+							currentFunction = currentClass->methods[methodname];
+						}
+						mode = ParseFunction;
+						currentBody = "";
+						brackets = 1;
 					}
 					// hxClasses["BigBlock"] = BigBlock;
 					// var BigBlock = $hxClasses["BigBlock"] = function(xx,yy) {
@@ -1112,6 +1149,61 @@ namespace {
 					}
 					break;
 				}
+				case ParseFunction: {
+					if (line.find('{') != std::string::npos) ++brackets;
+					if (line.find('}') != std::string::npos) --brackets;
+					if (brackets > 0) {
+						currentBody += line + " ";
+					}
+					else {
+						if (currentFunction->body == "") {
+							currentFunction->body = currentBody;
+						}
+						else if (currentFunction->body != currentBody) {
+							currentFunction->body = currentBody;
+
+							Isolate::Scope isolate_scope(isolate);
+							HandleScope handle_scope(isolate);
+							v8::Local<v8::Context> context = v8::Local<v8::Context>::New(isolate, globalContext);
+							Context::Scope context_scope(context);
+
+							// BlocksFromHeaven.prototype.loadingFinished = new Function([a, b], "lots of text;");
+							std::string script;
+							script += currentClass->internal_name;
+							script += ".";
+							script += currentFunction->name;
+							script += " = new Function([";
+							for (size_t i = 0; i < currentFunction->parameters.size(); ++i) {
+								script += "\"" + currentFunction->parameters[i] + "\"";
+								if (i < currentFunction->parameters.size() - 1) script += ",";
+							}
+							script += "], \"";
+							script += currentFunction->body;
+							script += "\");";
+
+							// Kore::log(Kore::Info, "Script:\n%s\n", script.c_str());
+							Kore::log(Kore::Info, "Patching function %s in class %s.", currentFunction->name.c_str(), currentClass->name.c_str());
+
+							Local<String> source = String::NewFromUtf8(isolate, script.c_str(), NewStringType::kNormal).ToLocalChecked();
+
+							TryCatch try_catch(isolate);
+
+							Local<Script> compiled_script;
+							if (!Script::Compile(context, source).ToLocal(&compiled_script)) {
+								v8::String::Utf8Value stack_trace(try_catch.StackTrace());
+								Kore::log(Kore::Error, "Trace: %s", *stack_trace);
+							}
+
+							Local<Value> result;
+							if (!compiled_script->Run(context).ToLocal(&result)) {
+								v8::String::Utf8Value stack_trace(try_catch.StackTrace());
+								Kore::log(Kore::Error, "Trace: %s", *stack_trace);
+							}
+						}
+						mode = ParseRegular;
+					}
+					break;
+				}
 			}
 		}
 		Kore::log(Kore::Info, "%i new types found.", types);
@@ -1199,7 +1291,7 @@ int kore(int argc, char** argv) {
 	watchDirectories(argv[1], argv[2]);
 	
 	startDebugger(isolate);
-	while (!tickDebugger()) {}
+	//while (!tickDebugger()) {}
 	//Sleep(1000);
 
 	startKrom(code);
