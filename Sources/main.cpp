@@ -32,6 +32,8 @@
 
 using namespace v8;
 
+void sendMessage(const char* message);
+
 #ifdef SYS_OSX
 const char* macgetresourcepath();
 #endif
@@ -59,6 +61,11 @@ namespace {
 		Local<Value> arg = args[0];
 		String::Utf8Value value(arg);
 		Kore::log(Kore::Info, "%s", *value);
+		char message[4096];
+		strcpy(message, "{\"method\":\"Log.entryAdded\",\"params\":{\"entry\":{\"source\":\"javascript\",\"level\":\"log\",\"text\":\"");
+		strcat(message, *value);
+		strcat(message, "\",\"timestamp\":0}}}");
+		sendMessage(message);
 	}
 	
 	void graphics_clear(const v8::FunctionCallbackInfo<v8::Value>& args) {
@@ -1656,8 +1663,6 @@ extern "C" void filechanged(char* path) {
 	}
 }
 
-void sendMessage(const char* message);
-
 //__declspec(dllimport) extern "C" void __stdcall Sleep(unsigned long milliseconds);
 
 int kore(int argc, char** argv) {
@@ -1718,10 +1723,7 @@ int kore(int argc, char** argv) {
 	startDebugger(isolate);
 	while (!tickDebugger()) {}
 	//Sleep(1000);
-
-	// sendMessage("{\"method\":\"Runtime.consoleAPICalled\",\"params\":{\"type\":\"info\",\"args\":[\"Starting Krom.\"],\"executionContextId\":0,\"timestamp\":0}}");
-	// sendMessage("{\"method\":\"Runtime.consoleAPICalled\",\"params\":{\"type\":\"info\",\"args\":[\"Starting Krom.\"],\"executionContextId\":0,\"timestamp\":0}}");
-
+	
 	startKrom(code);
 	Kore::System::start();
 		
