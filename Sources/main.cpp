@@ -920,6 +920,21 @@ namespace {
 		Kore::Graphics::viewport(x, y, w, h);
 	}
 
+	void krom_scissor(const FunctionCallbackInfo<Value>& args) {
+		HandleScope scope(args.GetIsolate());
+
+		int x = args[0]->ToInt32()->Int32Value();
+		int y = args[1]->ToInt32()->Int32Value();
+		int w = args[2]->ToInt32()->Int32Value();
+		int h = args[3]->ToInt32()->Int32Value();
+
+		Kore::Graphics::scissor(x, y, w, h);
+	}
+
+	void krom_disable_scissor(const FunctionCallbackInfo<Value>& args) {
+		Kore::Graphics::disableScissor();
+	}
+
 	void krom_set_depth_mode(const FunctionCallbackInfo<Value>& args) {
 		HandleScope scope(args.GetIsolate());
 
@@ -1167,6 +1182,8 @@ namespace {
 		krom->Set(String::NewFromUtf8(isolate, "setMipmaps"), FunctionTemplate::New(isolate, krom_set_mipmaps));
 		krom->Set(String::NewFromUtf8(isolate, "setDepthStencilFrom"), FunctionTemplate::New(isolate, krom_set_depth_stencil_from));
 		krom->Set(String::NewFromUtf8(isolate, "viewport"), FunctionTemplate::New(isolate, krom_viewport));
+		krom->Set(String::NewFromUtf8(isolate, "scissor"), FunctionTemplate::New(isolate, krom_scissor));
+		krom->Set(String::NewFromUtf8(isolate, "disableScissor"), FunctionTemplate::New(isolate, krom_disable_scissor));
 		krom->Set(String::NewFromUtf8(isolate, "setDepthMode"), FunctionTemplate::New(isolate, krom_set_depth_mode));
 		krom->Set(String::NewFromUtf8(isolate, "setCullMode"), FunctionTemplate::New(isolate, krom_set_cull_mode));
 		krom->Set(String::NewFromUtf8(isolate, "setStencilParameters"), FunctionTemplate::New(isolate, krom_set_stencil_parameters));
