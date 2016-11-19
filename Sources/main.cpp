@@ -1066,6 +1066,15 @@ namespace {
 		}
 		return true;
 	}
+
+	std::string replaceAll(std::string str, const std::string& from, const std::string& to) {
+		size_t start_pos = 0;
+		while ((start_pos = str.find(from, start_pos)) != std::string::npos) {
+			str.replace(start_pos, from.length(), to);
+			start_pos += to.length();
+		}
+		return str;
+	}
 	
 	std::string assetsdir;
 	std::string kromjs;
@@ -1237,7 +1246,7 @@ namespace {
 								if (i < currentFunction->parameters.size() - 1) script += ",";
 							}
 							script += "], \"";
-							script += currentFunction->body;
+							script += replaceAll(currentFunction->body, "\"", "\\\"");
 							script += "\");";
 							
 							// Kore::log(Kore::Info, "Script:\n%s\n", script.c_str());
@@ -1292,7 +1301,7 @@ namespace {
 								if (i < currentFunction->parameters.size() - 1) script += ",";
 							}
 							script += "], \"";
-							script += currentFunction->body;
+							script += replaceAll(currentFunction->body, "\"", "\\\"");
 							script += "\");";
 
 							// Kore::log(Kore::Info, "Script:\n%s\n", script.c_str());
@@ -1346,6 +1355,8 @@ extern "C" void filechanged(char* path) {
 		codechanged = true;
 	}
 }
+
+void sendMessage(const char* message);
 
 //__declspec(dllimport) extern "C" void __stdcall Sleep(unsigned long milliseconds);
 
@@ -1405,8 +1416,11 @@ int kore(int argc, char** argv) {
 	watchDirectories(argv[1], argv[2]);
 	
 	startDebugger(isolate);
-	//while (!tickDebugger()) {}
+	while (!tickDebugger()) {}
 	//Sleep(1000);
+
+	// sendMessage("{\"method\":\"Runtime.consoleAPICalled\",\"params\":{\"type\":\"info\",\"args\":[\"Starting Krom.\"],\"executionContextId\":0,\"timestamp\":0}}");
+	// sendMessage("{\"method\":\"Runtime.consoleAPICalled\",\"params\":{\"type\":\"info\",\"args\":[\"Starting Krom.\"],\"executionContextId\":0,\"timestamp\":0}}");
 
 	startKrom(code);
 	Kore::System::start();
