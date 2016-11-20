@@ -53,7 +53,7 @@ namespace {
 		Kore::log(Kore::Info, "Http message: %s", http);
 
 		if (step == 0) {
-			char* httpheader =
+			const char* httpheader =
 				"HTTP/1.1 200 OK\r\n\
 Server: Krom\r\n\
 Content-Length: 371\r\n\
@@ -62,20 +62,35 @@ Connection: close\r\n\
 Content-Type: text/json\r\n\
 \r\n\r\n";
 
-			char* httpdata =
+			char portstring[24];
+			sprintf(portstring, "%d", PORT);
+
+			const char* httpdata1 =
 				"[{\r\n\
 \"description\": \"\",\r\n\
-\"devtoolsFrontendUrl\": \"/devtools/inspector.html?ws=localhost:9224/devtools/page/dc5c7352-a3c4-40d2-9bec-30a329ef40e0\",\r\n\
+\"devtoolsFrontendUrl\": \"/devtools/inspector.html?ws=localhost:";
+
+			const char* httpdata2 = "/devtools/page/dc5c7352-a3c4-40d2-9bec-30a329ef40e0\",\r\n\
 \"id\": \"dc5c7352-a3c4-40d2-9bec-30a329ef40e0\",\r\n\
-\"title\": \"localhost:9224/json\",\r\n\
+\"title\": \"localhost:";
+			
+			const char* httpdata3 = "/json\",\r\n\
 \"type\": \"page\",\r\n\
 \"url\": \"http://krom\",\r\n\
-\"webSocketDebuggerUrl\": \"ws://localhost:9224/devtools/page/dc5c7352-a3c4-40d2-9bec-30a329ef40e0\"\r\n\
+\"webSocketDebuggerUrl\": \"ws://localhost:";
+			
+			const char* httpdata4 = "/devtools/page/dc5c7352-a3c4-40d2-9bec-30a329ef40e0\"\r\n\
 }]";
 
 			char data[4096];
 			strcpy(data, httpheader);
-			strcat(data, httpdata);
+			strcat(data, httpdata1);
+			strcat(data, portstring);
+			strcat(data, httpdata2);
+			strcat(data, portstring);
+			strcat(data, httpdata3);
+			strcat(data, portstring);
+			strcat(data, httpdata4);
 			send(client_socket, data, strlen(data), 0);
 
 			++step;
