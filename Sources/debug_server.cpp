@@ -34,7 +34,7 @@ void(*receiveMessageCallback)(char*) = nullptr;
 std::string sha1(const char* data, int length);
 
 namespace {
-	const int PORT = 9224;
+	int PORT = 0;
 	const int RCVBUFSIZE = 4096;
 
 	Kore::Mutex mutex;
@@ -354,7 +354,8 @@ std::string receiveMessage() {
 	}
 }
 
-void startServer() { // v8::base::Semaphore* semaphore) {
+void startServer(int port) { // v8::base::Semaphore* semaphore) {
+	PORT = port;
 	//ready_semaphore = semaphore;
 	//Kore::threadsInit();
 	mutex.Create();

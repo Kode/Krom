@@ -93,8 +93,8 @@ namespace {
 	std::unique_ptr<v8_inspector::V8InspectorSession> v8session;
 }
 
-void startDebugger(v8::Isolate* isolate) {
-	startServer();
+void startDebugger(v8::Isolate* isolate, int port) {
+	startServer(port);
 
 	v8::HandleScope scope(isolate);
 	v8client = new InspectorClient;

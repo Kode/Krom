@@ -3,7 +3,7 @@
 #include "semaphore.h"
 #include "../V8/include/v8.h"
 
-void startDebugger(v8::Isolate* isolate);
+void startDebugger(v8::Isolate* isolate, int port);
 bool tickDebugger();
 
 extern bool v8paused;

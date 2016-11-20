@@ -44,6 +44,9 @@ Isolate* isolate;
 extern std::unique_ptr<v8_inspector::V8Inspector> v8inspector;
 
 namespace {
+	bool debug = false;
+	bool watch = false;
+
 	Platform* plat;
 	Global<Function> updateFunction;
 	Global<Function> keyboardDownFunction;
@@ -1252,12 +1255,12 @@ namespace {
 		Local<v8::Function> func = Local<v8::Function>::New(isolate, updateFunction);
 		Local<Value> result;
 
-		v8inspector->willExecuteScript(context, func->ScriptId());
+		if (debug) v8inspector->willExecuteScript(context, func->ScriptId());
 		if (!func->Call(context, context->Global(), 0, NULL).ToLocal(&result)) {
 			v8::String::Utf8Value stack_trace(try_catch.StackTrace());
 			Kore::log(Kore::Error, "Trace: %s", *stack_trace);
 		}
-		v8inspector->didExecuteScript(context);
+		if (debug) v8inspector->didExecuteScript(context);
 	}
 
 	void endV8() {
@@ -1671,6 +1674,23 @@ int kore(int argc, char** argv) {
 	
 	assetsdir = argv[1];
 	shadersdir = argv[2];
+	
+	bool readPort = false;
+	int port = 0;
+	for (int i = 3; i < argc; ++i) {
+		if (readPort) {
+			port = atoi(argv[i]);
+			readPort = false;
+		}
+		else if (strcmp(argv[i], "--debug") == 0) {
+			debug = true;
+			readPort = true;
+		}
+		else if (strcmp(argv[i], "--watch") == 0) {
+			watch = true;
+		}
+	}
+	
 	kromjs = assetsdir + "/krom.js";
 	
 	Kore::setFilesLocation(argv[1]);
@@ -1714,15 +1734,21 @@ int kore(int argc, char** argv) {
 
 	startV8();
 
-	parseCode();
-
+	if (watch) {
+		parseCode();
+	}
+	
 	Kore::threadsInit();
 
-	watchDirectories(argv[1], argv[2]);
+	if (watch) {
+		watchDirectories(argv[1], argv[2]);
+	}
 	
-	startDebugger(isolate);
-	while (!tickDebugger()) {}
-	//Sleep(1000);
+	if (debug) {
+		startDebugger(isolate, port);
+		while (!tickDebugger()) {}
+		//Sleep(1000);
+	}
 	
 	startKrom(code);
 	Kore::System::start();
