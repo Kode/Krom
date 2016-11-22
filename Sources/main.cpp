@@ -132,6 +132,13 @@ namespace {
 		obj->SetInternalField(0, External::New(isolate, new Kore::IndexBuffer(args[0]->Int32Value())));
 		args.GetReturnValue().Set(obj);
 	}
+
+	void krom_delete_indexbuffer(const FunctionCallbackInfo<Value>& args) {
+		HandleScope scope(args.GetIsolate());
+		Local<External> field = Local<External>::Cast(args[0]->ToObject()->GetInternalField(0));
+		Kore::IndexBuffer* buffer = (Kore::IndexBuffer*)field->Value();
+		delete buffer;
+	}
 	
 	void krom_set_indices(const FunctionCallbackInfo<Value>& args) {
 		HandleScope scope(args.GetIsolate());
@@ -195,6 +202,13 @@ namespace {
 		
 		obj->SetInternalField(0, External::New(isolate, new Kore::VertexBuffer(args[0]->Int32Value(), structure, args[2]->Int32Value())));
 		args.GetReturnValue().Set(obj);
+	}
+
+	void krom_delete_vertexbuffer(const FunctionCallbackInfo<Value>& args) {
+		HandleScope scope(args.GetIsolate());
+		Local<External> field = Local<External>::Cast(args[0]->ToObject()->GetInternalField(0));
+		Kore::VertexBuffer* buffer = (Kore::VertexBuffer*)field->Value();
+		delete buffer;
 	}
 	
 	void krom_set_vertices(const FunctionCallbackInfo<Value>& args) {
@@ -333,6 +347,13 @@ namespace {
 		obj->Set(String::NewFromUtf8(isolate, "name"), args[1]);
 		args.GetReturnValue().Set(obj);
 	}
+
+	void krom_delete_shader(const FunctionCallbackInfo<Value>& args) {
+		HandleScope scope(args.GetIsolate());
+		Local<External> field = Local<External>::Cast(args[0]->ToObject()->GetInternalField(0));
+		Kore::Shader* shader = (Kore::Shader*)field->Value();
+		delete shader;
+	}
 	
 	void krom_create_program(const FunctionCallbackInfo<Value>& args) {
 		HandleScope scope(args.GetIsolate());
@@ -344,6 +365,14 @@ namespace {
 		Local<Object> obj = templ->NewInstance(isolate->GetCurrentContext()).ToLocalChecked();
 		obj->SetInternalField(0, External::New(isolate, program));
 		args.GetReturnValue().Set(obj);
+	}
+
+	void krom_delete_program(const FunctionCallbackInfo<Value>& args) {
+		HandleScope scope(args.GetIsolate());
+		Local<Object> progobj = args[0]->ToObject();
+		Local<External> progfield = Local<External>::Cast(progobj->GetInternalField(0));
+		Kore::Program* program = (Kore::Program*)progfield->Value();
+		delete program;
 	}
 	
 	void recompileProgram(Local<Object> projobj) {
@@ -565,6 +594,25 @@ namespace {
 		obj->Set(String::NewFromUtf8(isolate, "realHeight"), Int32::New(isolate, texture->texHeight));
 		obj->Set(String::NewFromUtf8(isolate, "filename"), args[0]);
 		args.GetReturnValue().Set(obj);
+	}
+
+	void krom_unload_image(const FunctionCallbackInfo<Value>& args) {
+		HandleScope scope(args.GetIsolate());
+		if (args[0]->IsNull() || args[0]->IsUndefined()) return;
+		Local<Object> image = args[0]->ToObject();
+		Local<Value> tex = image->Get(String::NewFromUtf8(isolate, "texture_"));
+		Local<Value> rt = image->Get(String::NewFromUtf8(isolate, "renderTarget_"));
+
+		if (tex->IsObject()) {
+			Local<External> texfield = Local<External>::Cast(tex->ToObject()->GetInternalField(0));
+			Kore::Texture* texture = (Kore::Texture*)texfield->Value();
+			delete texture;
+		}
+		else if (rt->IsObject()) {
+			Local<External> rtfield = Local<External>::Cast(rt->ToObject()->GetInternalField(0));
+			Kore::RenderTarget* renderTarget = (Kore::RenderTarget*)rtfield->Value();
+			delete renderTarget;
+		}
 	}
 	
 	void krom_load_sound(const FunctionCallbackInfo<Value>& args) {
@@ -1149,9 +1197,11 @@ namespace {
 		krom->Set(String::NewFromUtf8(isolate, "setMouseUpCallback"), FunctionTemplate::New(isolate, krom_set_mouse_up_callback));
 		krom->Set(String::NewFromUtf8(isolate, "setMouseMoveCallback"), FunctionTemplate::New(isolate, krom_set_mouse_move_callback));
 		krom->Set(String::NewFromUtf8(isolate, "createIndexBuffer"), FunctionTemplate::New(isolate, krom_create_indexbuffer));
+		krom->Set(String::NewFromUtf8(isolate, "deleteIndexBuffer"), FunctionTemplate::New(isolate, krom_delete_indexbuffer));
 		krom->Set(String::NewFromUtf8(isolate, "setIndices"), FunctionTemplate::New(isolate, krom_set_indices));
 		krom->Set(String::NewFromUtf8(isolate, "setIndexBuffer"), FunctionTemplate::New(isolate, krom_set_indexbuffer));
 		krom->Set(String::NewFromUtf8(isolate, "createVertexBuffer"), FunctionTemplate::New(isolate, krom_create_vertexbuffer));
+		krom->Set(String::NewFromUtf8(isolate, "deleteVertexBuffer"), FunctionTemplate::New(isolate, krom_delete_vertexbuffer));
 		krom->Set(String::NewFromUtf8(isolate, "setVertices"), FunctionTemplate::New(isolate, krom_set_vertices));
 		krom->Set(String::NewFromUtf8(isolate, "setVertexBuffer"), FunctionTemplate::New(isolate, krom_set_vertexbuffer));
 		krom->Set(String::NewFromUtf8(isolate, "setVertexBuffers"), FunctionTemplate::New(isolate, krom_set_vertexbuffers));
@@ -1162,10 +1212,13 @@ namespace {
 		krom->Set(String::NewFromUtf8(isolate, "createGeometryShader"), FunctionTemplate::New(isolate, krom_create_geometry_shader));
 		krom->Set(String::NewFromUtf8(isolate, "createTessellationControlShader"), FunctionTemplate::New(isolate, krom_create_tessellation_control_shader));
 		krom->Set(String::NewFromUtf8(isolate, "createTessellationEvaluationShader"), FunctionTemplate::New(isolate, krom_create_tessellation_evaluation_shader));
+		krom->Set(String::NewFromUtf8(isolate, "deleteShader"), FunctionTemplate::New(isolate, krom_delete_shader));
 		krom->Set(String::NewFromUtf8(isolate, "createProgram"), FunctionTemplate::New(isolate, krom_create_program));
+		krom->Set(String::NewFromUtf8(isolate, "deleteProgram"), FunctionTemplate::New(isolate, krom_delete_program));
 		krom->Set(String::NewFromUtf8(isolate, "compileProgram"), FunctionTemplate::New(isolate, krom_compile_program));
 		krom->Set(String::NewFromUtf8(isolate, "setProgram"), FunctionTemplate::New(isolate, krom_set_program));
 		krom->Set(String::NewFromUtf8(isolate, "loadImage"), FunctionTemplate::New(isolate, krom_load_image));
+		krom->Set(String::NewFromUtf8(isolate, "unloadImage"), FunctionTemplate::New(isolate, krom_unload_image));
 		krom->Set(String::NewFromUtf8(isolate, "loadSound"), FunctionTemplate::New(isolate, krom_load_sound));
 		krom->Set(String::NewFromUtf8(isolate, "loadBlob"), FunctionTemplate::New(isolate, krom_load_blob));
 		krom->Set(String::NewFromUtf8(isolate, "getConstantLocation"), FunctionTemplate::New(isolate, krom_get_constant_location));
