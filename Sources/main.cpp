@@ -1342,8 +1342,8 @@ namespace {
 		TryCatch try_catch(isolate);
 		v8::Local<v8::Function> func = v8::Local<v8::Function>::New(isolate, keyboardDownFunction);
 		Local<Value> result;
-		const int argc = 1;
-		Local<Value> argv[argc] = {Int32::New(isolate, (int)code)};
+		const int argc = 2;
+		Local<Value> argv[argc] = {Int32::New(isolate, (int)code), Int32::New(isolate, (int)character)};
 		if (!func->Call(context, context->Global(), argc, argv).ToLocal(&result)) {
 			v8::String::Utf8Value stack_trace(try_catch.StackTrace());
 			Kore::log(Kore::Error, "Trace: %s", *stack_trace);
@@ -1359,8 +1359,8 @@ namespace {
 		TryCatch try_catch(isolate);
 		v8::Local<v8::Function> func = v8::Local<v8::Function>::New(isolate, keyboardUpFunction);
 		Local<Value> result;
-		const int argc = 1;
-		Local<Value> argv[argc] = {Int32::New(isolate, (int)code)};
+		const int argc = 2;
+		Local<Value> argv[argc] = {Int32::New(isolate, (int)code), Int32::New(isolate, (int)character)};
 		if (!func->Call(context, context->Global(), argc, argv).ToLocal(&result)) {
 			v8::String::Utf8Value stack_trace(try_catch.StackTrace());
 			Kore::log(Kore::Error, "Trace: %s", *stack_trace);
@@ -1376,8 +1376,8 @@ namespace {
 		TryCatch try_catch(isolate);
 		v8::Local<v8::Function> func = v8::Local<v8::Function>::New(isolate, mouseMoveFunction);
 		Local<Value> result;
-		const int argc = 2;
-		Local<Value> argv[argc] = {Int32::New(isolate, x), Int32::New(isolate, y)};
+		const int argc = 4;
+		Local<Value> argv[argc] = {Int32::New(isolate, x), Int32::New(isolate, y), Int32::New(isolate, mx), Int32::New(isolate, my)};
 		if (!func->Call(context, context->Global(), argc, argv).ToLocal(&result)) {
 			v8::String::Utf8Value stack_trace(try_catch.StackTrace());
 			Kore::log(Kore::Error, "Trace: %s", *stack_trace);
