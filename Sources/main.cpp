@@ -58,6 +58,51 @@ namespace {
 	std::map<std::string, bool> shaderChanges;
 	std::map<std::string, std::string> shaderFileNames;
 
+	void update();
+	void keyDown(Kore::KeyCode code, wchar_t character);
+	void keyUp(Kore::KeyCode code, wchar_t character);
+	void mouseMove(int window, int x, int y, int mx, int my);
+	void mouseDown(int window, int button, int x, int y);
+	void mouseUp(int window, int button, int x, int y);
+
+	void krom_init(const v8::FunctionCallbackInfo<v8::Value>& args) {
+		HandleScope scope(args.GetIsolate());
+		Local<Value> arg = args[0];
+		String::Utf8Value title(arg);
+		int width = args[1]->ToInt32()->Value();
+		int height = args[2]->ToInt32()->Value();
+		int samplesPerPixel = args[3]->ToInt32()->Value();
+
+		Kore::WindowOptions options;
+		options.title = *title;
+		options.width = width;
+		options.height = height;
+		options.x = 100;
+		options.y = 100;
+		options.targetDisplay = 0;
+		options.mode = Kore::WindowModeWindow;
+		options.rendererOptions.depthBufferBits = 16;
+		options.rendererOptions.stencilBufferBits = 8;
+		options.rendererOptions.textureFormat = 0;
+		options.rendererOptions.antialiasing = samplesPerPixel;
+		Kore::System::initWindow(options);
+		
+		Kore::Graphics::setRenderState(Kore::DepthTest, false);
+		//Mixer::init();
+		//Audio::init();
+		Kore::Random::init(Kore::System::time() * 1000);
+		
+		Kore::System::setCallback(update);
+		
+		Kore::Keyboard::the()->KeyDown = keyDown;
+		Kore::Keyboard::the()->KeyUp = keyUp;
+		Kore::Mouse::the()->Move = mouseMove;
+		Kore::Mouse::the()->Press = mouseDown;
+		Kore::Mouse::the()->Release = mouseUp;
+		
+		//Mixer::play(music);
+	}
+
 	void LogCallback(const v8::FunctionCallbackInfo<v8::Value>& args) {
 		if (args.Length() < 1) return;
 		HandleScope scope(args.GetIsolate());
@@ -1188,6 +1233,7 @@ namespace {
 		HandleScope handle_scope(isolate);
 
 		Local<ObjectTemplate> krom = ObjectTemplate::New(isolate);
+		krom->Set(String::NewFromUtf8(isolate, "init"), FunctionTemplate::New(isolate, krom_init));
 		krom->Set(String::NewFromUtf8(isolate, "log"), FunctionTemplate::New(isolate, LogCallback));
 		krom->Set(String::NewFromUtf8(isolate, "clear"), FunctionTemplate::New(isolate, graphics_clear));
 		krom->Set(String::NewFromUtf8(isolate, "setCallback"), FunctionTemplate::New(isolate, krom_set_callback));
@@ -1721,10 +1767,7 @@ extern "C" void filechanged(char* path) {
 
 //__declspec(dllimport) extern "C" void __stdcall Sleep(unsigned long milliseconds);
 
-int kore(int argc, char** argv) {
-	int w = 1024;
-	int h = 768;
-	
+int kore(int argc, char** argv) {	
 	assetsdir = argv[1];
 	shadersdir = argv[2];
 	
@@ -1749,34 +1792,6 @@ int kore(int argc, char** argv) {
 	Kore::setFilesLocation(argv[1]);
 	Kore::System::setName("Krom");
 	Kore::System::setup();
-	Kore::WindowOptions options;
-	options.title = "Krom";
-	options.width = w;
-	options.height = h;
-	options.x = 100;
-	options.y = 100;
-	options.targetDisplay = 0;
-	options.mode = Kore::WindowModeWindow;
-	options.rendererOptions.depthBufferBits = 16;
-	options.rendererOptions.stencilBufferBits = 8;
-	options.rendererOptions.textureFormat = 0;
-	options.rendererOptions.antialiasing = 0;
-	Kore::System::initWindow(options);
-	
-	Kore::Graphics::setRenderState(Kore::DepthTest, false);
-	//Mixer::init();
-	//Audio::init();
-	Kore::Random::init(Kore::System::time() * 1000);
-	
-	Kore::System::setCallback(update);
-	
-	Kore::Keyboard::the()->KeyDown = keyDown;
-	Kore::Keyboard::the()->KeyUp = keyUp;
-	Kore::Mouse::the()->Move = mouseMove;
-	Kore::Mouse::the()->Press = mouseDown;
-	Kore::Mouse::the()->Release = mouseUp;
-	
-	//Mixer::play(music);
 	
 	Kore::FileReader reader;
 	reader.open("krom.js");
