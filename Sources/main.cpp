@@ -961,6 +961,8 @@ namespace {
 		obj->SetInternalField(0, External::New(isolate, texture));
 		obj->Set(String::NewFromUtf8(isolate, "width"), Int32::New(isolate, texture->width));
 		obj->Set(String::NewFromUtf8(isolate, "height"), Int32::New(isolate, texture->height));
+		obj->Set(String::NewFromUtf8(isolate, "realWidth"), Int32::New(isolate, texture->texWidth));
+		obj->Set(String::NewFromUtf8(isolate, "realHeight"), Int32::New(isolate, texture->texHeight));
 		args.GetReturnValue().Set(obj);
 	}
 
