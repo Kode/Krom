@@ -1374,7 +1374,7 @@ namespace {
 	void update() {
 		Kore::Graphics::begin();
 		runV8();
-		tickDebugger();
+		if (debug) tickDebugger();
 		Kore::Graphics::end();
 		Kore::Graphics::swapBuffers();
 	}
