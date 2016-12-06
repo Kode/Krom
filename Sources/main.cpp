@@ -54,6 +54,7 @@ namespace {
 	Global<Function> mouseDownFunction;
 	Global<Function> mouseUpFunction;
 	Global<Function> mouseMoveFunction;
+    Global<Function> audioFunction;
 	std::map<std::string, bool> imageChanges;
 	std::map<std::string, bool> shaderChanges;
 	std::map<std::string, std::string> shaderFileNames;
@@ -614,50 +615,47 @@ namespace {
 			delete renderTarget;
 		}
 	}
-	
+    
 	void krom_load_sound(const FunctionCallbackInfo<Value>& args) {
 		HandleScope scope(args.GetIsolate());
         String::Utf8Value utf8_value(args[0]);
         
         Kore::Sound* sound = new Kore::Sound(*utf8_value);
         
-        Kore::log(Kore::Info, "Load %s %i", *utf8_value, sound->size);
+        Kore::log(Kore::Info, "Load Sound %s", *utf8_value);
         
-        Local<ArrayBuffer> buffer = ArrayBuffer::New(isolate, sound->size * sizeof(Kore::u8));
+        Local<ArrayBuffer> buffer = ArrayBuffer::New(isolate, sound->size * sizeof(float));
         ArrayBuffer::Contents content = buffer->Externalize();
         
-        Kore::u8* to = (Kore::u8*)content.Data();
-        for (int i = 0; i < sound->size; ++i) {
-            to[i] = *(Kore::u8*)&sound->data[i];
+        float* to = (float*)content.Data();
+        for (int i = 0; i < sound->size; i ++) {
+            float val = *(Kore::s16*)&sound->data[i] / 32767.0f;
+            to[i] = val;
+            //if (i < 10 || i > sound->size - 10) Kore::log(Kore::Info, "to[%i] = %f", i, val);
         }
         
         args.GetReturnValue().Set(buffer);
 	}
     
-    void krom_play_sound(const FunctionCallbackInfo<Value>& args) {
+    void write_audio_buffer(const FunctionCallbackInfo<Value>& args) {
         HandleScope scope(args.GetIsolate());
-        if (args[0]->IsNull() || args[0]->IsUndefined()) return;
+        float value = (float)args[0]->ToNumber()->Value();
         
-        Local<ArrayBuffer> buffer = Local<ArrayBuffer>::Cast(args[0]);
-        ArrayBuffer::Contents content;
-        if (buffer->IsExternal()) content = buffer->GetContents();
-        else content = buffer->Externalize();
+        //if (value > 0) Kore::log(Kore::Info, "Write %f at pos %i", value, Kore::Audio::buffer.writeLocation);
+        *(float*)&Kore::Audio::buffer.data[Kore::Audio::buffer.writeLocation] = value;
+        Kore::Audio::buffer.writeLocation += 4;
+        if (Kore::Audio::buffer.writeLocation >= Kore::Audio::buffer.dataSize) Kore::Audio::buffer.writeLocation = 0;
+    }
+    
+    void mix(int samples) {
         
-        Kore::s16* sound = (Kore::s16*)content.Data();
-        
-        bool loop = (args[1]->ToInt32()->Value() != 0);
-        bool stream = (args[2]->ToInt32()->Value() != 0);
-        
-        int samples = (int)(buffer->ByteLength() / sizeof(Kore::s16));
-        Kore::log(Kore::Info, "samples %i loop:%i stream:%i", samples, loop, stream);
-        for (int i = 0; i < samples; ++i) {
-            float value = sound[i];
-            *(float*)&Kore::Audio::buffer.data[Kore::Audio::buffer.writeLocation] = value;
-            Kore::Audio::buffer.writeLocation += 4;
-            if (Kore::Audio::buffer.writeLocation >= Kore::Audio::buffer.dataSize) Kore::Audio::buffer.writeLocation = 0;
-        }
-        
-        // Call Kore::Mixer::play(sound); ???
+    }
+    
+    void krom_set_audio_callback(const FunctionCallbackInfo<Value>& args) {
+        HandleScope scope(args.GetIsolate());
+        Local<Value> arg = args[0];
+        Local<Function> func = Local<Function>::Cast(arg);
+        audioFunction.Reset(isolate, func);
     }
 	
 	void krom_load_blob(const FunctionCallbackInfo<Value>& args) {
@@ -1260,7 +1258,8 @@ namespace {
 		krom->Set(String::NewFromUtf8(isolate, "loadImage"), FunctionTemplate::New(isolate, krom_load_image));
 		krom->Set(String::NewFromUtf8(isolate, "unloadImage"), FunctionTemplate::New(isolate, krom_unload_image));
 		krom->Set(String::NewFromUtf8(isolate, "loadSound"), FunctionTemplate::New(isolate, krom_load_sound));
-        krom->Set(String::NewFromUtf8(isolate, "playSound"), FunctionTemplate::New(isolate, krom_play_sound));
+        krom->Set(String::NewFromUtf8(isolate, "setAudioCallback"), FunctionTemplate::New(isolate, krom_set_audio_callback));
+        krom->Set(String::NewFromUtf8(isolate, "writeAudioBuffer"), FunctionTemplate::New(isolate, write_audio_buffer));
 		krom->Set(String::NewFromUtf8(isolate, "loadBlob"), FunctionTemplate::New(isolate, krom_load_blob));
 		krom->Set(String::NewFromUtf8(isolate, "getConstantLocation"), FunctionTemplate::New(isolate, krom_get_constant_location));
 		krom->Set(String::NewFromUtf8(isolate, "getTextureUnit"), FunctionTemplate::New(isolate, krom_get_texture_unit));
@@ -1355,6 +1354,17 @@ namespace {
 			Kore::log(Kore::Error, "Trace: %s", *stack_trace);
 		}
 		if (debug) v8inspector->didExecuteScript(context);
+        
+        func = Local<v8::Function>::New(isolate, audioFunction);
+        const int argc = 1;
+        Local<Value> argv[argc] = {Int32::New(isolate, Kore::Audio::buffer.dataSize)};
+        
+        if (debug) v8inspector->willExecuteScript(context, func->ScriptId());
+        if (!func->Call(context, context->Global(), argc, argv).ToLocal(&result)) {
+            v8::String::Utf8Value stack_trace(try_catch.StackTrace());
+            Kore::log(Kore::Error, "Trace: %s", *stack_trace);
+        }
+        if (debug) v8inspector->didExecuteScript(context);
 	}
 
 	void endV8() {
@@ -1806,7 +1816,8 @@ int kore(int argc, char** argv) {
 	Kore::System::initWindow(options);
 	
 	Kore::Graphics::setRenderState(Kore::DepthTest, false);
-    Kore::Mixer::init();
+    //Kore::Mixer::init();
+    Kore::Audio::audioCallback = mix;
     Kore::Audio::init();
     Kore::Random::init(Kore::System::time() * 1000);
 	
