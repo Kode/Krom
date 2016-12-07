@@ -623,7 +623,6 @@ namespace {
 		}
 	}
     
-    float lastval = 0;
 	void krom_load_sound(const FunctionCallbackInfo<Value>& args) {
 		HandleScope scope(args.GetIsolate());
         String::Utf8Value utf8_value(args[0]);
@@ -658,7 +657,6 @@ namespace {
             }
         }
         
-        lastval = 0;
         args.GetReturnValue().Set(buffer);
 	}
     
