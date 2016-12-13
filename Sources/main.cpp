@@ -16,6 +16,7 @@
 #include <Kore/System.h>
 #include <Kore/Log.h>
 #include <Kore/Threads/Thread.h>
+#include <Kore/Threads/Mutex.h>
 
 #include "debug.h"
 
@@ -58,6 +59,8 @@ namespace {
 	std::map<std::string, bool> imageChanges;
 	std::map<std::string, bool> shaderChanges;
 	std::map<std::string, std::string> shaderFileNames;
+    
+    Kore::Mutex audioMutex;
 
 	void LogCallback(const v8::FunctionCallbackInfo<v8::Value>& args) {
 		if (args.Length() < 1) return;
@@ -128,6 +131,14 @@ namespace {
         Local<Value> arg = args[0];
         Local<Function> func = Local<Function>::Cast(arg);
         audioFunction.Reset(isolate, func);
+    }
+    
+    void audio_thread(const FunctionCallbackInfo<Value>& args) {
+        HandleScope scope(args.GetIsolate());
+        bool lock = args[0]->ToBoolean()->Value();
+        
+        if (lock) audioMutex.Lock();
+        else audioMutex.Unlock();
     }
 	
 	void krom_create_indexbuffer(const FunctionCallbackInfo<Value>& args) {
@@ -654,6 +665,11 @@ namespace {
             for (int i = 0; i < sound->size / 2; i += 2) {
                 to[i + 0] = left[i / 2] / 32767.0f;
                 to[i + 1] = right[i / 2] / 32767.0f;
+                
+                /*if(i < 10) {
+                    Kore::log(Kore::Info, "to[%i] = %f",i+0, to[i + 0]);
+                    Kore::log(Kore::Info, "to[%i] = %f",i+1, to[i + 1]);
+                }*/
             }
         }
         
@@ -1272,6 +1288,7 @@ namespace {
 		krom->Set(String::NewFromUtf8(isolate, "unloadImage"), FunctionTemplate::New(isolate, krom_unload_image));
 		krom->Set(String::NewFromUtf8(isolate, "loadSound"), FunctionTemplate::New(isolate, krom_load_sound));
         krom->Set(String::NewFromUtf8(isolate, "setAudioCallback"), FunctionTemplate::New(isolate, krom_set_audio_callback));
+        krom->Set(String::NewFromUtf8(isolate, "audioThread"), FunctionTemplate::New(isolate, audio_thread));
         krom->Set(String::NewFromUtf8(isolate, "writeAudioBuffer"), FunctionTemplate::New(isolate, write_audio_buffer));
 		krom->Set(String::NewFromUtf8(isolate, "loadBlob"), FunctionTemplate::New(isolate, krom_load_blob));
 		krom->Set(String::NewFromUtf8(isolate, "getConstantLocation"), FunctionTemplate::New(isolate, krom_get_constant_location));
@@ -1343,31 +1360,31 @@ namespace {
 
 	void parseCode();
 	
-	void runV8() {
-		if (v8paused) return;
-
-		if (codechanged) {
-			parseCode();
-			codechanged = false;
-		}
-		
-		Isolate::Scope isolate_scope(isolate);
-		v8::MicrotasksScope microtasks_scope(isolate, v8::MicrotasksScope::kRunMicrotasks);
-		HandleScope handle_scope(isolate);
-		Local<Context> context = Local<Context>::New(isolate, globalContext);
-		Context::Scope context_scope(context);
-		
-		TryCatch try_catch(isolate);
-		Local<v8::Function> func = Local<v8::Function>::New(isolate, updateFunction);
-		Local<Value> result;
-
-		if (debug) v8inspector->willExecuteScript(context, func->ScriptId());
-		if (!func->Call(context, context->Global(), 0, NULL).ToLocal(&result)) {
-			v8::String::Utf8Value stack_trace(try_catch.StackTrace());
-			Kore::log(Kore::Error, "Trace: %s", *stack_trace);
-		}
-		if (debug) v8inspector->didExecuteScript(context);
-	}
+    void runV8() {
+        if (v8paused) return;
+        
+        if (codechanged) {
+            parseCode();
+            codechanged = false;
+        }
+        
+        Isolate::Scope isolate_scope(isolate);
+        v8::MicrotasksScope microtasks_scope(isolate, v8::MicrotasksScope::kRunMicrotasks);
+        HandleScope handle_scope(isolate);
+        Local<Context> context = Local<Context>::New(isolate, globalContext);
+        Context::Scope context_scope(context);
+        
+        TryCatch try_catch(isolate);
+        Local<v8::Function> func = Local<v8::Function>::New(isolate, updateFunction);
+        Local<Value> result;
+        
+        if (debug) v8inspector->willExecuteScript(context, func->ScriptId());
+        if (!func->Call(context, context->Global(), 0, NULL).ToLocal(&result)) {
+            v8::String::Utf8Value stack_trace(try_catch.StackTrace());
+            Kore::log(Kore::Error, "Trace: %s", *stack_trace);
+        }
+        if (debug) v8inspector->didExecuteScript(context);
+    }
 
 	void endV8() {
 		updateFunction.Reset();
@@ -1377,10 +1394,6 @@ namespace {
 		V8::ShutdownPlatform();
 		delete plat;
 	}
-    
-    void mix(int samples) {
-        // TODO: Call update audio here
-    }
     
     void updateAudio(int samples) {
         Isolate::Scope isolate_scope(isolate);
@@ -1398,12 +1411,21 @@ namespace {
             Kore::log(Kore::Error, "Trace: %s", *stack_trace);
         }
     }
+    
+    bool initialized = false;
+    void mix(int samples) {
+        // TODO: Call update audio here
+        //Kore::log(Kore::Info, "mix");
+        //if (initialized) updateAudio(samples);
+    }
 	
 	void update() {
+        initialized = true;
+        
         Kore::Audio::update();
 		Kore::Graphics::begin();
 		runV8();
-        updateAudio(1024);
+        //updateAudio(1024);
 		tickDebugger();
 		Kore::Graphics::end();
 		Kore::Graphics::swapBuffers();
@@ -1842,14 +1864,14 @@ int kore(int argc, char** argv) {
 	Kore::Graphics::setRenderState(Kore::DepthTest, false);
     //Kore::Mixer::init();
     //Kore::Audio::init();
+    audioMutex.Create();
+    Kore::Audio::audioCallback = mix;
+    Kore::Audio::init();
     Kore::Random::init(Kore::System::time() * 1000);
 	
     
     
-	Kore::System::setCallback(update);
-    
-    Kore::Audio::audioCallback = mix;
-    Kore::Audio::init();
+    Kore::System::setCallback(update);
 	
 	Kore::Keyboard::the()->KeyDown = keyDown;
 	Kore::Keyboard::the()->KeyUp = keyUp;
