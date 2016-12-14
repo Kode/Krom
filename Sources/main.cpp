@@ -60,9 +60,11 @@ namespace {
 	std::map<std::string, bool> shaderChanges;
 	std::map<std::string, std::string> shaderFileNames;
     
-    Kore::Mutex audioMutex;
+    bool initialized = false;   // TODO: why do we have to call update function first, then mix?
+    Kore::Mutex mutex;
 
 	void update();
+    void initAudioBuffer();
     void mix(int samples);
 	void keyDown(Kore::KeyCode code, wchar_t character);
 	void keyUp(Kore::KeyCode code, wchar_t character);
@@ -95,9 +97,10 @@ namespace {
 		Kore::Graphics::setRenderState(Kore::DepthTest, false);
 		//Mixer::init();
 		//Audio::init();
-        audioMutex.Create();
+        mutex.Create();
         Kore::Audio::audioCallback = mix;
         Kore::Audio::init();
+        initAudioBuffer();
 		Kore::Random::init(Kore::System::time() * 1000);
 		
 		Kore::System::setCallback(update);
@@ -188,8 +191,8 @@ namespace {
         bool lock = args[0]->ToBoolean()->Value();
         
 
-        if (lock) audioMutex.Lock();    //v8::Locker::Locker(isolate);
-        else audioMutex.Unlock();       //v8::Unlocker(args.GetIsolate());
+        if (lock) mutex.Lock();    //v8::Locker::Locker(isolate);
+        else mutex.Unlock();       //v8::Unlocker(args.GetIsolate());
         
         
     }
@@ -734,12 +737,14 @@ namespace {
         HandleScope scope(args.GetIsolate());
         float value = (float)args[0]->ToNumber()->Value();
         
+        if (!initialized) return;
+        
         //if (value > 0) Kore::log(Kore::Info, "%f", value);
-        audioMutex.Lock();
+//        mutex.Lock();
         *(float*)&Kore::Audio::buffer.data[Kore::Audio::buffer.writeLocation] = value;
         Kore::Audio::buffer.writeLocation += 4;
         if (Kore::Audio::buffer.writeLocation >= Kore::Audio::buffer.dataSize) Kore::Audio::buffer.writeLocation = 0;
-        audioMutex.Unlock();
+//        mutex.Unlock();
     }
 	
 	void krom_load_blob(const FunctionCallbackInfo<Value>& args) {
@@ -1426,6 +1431,8 @@ namespace {
             codechanged = false;
         }
         
+        v8::Locker locker{isolate};
+        
         Isolate::Scope isolate_scope(isolate);
         v8::MicrotasksScope microtasks_scope(isolate, v8::MicrotasksScope::kRunMicrotasks);
         HandleScope handle_scope(isolate);
@@ -1453,10 +1460,17 @@ namespace {
 		delete plat;
 	}
     
+    void initAudioBuffer() {
+        for (int i = 0; i < Kore::Audio::buffer.dataSize; i++) {
+            *(float*)&Kore::Audio::buffer.data[i] = 0;
+        }
+    }
+    
     void updateAudio(int samples) {
-        //Kore::log(Kore::Info, "mix");
-        //v8::Locker locker{isolate};                 // acquire a lock on the Isolate
-        //isolate->Enter();
+        v8::Locker locker{isolate};
+        
+        //# Fatal error in ../../src/parsing/parser.cc, line 649
+        //# Check failed: ThreadId::Current().Equals(info->isolate()->thread_id()).
         
         Isolate::Scope isolate_scope(isolate);
         HandleScope handle_scope(isolate);
@@ -1472,31 +1486,25 @@ namespace {
             v8::String::Utf8Value stack_trace(try_catch.StackTrace());
             Kore::log(Kore::Error, "Trace: %s", *stack_trace);
         }
-        
-        
-        //isolate->Dispose();
-        
     }
     
     void mix(int samples) {
         // TODO: Call update audio here
         //Kore::log(Kore::Info, "mix");
-        
-        
-        //audioMutex.Lock();
-        //updateAudio(samples);
-        //audioMutex.Unlock();
-        
+        //mutex.Lock();
+        if (initialized) updateAudio(samples);
+        //mutex.Unlock();
     }
 	
 	void update() {
-        //Kore::log(Kore::Info, "up");
+        initialized = true;
         
         Kore::Audio::update();
 		Kore::Graphics::begin();
-		runV8();
         
-        updateAudio(1024);
+        //mutex.Lock();
+		runV8();
+        //mutex.Unlock();
         
 		if (debug) tickDebugger();
 		Kore::Graphics::end();
@@ -1504,6 +1512,8 @@ namespace {
 	}
 	
 	void keyDown(Kore::KeyCode code, wchar_t character) {
+        v8::Locker locker{isolate};
+        
 		Isolate::Scope isolate_scope(isolate);
 		HandleScope handle_scope(isolate);
 		v8::Local<v8::Context> context = v8::Local<v8::Context>::New(isolate, globalContext);
@@ -1521,6 +1531,8 @@ namespace {
 	}
 	
 	void keyUp(Kore::KeyCode code, wchar_t character) {
+        v8::Locker locker{isolate};
+        
 		Isolate::Scope isolate_scope(isolate);
 		HandleScope handle_scope(isolate);
 		v8::Local<v8::Context> context = v8::Local<v8::Context>::New(isolate, globalContext);
@@ -1538,6 +1550,8 @@ namespace {
 	}
 	
 	void mouseMove(int window, int x, int y, int mx, int my) {
+        v8::Locker locker{isolate};
+        
 		Isolate::Scope isolate_scope(isolate);
 		HandleScope handle_scope(isolate);
 		v8::Local<v8::Context> context = v8::Local<v8::Context>::New(isolate, globalContext);
@@ -1555,6 +1569,8 @@ namespace {
 	}
 	
 	void mouseDown(int window, int button, int x, int y) {
+        v8::Locker locker{isolate};
+        
 		Isolate::Scope isolate_scope(isolate);
 		HandleScope handle_scope(isolate);
 		v8::Local<v8::Context> context = v8::Local<v8::Context>::New(isolate, globalContext);
@@ -1572,6 +1588,8 @@ namespace {
 	}
 	
 	void mouseUp(int window, int button, int x, int y) {
+        v8::Locker locker{isolate};
+        
 		Isolate::Scope isolate_scope(isolate);
 		HandleScope handle_scope(isolate);
 		v8::Local<v8::Context> context = v8::Local<v8::Context>::New(isolate, globalContext);
@@ -1763,6 +1781,8 @@ namespace {
 						else if (currentFunction->body != currentBody) {
 							currentFunction->body = currentBody;
 							
+                            v8::Locker locker{isolate};
+                            
 							Isolate::Scope isolate_scope(isolate);
 							HandleScope handle_scope(isolate);
 							v8::Local<v8::Context> context = v8::Local<v8::Context>::New(isolate, globalContext);
@@ -1818,6 +1838,8 @@ namespace {
 						else if (currentFunction->body != currentBody) {
 							currentFunction->body = currentBody;
 
+                            v8::Locker locker{isolate};
+                            
 							Isolate::Scope isolate_scope(isolate);
 							HandleScope handle_scope(isolate);
 							v8::Local<v8::Context> context = v8::Local<v8::Context>::New(isolate, globalContext);
