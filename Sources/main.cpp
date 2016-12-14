@@ -62,6 +62,55 @@ namespace {
     
     Kore::Mutex audioMutex;
 
+	void update();
+    void mix(int samples);
+	void keyDown(Kore::KeyCode code, wchar_t character);
+	void keyUp(Kore::KeyCode code, wchar_t character);
+	void mouseMove(int window, int x, int y, int mx, int my);
+	void mouseDown(int window, int button, int x, int y);
+	void mouseUp(int window, int button, int x, int y);
+
+	void krom_init(const v8::FunctionCallbackInfo<v8::Value>& args) {
+		HandleScope scope(args.GetIsolate());
+		Local<Value> arg = args[0];
+		String::Utf8Value title(arg);
+		int width = args[1]->ToInt32()->Value();
+		int height = args[2]->ToInt32()->Value();
+		int samplesPerPixel = args[3]->ToInt32()->Value();
+
+		Kore::WindowOptions options;
+		options.title = *title;
+		options.width = width;
+		options.height = height;
+		options.x = 100;
+		options.y = 100;
+		options.targetDisplay = 0;
+		options.mode = Kore::WindowModeWindow;
+		options.rendererOptions.depthBufferBits = 16;
+		options.rendererOptions.stencilBufferBits = 8;
+		options.rendererOptions.textureFormat = 0;
+		options.rendererOptions.antialiasing = samplesPerPixel;
+		Kore::System::initWindow(options);
+		
+		Kore::Graphics::setRenderState(Kore::DepthTest, false);
+		//Mixer::init();
+		//Audio::init();
+        audioMutex.Create();
+        Kore::Audio::audioCallback = mix;
+        Kore::Audio::init();
+		Kore::Random::init(Kore::System::time() * 1000);
+		
+		Kore::System::setCallback(update);
+		
+		Kore::Keyboard::the()->KeyDown = keyDown;
+		Kore::Keyboard::the()->KeyUp = keyUp;
+		Kore::Mouse::the()->Move = mouseMove;
+		Kore::Mouse::the()->Press = mouseDown;
+		Kore::Mouse::the()->Release = mouseUp;
+		
+		//Mixer::play(music);
+	}
+
 	void LogCallback(const v8::FunctionCallbackInfo<v8::Value>& args) {
 		if (args.Length() < 1) return;
 		HandleScope scope(args.GetIsolate());
@@ -133,12 +182,16 @@ namespace {
         audioFunction.Reset(isolate, func);
     }
     
+    // TODO: krom_audio_lock
     void audio_thread(const FunctionCallbackInfo<Value>& args) {
         HandleScope scope(args.GetIsolate());
         bool lock = args[0]->ToBoolean()->Value();
         
-        if (lock) audioMutex.Lock();
-        else audioMutex.Unlock();
+
+        if (lock) audioMutex.Lock();    //v8::Locker::Locker(isolate);
+        else audioMutex.Unlock();       //v8::Unlocker(args.GetIsolate());
+        
+        
     }
 	
 	void krom_create_indexbuffer(const FunctionCallbackInfo<Value>& args) {
@@ -682,9 +735,11 @@ namespace {
         float value = (float)args[0]->ToNumber()->Value();
         
         //if (value > 0) Kore::log(Kore::Info, "%f", value);
+        audioMutex.Lock();
         *(float*)&Kore::Audio::buffer.data[Kore::Audio::buffer.writeLocation] = value;
         Kore::Audio::buffer.writeLocation += 4;
         if (Kore::Audio::buffer.writeLocation >= Kore::Audio::buffer.dataSize) Kore::Audio::buffer.writeLocation = 0;
+        audioMutex.Unlock();
     }
 	
 	void krom_load_blob(const FunctionCallbackInfo<Value>& args) {
@@ -983,6 +1038,8 @@ namespace {
 		obj->SetInternalField(0, External::New(isolate, texture));
 		obj->Set(String::NewFromUtf8(isolate, "width"), Int32::New(isolate, texture->width));
 		obj->Set(String::NewFromUtf8(isolate, "height"), Int32::New(isolate, texture->height));
+		obj->Set(String::NewFromUtf8(isolate, "realWidth"), Int32::New(isolate, texture->texWidth));
+		obj->Set(String::NewFromUtf8(isolate, "realHeight"), Int32::New(isolate, texture->texHeight));
 		args.GetReturnValue().Set(obj);
 	}
 
@@ -1255,6 +1312,7 @@ namespace {
 		HandleScope handle_scope(isolate);
 
 		Local<ObjectTemplate> krom = ObjectTemplate::New(isolate);
+		krom->Set(String::NewFromUtf8(isolate, "init"), FunctionTemplate::New(isolate, krom_init));
 		krom->Set(String::NewFromUtf8(isolate, "log"), FunctionTemplate::New(isolate, LogCallback));
 		krom->Set(String::NewFromUtf8(isolate, "clear"), FunctionTemplate::New(isolate, graphics_clear));
 		krom->Set(String::NewFromUtf8(isolate, "setCallback"), FunctionTemplate::New(isolate, krom_set_callback));
@@ -1396,6 +1454,10 @@ namespace {
 	}
     
     void updateAudio(int samples) {
+        //Kore::log(Kore::Info, "mix");
+        //v8::Locker locker{isolate};                 // acquire a lock on the Isolate
+        //isolate->Enter();
+        
         Isolate::Scope isolate_scope(isolate);
         HandleScope handle_scope(isolate);
         v8::Local<v8::Context> context = v8::Local<v8::Context>::New(isolate, globalContext);
@@ -1410,23 +1472,33 @@ namespace {
             v8::String::Utf8Value stack_trace(try_catch.StackTrace());
             Kore::log(Kore::Error, "Trace: %s", *stack_trace);
         }
+        
+        
+        //isolate->Dispose();
+        
     }
     
-    bool initialized = false;
     void mix(int samples) {
         // TODO: Call update audio here
         //Kore::log(Kore::Info, "mix");
-        //if (initialized) updateAudio(samples);
+        
+        
+        //audioMutex.Lock();
+        //updateAudio(samples);
+        //audioMutex.Unlock();
+        
     }
 	
 	void update() {
-        initialized = true;
+        //Kore::log(Kore::Info, "up");
         
         Kore::Audio::update();
 		Kore::Graphics::begin();
 		runV8();
-        //updateAudio(1024);
-		tickDebugger();
+        
+        updateAudio(1024);
+        
+		if (debug) tickDebugger();
 		Kore::Graphics::end();
 		Kore::Graphics::swapBuffers();
 	}
@@ -1440,8 +1512,8 @@ namespace {
 		TryCatch try_catch(isolate);
 		v8::Local<v8::Function> func = v8::Local<v8::Function>::New(isolate, keyboardDownFunction);
 		Local<Value> result;
-		const int argc = 1;
-		Local<Value> argv[argc] = {Int32::New(isolate, (int)code)};
+		const int argc = 2;
+		Local<Value> argv[argc] = {Int32::New(isolate, (int)code), Int32::New(isolate, (int)character)};
 		if (!func->Call(context, context->Global(), argc, argv).ToLocal(&result)) {
 			v8::String::Utf8Value stack_trace(try_catch.StackTrace());
 			Kore::log(Kore::Error, "Trace: %s", *stack_trace);
@@ -1457,8 +1529,8 @@ namespace {
 		TryCatch try_catch(isolate);
 		v8::Local<v8::Function> func = v8::Local<v8::Function>::New(isolate, keyboardUpFunction);
 		Local<Value> result;
-		const int argc = 1;
-		Local<Value> argv[argc] = {Int32::New(isolate, (int)code)};
+		const int argc = 2;
+		Local<Value> argv[argc] = {Int32::New(isolate, (int)code), Int32::New(isolate, (int)character)};
 		if (!func->Call(context, context->Global(), argc, argv).ToLocal(&result)) {
 			v8::String::Utf8Value stack_trace(try_catch.StackTrace());
 			Kore::log(Kore::Error, "Trace: %s", *stack_trace);
@@ -1474,8 +1546,8 @@ namespace {
 		TryCatch try_catch(isolate);
 		v8::Local<v8::Function> func = v8::Local<v8::Function>::New(isolate, mouseMoveFunction);
 		Local<Value> result;
-		const int argc = 2;
-		Local<Value> argv[argc] = {Int32::New(isolate, x), Int32::New(isolate, y)};
+		const int argc = 4;
+		Local<Value> argv[argc] = {Int32::New(isolate, x), Int32::New(isolate, y), Int32::New(isolate, mx), Int32::New(isolate, my)};
 		if (!func->Call(context, context->Global(), argc, argv).ToLocal(&result)) {
 			v8::String::Utf8Value stack_trace(try_catch.StackTrace());
 			Kore::log(Kore::Error, "Trace: %s", *stack_trace);
@@ -1819,10 +1891,7 @@ extern "C" void filechanged(char* path) {
 
 //__declspec(dllimport) extern "C" void __stdcall Sleep(unsigned long milliseconds);
 
-int kore(int argc, char** argv) {
-	int w = 1024;
-	int h = 768;
-	
+int kore(int argc, char** argv) {	
 	assetsdir = argv[1];
 	shadersdir = argv[2];
 	
@@ -1847,37 +1916,6 @@ int kore(int argc, char** argv) {
 	Kore::setFilesLocation(argv[1]);
 	Kore::System::setName("Krom");
 	Kore::System::setup();
-	Kore::WindowOptions options;
-	options.title = "Krom";
-	options.width = w;
-	options.height = h;
-	options.x = 100;
-	options.y = 100;
-	options.targetDisplay = 0;
-	options.mode = Kore::WindowModeWindow;
-	options.rendererOptions.depthBufferBits = 16;
-	options.rendererOptions.stencilBufferBits = 8;
-	options.rendererOptions.textureFormat = 0;
-	options.rendererOptions.antialiasing = 0;
-	Kore::System::initWindow(options);
-	
-	Kore::Graphics::setRenderState(Kore::DepthTest, false);
-    //Kore::Mixer::init();
-    //Kore::Audio::init();
-    audioMutex.Create();
-    Kore::Audio::audioCallback = mix;
-    Kore::Audio::init();
-    Kore::Random::init(Kore::System::time() * 1000);
-	
-    
-    
-    Kore::System::setCallback(update);
-	
-	Kore::Keyboard::the()->KeyDown = keyDown;
-	Kore::Keyboard::the()->KeyUp = keyUp;
-	Kore::Mouse::the()->Move = mouseMove;
-	Kore::Mouse::the()->Press = mouseDown;
-	Kore::Mouse::the()->Release = mouseUp;
 	
 	Kore::FileReader reader;
 	reader.open("krom.js");
