@@ -60,7 +60,6 @@ namespace {
 	std::map<std::string, bool> shaderChanges;
 	std::map<std::string, std::string> shaderFileNames;
     
-    bool initialized = false;   // TODO: why do we have to call update function first, then mix?
     Kore::Mutex mutex;
 
 	void update();
@@ -737,14 +736,9 @@ namespace {
         HandleScope scope(args.GetIsolate());
         float value = (float)args[0]->ToNumber()->Value();
         
-        if (!initialized) return;
-        
-        //if (value > 0) Kore::log(Kore::Info, "%f", value);
-//        mutex.Lock();
         *(float*)&Kore::Audio::buffer.data[Kore::Audio::buffer.writeLocation] = value;
         Kore::Audio::buffer.writeLocation += 4;
         if (Kore::Audio::buffer.writeLocation >= Kore::Audio::buffer.dataSize) Kore::Audio::buffer.writeLocation = 0;
-//        mutex.Unlock();
     }
 	
 	void krom_load_blob(const FunctionCallbackInfo<Value>& args) {
@@ -1397,6 +1391,8 @@ namespace {
 	}
 	
 	bool startKrom(char* scriptfile) {
+        v8::Locker locker{isolate};
+        
 		Isolate::Scope isolate_scope(isolate);
 		HandleScope handle_scope(isolate);
 		Local<Context> context = Local<Context>::New(isolate, globalContext);
@@ -1469,12 +1465,11 @@ namespace {
     void updateAudio(int samples) {
         v8::Locker locker{isolate};
         
-        //# Fatal error in ../../src/parsing/parser.cc, line 649
-        //# Check failed: ThreadId::Current().Equals(info->isolate()->thread_id()).
-        
         Isolate::Scope isolate_scope(isolate);
+        v8::MicrotasksScope microtasks_scope(isolate, v8::MicrotasksScope::kRunMicrotasks); // delete
         HandleScope handle_scope(isolate);
-        v8::Local<v8::Context> context = v8::Local<v8::Context>::New(isolate, globalContext);
+        //v8::Local<v8::Context> context = v8::Local<v8::Context>::New(isolate, globalContext);
+        Local<Context> context = Local<Context>::New(isolate, globalContext);
         Context::Scope context_scope(context);
         
         TryCatch try_catch(isolate);
@@ -1492,13 +1487,11 @@ namespace {
         // TODO: Call update audio here
         //Kore::log(Kore::Info, "mix");
         //mutex.Lock();
-        if (initialized) updateAudio(samples);
+        updateAudio(samples);
         //mutex.Unlock();
     }
 	
 	void update() {
-        initialized = true;
-        
         Kore::Audio::update();
 		Kore::Graphics::begin();
         
