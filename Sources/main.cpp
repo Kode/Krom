@@ -1466,14 +1466,13 @@ namespace {
         v8::Locker locker{isolate};
         
         Isolate::Scope isolate_scope(isolate);
-        v8::MicrotasksScope microtasks_scope(isolate, v8::MicrotasksScope::kRunMicrotasks); // delete
+        v8::MicrotasksScope microtasks_scope(isolate, v8::MicrotasksScope::kRunMicrotasks);
         HandleScope handle_scope(isolate);
-        //v8::Local<v8::Context> context = v8::Local<v8::Context>::New(isolate, globalContext);
         Local<Context> context = Local<Context>::New(isolate, globalContext);
         Context::Scope context_scope(context);
         
         TryCatch try_catch(isolate);
-        v8::Local<v8::Function> func = v8::Local<v8::Function>::New(isolate, audioFunction);
+        Local<v8::Function> func = Local<v8::Function>::New(isolate, audioFunction);
         Local<Value> result;
         const int argc = 1;
         Local<Value> argv[argc] = {Int32::New(isolate, samples)};
@@ -1484,8 +1483,6 @@ namespace {
     }
     
     void mix(int samples) {
-        // TODO: Call update audio here
-        //Kore::log(Kore::Info, "mix");
         //mutex.Lock();
         updateAudio(samples);
         //mutex.Unlock();
