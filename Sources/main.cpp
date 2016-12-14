@@ -16,6 +16,7 @@
 #include <Kore/System.h>
 #include <Kore/Log.h>
 #include <Kore/Threads/Thread.h>
+#include <Kore/Threads/Mutex.h>
 
 #include "debug.h"
 
@@ -54,11 +55,16 @@ namespace {
 	Global<Function> mouseDownFunction;
 	Global<Function> mouseUpFunction;
 	Global<Function> mouseMoveFunction;
+    Global<Function> audioFunction;
 	std::map<std::string, bool> imageChanges;
 	std::map<std::string, bool> shaderChanges;
 	std::map<std::string, std::string> shaderFileNames;
+    
+    Kore::Mutex mutex;
 
 	void update();
+    void initAudioBuffer();
+    void mix(int samples);
 	void keyDown(Kore::KeyCode code, wchar_t character);
 	void keyUp(Kore::KeyCode code, wchar_t character);
 	void mouseMove(int window, int x, int y, int mx, int my);
@@ -90,6 +96,10 @@ namespace {
 		Kore::Graphics::setRenderState(Kore::DepthTest, false);
 		//Mixer::init();
 		//Audio::init();
+        mutex.Create();
+        Kore::Audio::audioCallback = mix;
+        Kore::Audio::init();
+        initAudioBuffer();
 		Kore::Random::init(Kore::System::time() * 1000);
 		
 		Kore::System::setCallback(update);
@@ -166,6 +176,25 @@ namespace {
 		Local<Function> func = Local<Function>::Cast(arg);
 		mouseMoveFunction.Reset(isolate, func);
 	}
+    
+    void krom_set_audio_callback(const FunctionCallbackInfo<Value>& args) {
+        HandleScope scope(args.GetIsolate());
+        Local<Value> arg = args[0];
+        Local<Function> func = Local<Function>::Cast(arg);
+        audioFunction.Reset(isolate, func);
+    }
+    
+    // TODO: krom_audio_lock
+    void audio_thread(const FunctionCallbackInfo<Value>& args) {
+        HandleScope scope(args.GetIsolate());
+        bool lock = args[0]->ToBoolean()->Value();
+        
+
+        if (lock) mutex.Lock();    //v8::Locker::Locker(isolate);
+        else mutex.Unlock();       //v8::Unlocker(args.GetIsolate());
+        
+        
+    }
 	
 	void krom_create_indexbuffer(const FunctionCallbackInfo<Value>& args) {
 		HandleScope scope(args.GetIsolate());
@@ -659,11 +688,58 @@ namespace {
 			delete renderTarget;
 		}
 	}
-	
+    
 	void krom_load_sound(const FunctionCallbackInfo<Value>& args) {
 		HandleScope scope(args.GetIsolate());
-		
+        String::Utf8Value utf8_value(args[0]);
+        
+        Kore::Sound* sound = new Kore::Sound(*utf8_value);
+        
+        Kore::log(Kore::Info, "Load Sound %s", *utf8_value);
+        
+        Local<ArrayBuffer> buffer;
+        ArrayBuffer::Contents content;
+        
+        if (sound->format.bitsPerSample == 8) { // TODO: test
+            buffer = ArrayBuffer::New(isolate, sound->size * sizeof(float));
+            content = buffer->Externalize();
+            float* to = (float*)content.Data();
+            
+            for (int i = 0; i < sound->size; i += 2) {
+                to[i + 0] = sound->left[i / 2] / 255.0 * 2.0 - 1.0;
+                to[i + 1] = sound->right[i / 2] / 255.0 * 2.0 - 1.0;
+            }
+        }
+        else if (sound->format.bitsPerSample == 16) {
+            buffer = ArrayBuffer::New(isolate, (sound->size / 2) * sizeof(float));
+            content = buffer->Externalize();
+            float* to = (float*)content.Data();
+            
+            Kore::s16* left  = (Kore::s16*)&sound->left[0];
+            Kore::s16* right = (Kore::s16*)&sound->right[0];
+            for (int i = 0; i < sound->size / 2; i += 2) {
+                to[i + 0] = left[i / 2] / 32767.0f;
+                to[i + 1] = right[i / 2] / 32767.0f;
+                
+                /*if(i < 10) {
+                    Kore::log(Kore::Info, "to[%i] = %f",i+0, to[i + 0]);
+                    Kore::log(Kore::Info, "to[%i] = %f",i+1, to[i + 1]);
+                }*/
+            }
+        }
+        
+        args.GetReturnValue().Set(buffer);
 	}
+    
+    
+    void write_audio_buffer(const FunctionCallbackInfo<Value>& args) {
+        HandleScope scope(args.GetIsolate());
+        float value = (float)args[0]->ToNumber()->Value();
+        
+        *(float*)&Kore::Audio::buffer.data[Kore::Audio::buffer.writeLocation] = value;
+        Kore::Audio::buffer.writeLocation += 4;
+        if (Kore::Audio::buffer.writeLocation >= Kore::Audio::buffer.dataSize) Kore::Audio::buffer.writeLocation = 0;
+    }
 	
 	void krom_load_blob(const FunctionCallbackInfo<Value>& args) {
 		HandleScope scope(args.GetIsolate());
@@ -1268,6 +1344,9 @@ namespace {
 		krom->Set(String::NewFromUtf8(isolate, "loadImage"), FunctionTemplate::New(isolate, krom_load_image));
 		krom->Set(String::NewFromUtf8(isolate, "unloadImage"), FunctionTemplate::New(isolate, krom_unload_image));
 		krom->Set(String::NewFromUtf8(isolate, "loadSound"), FunctionTemplate::New(isolate, krom_load_sound));
+        krom->Set(String::NewFromUtf8(isolate, "setAudioCallback"), FunctionTemplate::New(isolate, krom_set_audio_callback));
+        krom->Set(String::NewFromUtf8(isolate, "audioThread"), FunctionTemplate::New(isolate, audio_thread));
+        krom->Set(String::NewFromUtf8(isolate, "writeAudioBuffer"), FunctionTemplate::New(isolate, write_audio_buffer));
 		krom->Set(String::NewFromUtf8(isolate, "loadBlob"), FunctionTemplate::New(isolate, krom_load_blob));
 		krom->Set(String::NewFromUtf8(isolate, "getConstantLocation"), FunctionTemplate::New(isolate, krom_get_constant_location));
 		krom->Set(String::NewFromUtf8(isolate, "getTextureUnit"), FunctionTemplate::New(isolate, krom_get_texture_unit));
@@ -1312,6 +1391,8 @@ namespace {
 	}
 	
 	bool startKrom(char* scriptfile) {
+        v8::Locker locker{isolate};
+        
 		Isolate::Scope isolate_scope(isolate);
 		HandleScope handle_scope(isolate);
 		Local<Context> context = Local<Context>::New(isolate, globalContext);
@@ -1338,31 +1419,33 @@ namespace {
 
 	void parseCode();
 	
-	void runV8() {
-		if (v8paused) return;
-
-		if (codechanged) {
-			parseCode();
-			codechanged = false;
-		}
-		
-		Isolate::Scope isolate_scope(isolate);
-		v8::MicrotasksScope microtasks_scope(isolate, v8::MicrotasksScope::kRunMicrotasks);
-		HandleScope handle_scope(isolate);
-		Local<Context> context = Local<Context>::New(isolate, globalContext);
-		Context::Scope context_scope(context);
-		
-		TryCatch try_catch(isolate);
-		Local<v8::Function> func = Local<v8::Function>::New(isolate, updateFunction);
-		Local<Value> result;
-
-		if (debug) v8inspector->willExecuteScript(context, func->ScriptId());
-		if (!func->Call(context, context->Global(), 0, NULL).ToLocal(&result)) {
-			v8::String::Utf8Value stack_trace(try_catch.StackTrace());
-			Kore::log(Kore::Error, "Trace: %s", *stack_trace);
-		}
-		if (debug) v8inspector->didExecuteScript(context);
-	}
+    void runV8() {
+        if (v8paused) return;
+        
+        if (codechanged) {
+            parseCode();
+            codechanged = false;
+        }
+        
+        v8::Locker locker{isolate};
+        
+        Isolate::Scope isolate_scope(isolate);
+        v8::MicrotasksScope microtasks_scope(isolate, v8::MicrotasksScope::kRunMicrotasks);
+        HandleScope handle_scope(isolate);
+        Local<Context> context = Local<Context>::New(isolate, globalContext);
+        Context::Scope context_scope(context);
+        
+        TryCatch try_catch(isolate);
+        Local<v8::Function> func = Local<v8::Function>::New(isolate, updateFunction);
+        Local<Value> result;
+        
+        if (debug) v8inspector->willExecuteScript(context, func->ScriptId());
+        if (!func->Call(context, context->Global(), 0, NULL).ToLocal(&result)) {
+            v8::String::Utf8Value stack_trace(try_catch.StackTrace());
+            Kore::log(Kore::Error, "Trace: %s", *stack_trace);
+        }
+        if (debug) v8inspector->didExecuteScript(context);
+    }
 
 	void endV8() {
 		updateFunction.Reset();
@@ -1372,16 +1455,55 @@ namespace {
 		V8::ShutdownPlatform();
 		delete plat;
 	}
+    
+    void initAudioBuffer() {
+        for (int i = 0; i < Kore::Audio::buffer.dataSize; i++) {
+            *(float*)&Kore::Audio::buffer.data[i] = 0;
+        }
+    }
+    
+    void updateAudio(int samples) {
+        v8::Locker locker{isolate};
+        
+        Isolate::Scope isolate_scope(isolate);
+        v8::MicrotasksScope microtasks_scope(isolate, v8::MicrotasksScope::kRunMicrotasks);
+        HandleScope handle_scope(isolate);
+        Local<Context> context = Local<Context>::New(isolate, globalContext);
+        Context::Scope context_scope(context);
+        
+        TryCatch try_catch(isolate);
+        Local<v8::Function> func = Local<v8::Function>::New(isolate, audioFunction);
+        Local<Value> result;
+        const int argc = 1;
+        Local<Value> argv[argc] = {Int32::New(isolate, samples)};
+        if (!func->Call(context, context->Global(), argc, argv).ToLocal(&result)) {
+            v8::String::Utf8Value stack_trace(try_catch.StackTrace());
+            Kore::log(Kore::Error, "Trace: %s", *stack_trace);
+        }
+    }
+    
+    void mix(int samples) {
+        //mutex.Lock();
+        updateAudio(samples);
+        //mutex.Unlock();
+    }
 	
 	void update() {
+        Kore::Audio::update();
 		Kore::Graphics::begin();
+        
+        //mutex.Lock();
 		runV8();
+        //mutex.Unlock();
+        
 		if (debug) tickDebugger();
 		Kore::Graphics::end();
 		Kore::Graphics::swapBuffers();
 	}
 	
 	void keyDown(Kore::KeyCode code, wchar_t character) {
+        v8::Locker locker{isolate};
+        
 		Isolate::Scope isolate_scope(isolate);
 		HandleScope handle_scope(isolate);
 		v8::Local<v8::Context> context = v8::Local<v8::Context>::New(isolate, globalContext);
@@ -1399,6 +1521,8 @@ namespace {
 	}
 	
 	void keyUp(Kore::KeyCode code, wchar_t character) {
+        v8::Locker locker{isolate};
+        
 		Isolate::Scope isolate_scope(isolate);
 		HandleScope handle_scope(isolate);
 		v8::Local<v8::Context> context = v8::Local<v8::Context>::New(isolate, globalContext);
@@ -1416,6 +1540,8 @@ namespace {
 	}
 	
 	void mouseMove(int window, int x, int y, int mx, int my) {
+        v8::Locker locker{isolate};
+        
 		Isolate::Scope isolate_scope(isolate);
 		HandleScope handle_scope(isolate);
 		v8::Local<v8::Context> context = v8::Local<v8::Context>::New(isolate, globalContext);
@@ -1433,6 +1559,8 @@ namespace {
 	}
 	
 	void mouseDown(int window, int button, int x, int y) {
+        v8::Locker locker{isolate};
+        
 		Isolate::Scope isolate_scope(isolate);
 		HandleScope handle_scope(isolate);
 		v8::Local<v8::Context> context = v8::Local<v8::Context>::New(isolate, globalContext);
@@ -1450,6 +1578,8 @@ namespace {
 	}
 	
 	void mouseUp(int window, int button, int x, int y) {
+        v8::Locker locker{isolate};
+        
 		Isolate::Scope isolate_scope(isolate);
 		HandleScope handle_scope(isolate);
 		v8::Local<v8::Context> context = v8::Local<v8::Context>::New(isolate, globalContext);
@@ -1641,6 +1771,8 @@ namespace {
 						else if (currentFunction->body != currentBody) {
 							currentFunction->body = currentBody;
 							
+                            v8::Locker locker{isolate};
+                            
 							Isolate::Scope isolate_scope(isolate);
 							HandleScope handle_scope(isolate);
 							v8::Local<v8::Context> context = v8::Local<v8::Context>::New(isolate, globalContext);
@@ -1696,6 +1828,8 @@ namespace {
 						else if (currentFunction->body != currentBody) {
 							currentFunction->body = currentBody;
 
+                            v8::Locker locker{isolate};
+                            
 							Isolate::Scope isolate_scope(isolate);
 							HandleScope handle_scope(isolate);
 							v8::Local<v8::Context> context = v8::Local<v8::Context>::New(isolate, globalContext);
