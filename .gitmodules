@@ -1,16 +1,16 @@
 [submodule "Kore"]
 	path = Kore
-	url = ../Kore
+	url = https://github.com/Kode/Kore.git
 	branch = master
 [submodule "V8"]
 	path = V8
-	url = ../v8_bin
+	url = https://github.com/Kode/v8_bin.git
 	branch = master
 [submodule "Deployment/debug"]
 	path = Deployment/debug
-	url = ../Krom_debug_bin
+	url = https://github.com/Kode/Krom_debug_bin.git
 	branch = master
 [submodule "Deployment/release"]
 	path = Deployment/release
-	url = ../Krom_bin
+	url = https://github.com/Kode/Krom_bin.git
 	branch = master
