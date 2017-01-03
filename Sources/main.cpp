@@ -25,6 +25,7 @@
 #include <v8-inspector.h>
 
 #include <stdio.h>
+#include <stdarg.h>
 #include <fstream>
 #include <map>
 #include <sstream>
@@ -113,17 +114,31 @@ namespace {
 		//Mixer::play(music);
 	}
 
+	void sendLogMessageArgs(const char* format, va_list args) {
+		char message[4096];
+		vsnprintf(message, sizeof(message) - 2, format, args);
+
+		Kore::log(Kore::Info, "%s", message);
+		char json[4096];
+		strcpy(json, "{\"method\":\"Log.entryAdded\",\"params\":{\"entry\":{\"source\":\"javascript\",\"level\":\"log\",\"text\":\"");
+		strcat(json, message);
+		strcat(json, "\",\"timestamp\":0}}}");
+		sendMessage(json);
+	}
+
+	void sendLogMessage(const char* format, ...) {
+		va_list args;
+		va_start(args, format);
+		sendLogMessageArgs(format, args);
+		va_end(args);
+	}
+
 	void LogCallback(const v8::FunctionCallbackInfo<v8::Value>& args) {
 		if (args.Length() < 1) return;
 		HandleScope scope(args.GetIsolate());
 		Local<Value> arg = args[0];
 		String::Utf8Value value(arg);
-		Kore::log(Kore::Info, "%s", *value);
-		char message[4096];
-		strcpy(message, "{\"method\":\"Log.entryAdded\",\"params\":{\"entry\":{\"source\":\"javascript\",\"level\":\"log\",\"text\":\"");
-		strcat(message, *value);
-		strcat(message, "\",\"timestamp\":0}}}");
-		sendMessage(message);
+		sendLogMessage(*value);
 	}
 	
 	void graphics_clear(const v8::FunctionCallbackInfo<v8::Value>& args) {
@@ -577,7 +592,7 @@ namespace {
 		
 		if (shaderChanges[*vsname]) {
 			shaderChanged = true;
-			Kore::log(Kore::Info, "Reloading shader %s.", *vsname);
+			sendLogMessage("Reloading shader %s.", *vsname);
 			std::string filename = shaderFileNames[*vsname];
 			std::ifstream input((shadersdir + "/" + filename).c_str(), std::ios::binary );
 			std::vector<char> buffer((std::istreambuf_iterator<char>(input)), (std::istreambuf_iterator<char>()));
@@ -588,7 +603,7 @@ namespace {
 		
 		if (shaderChanges[*fsname]) {
 			shaderChanged = true;
-			Kore::log(Kore::Info, "Reloading shader %s.", *fsname);
+			sendLogMessage("Reloading shader %s.", *fsname);
 			std::string filename = shaderFileNames[*fsname];
 			std::ifstream input((shadersdir + "/" + filename).c_str(), std::ios::binary );
 			std::vector<char> buffer((std::istreambuf_iterator<char>(input)), (std::istreambuf_iterator<char>()));
@@ -602,7 +617,7 @@ namespace {
 			String::Utf8Value gsname(gsnameobj);
 			if (shaderChanges[*gsname]) {
 				shaderChanged = true;
-				Kore::log(Kore::Info, "Reloading shader %s.", *gsname);
+				sendLogMessage("Reloading shader %s.", *gsname);
 				std::string filename = shaderFileNames[*gsname];
 				std::ifstream input((shadersdir + "/" + filename).c_str(), std::ios::binary );
 				std::vector<char> buffer((std::istreambuf_iterator<char>(input)), (std::istreambuf_iterator<char>()));
@@ -617,7 +632,7 @@ namespace {
 			String::Utf8Value tcsname(tcsnameobj);
 			if (shaderChanges[*tcsname]) {
 				shaderChanged = true;
-				Kore::log(Kore::Info, "Reloading shader %s.", *tcsname);
+				sendLogMessage("Reloading shader %s.", *tcsname);
 				std::string filename = shaderFileNames[*tcsname];
 				std::ifstream input((shadersdir + "/" + filename).c_str(), std::ios::binary );
 				std::vector<char> buffer((std::istreambuf_iterator<char>(input)), (std::istreambuf_iterator<char>()));
@@ -632,7 +647,7 @@ namespace {
 			String::Utf8Value tesname(tesnameobj);
 			if (shaderChanges[*tesname]) {
 				shaderChanged = true;
-				Kore::log(Kore::Info, "Reloading shader %s.", *tesname);
+				sendLogMessage("Reloading shader %s.", *tesname);
 				std::string filename = shaderFileNames[*tesname];
 				std::ifstream input((shadersdir + "/" + filename).c_str(), std::ios::binary );
 				std::vector<char> buffer((std::istreambuf_iterator<char>(input)), (std::istreambuf_iterator<char>()));
@@ -809,7 +824,7 @@ namespace {
 			String::Utf8Value filename(tex->ToObject()->Get(String::NewFromUtf8(isolate, "filename")));
 			if (imageChanges[*filename]) {
 				imageChanges[*filename] = false;
-				Kore::log(Kore::Info, "Image %s changed.", *filename);
+				sendLogMessage("Image %s changed.", *filename);
 				texture = new Kore::Texture(*filename);
 				tex->ToObject()->SetInternalField(0, External::New(isolate, texture));
 			}
@@ -1408,7 +1423,7 @@ namespace {
 		Local<Value> result;
 		if (!compiled_script->Run(context).ToLocal(&result)) {
 			v8::String::Utf8Value stack_trace(try_catch.StackTrace());
-			Kore::log(Kore::Error, "Trace: %s", *stack_trace);
+			sendLogMessage("Trace: %s", *stack_trace);
 			return false;
 		}
 	
@@ -1442,7 +1457,7 @@ namespace {
         if (debug) v8inspector->willExecuteScript(context, func->ScriptId());
         if (!func->Call(context, context->Global(), 0, NULL).ToLocal(&result)) {
             v8::String::Utf8Value stack_trace(try_catch.StackTrace());
-            Kore::log(Kore::Error, "Trace: %s", *stack_trace);
+			sendLogMessage("Trace: %s", *stack_trace);
         }
         if (debug) v8inspector->didExecuteScript(context);
     }
@@ -1478,7 +1493,7 @@ namespace {
         Local<Value> argv[argc] = {Int32::New(isolate, samples)};
         if (!func->Call(context, context->Global(), argc, argv).ToLocal(&result)) {
             v8::String::Utf8Value stack_trace(try_catch.StackTrace());
-            Kore::log(Kore::Error, "Trace: %s", *stack_trace);
+			sendLogMessage("Trace: %s", *stack_trace);
         }
     }
     
@@ -1516,7 +1531,7 @@ namespace {
 		Local<Value> argv[argc] = {Int32::New(isolate, (int)code), Int32::New(isolate, (int)character)};
 		if (!func->Call(context, context->Global(), argc, argv).ToLocal(&result)) {
 			v8::String::Utf8Value stack_trace(try_catch.StackTrace());
-			Kore::log(Kore::Error, "Trace: %s", *stack_trace);
+			sendLogMessage("Trace: %s", *stack_trace);
 		}
 	}
 	
@@ -1535,7 +1550,7 @@ namespace {
 		Local<Value> argv[argc] = {Int32::New(isolate, (int)code), Int32::New(isolate, (int)character)};
 		if (!func->Call(context, context->Global(), argc, argv).ToLocal(&result)) {
 			v8::String::Utf8Value stack_trace(try_catch.StackTrace());
-			Kore::log(Kore::Error, "Trace: %s", *stack_trace);
+			sendLogMessage("Trace: %s", *stack_trace);
 		}
 	}
 	
@@ -1554,7 +1569,7 @@ namespace {
 		Local<Value> argv[argc] = {Int32::New(isolate, x), Int32::New(isolate, y), Int32::New(isolate, mx), Int32::New(isolate, my)};
 		if (!func->Call(context, context->Global(), argc, argv).ToLocal(&result)) {
 			v8::String::Utf8Value stack_trace(try_catch.StackTrace());
-			Kore::log(Kore::Error, "Trace: %s", *stack_trace);
+			sendLogMessage("Trace: %s", *stack_trace);
 		}
 	}
 	
@@ -1573,7 +1588,7 @@ namespace {
 		Local<Value> argv[argc] = {Int32::New(isolate, button), Int32::New(isolate, x), Int32::New(isolate, y)};
 		if (!func->Call(context, context->Global(), argc, argv).ToLocal(&result)) {
 			v8::String::Utf8Value stack_trace(try_catch.StackTrace());
-			Kore::log(Kore::Error, "Trace: %s", *stack_trace);
+			sendLogMessage("Trace: %s", *stack_trace);
 		}
 	}
 	
@@ -1592,7 +1607,7 @@ namespace {
 		Local<Value> argv[argc] = {Int32::New(isolate, button), Int32::New(isolate, x), Int32::New(isolate, y)};
 		if (!func->Call(context, context->Global(), argc, argv).ToLocal(&result)) {
 			v8::String::Utf8Value stack_trace(try_catch.StackTrace());
-			Kore::log(Kore::Error, "Trace: %s", *stack_trace);
+			sendLogMessage("Trace: %s", *stack_trace);
 		}
 	}
 	
@@ -1793,7 +1808,7 @@ namespace {
 							script += "\");";
 							
 							// Kore::log(Kore::Info, "Script:\n%s\n", script.c_str());
-							Kore::log(Kore::Info, "Patching method %s in class %s.", currentFunction->name.c_str(), currentClass->name.c_str());
+							sendLogMessage("Patching method %s in class %s.", currentFunction->name.c_str(), currentClass->name.c_str());
 							
 							Local<String> source = String::NewFromUtf8(isolate, script.c_str(), NewStringType::kNormal).ToLocalChecked();
 							
@@ -1802,13 +1817,13 @@ namespace {
 							Local<Script> compiled_script;
 							if (!Script::Compile(context, source).ToLocal(&compiled_script)) {
 								v8::String::Utf8Value stack_trace(try_catch.StackTrace());
-								Kore::log(Kore::Error, "Trace: %s", *stack_trace);
+								sendLogMessage("Trace: %s", *stack_trace);
 							}
 
 							Local<Value> result;
 							if (!compiled_script->Run(context).ToLocal(&result)) {
 								v8::String::Utf8Value stack_trace(try_catch.StackTrace());
-								Kore::log(Kore::Error, "Trace: %s", *stack_trace);
+								sendLogMessage("Trace: %s", *stack_trace);
 							}
 						}
 						mode = ParseMethods;
@@ -1850,7 +1865,7 @@ namespace {
 							script += "\");";
 
 							// Kore::log(Kore::Info, "Script:\n%s\n", script.c_str());
-							Kore::log(Kore::Info, "Patching function %s in class %s.", currentFunction->name.c_str(), currentClass->name.c_str());
+							sendLogMessage("Patching function %s in class %s.", currentFunction->name.c_str(), currentClass->name.c_str());
 
 							Local<String> source = String::NewFromUtf8(isolate, script.c_str(), NewStringType::kNormal).ToLocalChecked();
 
@@ -1859,13 +1874,13 @@ namespace {
 							Local<Script> compiled_script;
 							if (!Script::Compile(context, source).ToLocal(&compiled_script)) {
 								v8::String::Utf8Value stack_trace(try_catch.StackTrace());
-								Kore::log(Kore::Error, "Trace: %s", *stack_trace);
+								sendLogMessage("Trace: %s", *stack_trace);
 							}
 
 							Local<Value> result;
 							if (!compiled_script->Run(context).ToLocal(&result)) {
 								v8::String::Utf8Value stack_trace(try_catch.StackTrace());
-								Kore::log(Kore::Error, "Trace: %s", *stack_trace);
+								sendLogMessage("Trace: %s", *stack_trace);
 							}
 						}
 						mode = ParseRegular;
@@ -1874,7 +1889,7 @@ namespace {
 				}
 			}
 		}
-		Kore::log(Kore::Info, "%i new types found.", types);
+		sendLogMessage("%i new types found.", types);
 	}
 }
 
@@ -1891,12 +1906,12 @@ extern "C" void filechanged(char* path) {
 		name = name.substr(0, name.find_last_of('.'));
 		name = replace(name, '.', '_');
 		name = replace(name, '-', '_');
-		Kore::log(Kore::Info, "Shader changed: %s.", name.c_str());
+		sendLogMessage("Shader changed: %s.", name.c_str());
 		shaderFileNames[name] = strpath;
 		shaderChanges[name] = true;
 	}
 	else if (endsWith(strpath, "krom.js")) {
-		Kore::log(Kore::Info, "Code changed.");
+		sendLogMessage("Code changed.");
 		codechanged = true;
 	}
 }
