@@ -1918,9 +1918,15 @@ extern "C" void filechanged(char* path) {
 
 //__declspec(dllimport) extern "C" void __stdcall Sleep(unsigned long milliseconds);
 
-int kore(int argc, char** argv) {	
-	assetsdir = argv[1];
-	shadersdir = argv[2];
+int kore(int argc, char** argv) {
+	std::string bindir(argv[0]);
+#ifdef SYS_WINDOWS
+	bindir = bindir.substr(0, bindir.find_last_of("\\"));
+#else
+	bindir = bindir.substr(0, bindir.find_last_of("/"));
+#endif
+	assetsdir = argc > 1 ? argv[1] : bindir;
+	shadersdir = argc > 2 ? argv[2] : bindir;
 	
 	bool readPort = false;
 	int port = 0;
@@ -1940,7 +1946,7 @@ int kore(int argc, char** argv) {
 	
 	kromjs = assetsdir + "/krom.js";
 	
-	Kore::setFilesLocation(argv[1]);
+	Kore::setFilesLocation(&assetsdir[0u]);
 	Kore::System::setName("Krom");
 	Kore::System::setup();
 	
