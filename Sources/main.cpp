@@ -1235,17 +1235,19 @@ namespace {
 		int writeMask = args[6]->ToInt32()->Int32Value();
 		Kore::Graphics::setStencilParameters(convertCompareMode(compareMode), convertStencilAction(bothPass), convertStencilAction(depthFail), convertStencilAction(stencilFail), referenceValue, readMask, writeMask);
 	}
-
+	
 	void krom_set_blending_mode(const FunctionCallbackInfo<Value>& args) {
 		HandleScope scope(args.GetIsolate());		
 		int source = args[0]->ToInt32()->Int32Value();
 		int destination = args[1]->ToInt32()->Int32Value();
+		int alphaSource = args[2]->ToInt32()->Int32Value();
+		int alphaDestination = args[3]->ToInt32()->Int32Value();
 		if (source == 0 && destination == 1) {
 			Kore::Graphics::setRenderState(Kore::BlendingState, false);
 		}
 		else {
 			Kore::Graphics::setRenderState(Kore::BlendingState, true);
-			Kore::Graphics::setBlendingMode((Kore::BlendingOperation)source, (Kore::BlendingOperation)destination);
+			Kore::Graphics::setBlendingModeSeparate((Kore::BlendingOperation)source, (Kore::BlendingOperation)destination, (Kore::BlendingOperation)alphaSource, (Kore::BlendingOperation)alphaDestination);
 		}
 	}
 
