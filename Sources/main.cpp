@@ -45,6 +45,8 @@ Isolate* isolate;
 
 extern std::unique_ptr<v8_inspector::V8Inspector> v8inspector;
 
+const char* getExeDir();
+
 namespace {
 	bool debug = false;
 	bool watch = false;
@@ -1301,7 +1303,11 @@ namespace {
 	}
 	
 	void startV8() {
-#ifdef SYS_OSX
+#if defined(SYS_WINDOWS)
+		const char* exeDir = getExeDir();
+		V8::InitializeICUDefaultLocation(exeDir);
+		V8::InitializeExternalStartupData(exeDir);
+#elif defined(SYS_OSX)
 		char filepath[256];
 		strcpy(filepath, macgetresourcepath());
 		strcat(filepath, "/");
@@ -1983,4 +1989,20 @@ int kore(int argc, char** argv) {
 	endV8();
 	
 	return 0;
+}
+
+#include <Windows.h>
+
+const char* getExeDir() {
+	HMODULE hModule = GetModuleHandleW(NULL);
+	char path[MAX_PATH];
+	GetModuleFileNameA(hModule, path, MAX_PATH);
+	size_t length = strlen(path);
+	for (int i = length - 1; i >= 0; --i) {
+		if (path[i] == '\\') {
+			path[i] = 0;
+			break;
+		}
+	}
+	return path;
 }
