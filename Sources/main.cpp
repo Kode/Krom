@@ -973,6 +973,20 @@ namespace {
 
 		Kore::Graphics::setFloats(*location, from, content.ByteLength() / 4);
 	}
+
+	void krom_set_float4s(const FunctionCallbackInfo<Value>& args) {
+		HandleScope scope(args.GetIsolate());
+		Local<External> locationfield = Local<External>::Cast(args[0]->ToObject()->GetInternalField(0));
+		Kore::ConstantLocation* location = (Kore::ConstantLocation*)locationfield->Value();
+
+		Local<Float32Array> f32array = Local<Float32Array>::Cast(args[1]);
+		ArrayBuffer::Contents content;
+		if (f32array->Buffer()->IsExternal()) content = f32array->Buffer()->GetContents();
+		else content = f32array->Buffer()->Externalize();
+		float* from = (float*)content.Data();
+
+		Kore::Graphics::setFloat4s(*location, from, content.ByteLength() / 4);
+	}
 	
 	void krom_set_matrix(const FunctionCallbackInfo<Value>& args) {
 		HandleScope scope(args.GetIsolate());
@@ -1002,6 +1016,30 @@ namespace {
 		m.Set(0, 1, _10); m.Set(1, 1, _11); m.Set(2, 1, _12); m.Set(3, 1, _13);
 		m.Set(0, 2, _20); m.Set(1, 2, _21); m.Set(2, 2, _22); m.Set(3, 2, _23);
 		m.Set(0, 3, _30); m.Set(1, 3, _31); m.Set(2, 3, _32); m.Set(3, 3, _33);
+		
+		Kore::Graphics::setMatrix(*location, m);
+	}
+
+	void krom_set_matrix3(const FunctionCallbackInfo<Value>& args) {
+		HandleScope scope(args.GetIsolate());
+		Local<External> locationfield = Local<External>::Cast(args[0]->ToObject()->GetInternalField(0));
+		Kore::ConstantLocation* location = (Kore::ConstantLocation*)locationfield->Value();
+		
+		Local<Object> matrix = args[1]->ToObject();
+		float _00 = matrix->Get(String::NewFromUtf8(isolate, "_00"))->ToNumber()->Value();
+		float _01 = matrix->Get(String::NewFromUtf8(isolate, "_01"))->ToNumber()->Value();
+		float _02 = matrix->Get(String::NewFromUtf8(isolate, "_02"))->ToNumber()->Value();
+		float _10 = matrix->Get(String::NewFromUtf8(isolate, "_10"))->ToNumber()->Value();
+		float _11 = matrix->Get(String::NewFromUtf8(isolate, "_11"))->ToNumber()->Value();
+		float _12 = matrix->Get(String::NewFromUtf8(isolate, "_12"))->ToNumber()->Value();
+		float _20 = matrix->Get(String::NewFromUtf8(isolate, "_20"))->ToNumber()->Value();
+		float _21 = matrix->Get(String::NewFromUtf8(isolate, "_21"))->ToNumber()->Value();
+		float _22 = matrix->Get(String::NewFromUtf8(isolate, "_22"))->ToNumber()->Value();
+		
+		Kore::mat3 m;
+		m.Set(0, 0, _00); m.Set(1, 0, _01); m.Set(2, 0, _02);
+		m.Set(0, 1, _10); m.Set(1, 1, _11); m.Set(2, 1, _12);
+		m.Set(0, 2, _20); m.Set(1, 2, _21); m.Set(2, 2, _22);
 		
 		Kore::Graphics::setMatrix(*location, m);
 	}
@@ -1237,17 +1275,19 @@ namespace {
 		int writeMask = args[6]->ToInt32()->Int32Value();
 		Kore::Graphics::setStencilParameters(convertCompareMode(compareMode), convertStencilAction(bothPass), convertStencilAction(depthFail), convertStencilAction(stencilFail), referenceValue, readMask, writeMask);
 	}
-
+	
 	void krom_set_blending_mode(const FunctionCallbackInfo<Value>& args) {
 		HandleScope scope(args.GetIsolate());		
 		int source = args[0]->ToInt32()->Int32Value();
 		int destination = args[1]->ToInt32()->Int32Value();
+		int alphaSource = args[2]->ToInt32()->Int32Value();
+		int alphaDestination = args[3]->ToInt32()->Int32Value();
 		if (source == 0 && destination == 1) {
 			Kore::Graphics::setRenderState(Kore::BlendingState, false);
 		}
 		else {
 			Kore::Graphics::setRenderState(Kore::BlendingState, true);
-			Kore::Graphics::setBlendingMode((Kore::BlendingOperation)source, (Kore::BlendingOperation)destination);
+			Kore::Graphics::setBlendingModeSeparate((Kore::BlendingOperation)source, (Kore::BlendingOperation)destination, (Kore::BlendingOperation)alphaSource, (Kore::BlendingOperation)alphaDestination);
 		}
 	}
 
@@ -1381,7 +1421,9 @@ namespace {
 		krom->Set(String::NewFromUtf8(isolate, "setFloat3"), FunctionTemplate::New(isolate, krom_set_float3));
 		krom->Set(String::NewFromUtf8(isolate, "setFloat4"), FunctionTemplate::New(isolate, krom_set_float4));
 		krom->Set(String::NewFromUtf8(isolate, "setFloats"), FunctionTemplate::New(isolate, krom_set_floats));
+		krom->Set(String::NewFromUtf8(isolate, "setFloat4s"), FunctionTemplate::New(isolate, krom_set_float4s));
 		krom->Set(String::NewFromUtf8(isolate, "setMatrix"), FunctionTemplate::New(isolate, krom_set_matrix));
+		krom->Set(String::NewFromUtf8(isolate, "setMatrix3"), FunctionTemplate::New(isolate, krom_set_matrix3));
 		krom->Set(String::NewFromUtf8(isolate, "getTime"), FunctionTemplate::New(isolate, krom_get_time));
 		krom->Set(String::NewFromUtf8(isolate, "windowWidth"), FunctionTemplate::New(isolate, krom_window_width));
 		krom->Set(String::NewFromUtf8(isolate, "windowHeight"), FunctionTemplate::New(isolate, krom_window_height));
