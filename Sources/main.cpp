@@ -1114,6 +1114,20 @@ namespace {
 		texture->unlock();
 	}
 
+	void krom_clear_texture(const FunctionCallbackInfo<Value>& args) {
+		HandleScope scope(args.GetIsolate());
+		Local<External> field = Local<External>::Cast(args[0]->ToObject()->GetInternalField(0));
+		Kore::Texture* texture = (Kore::Texture*)field->Value();
+		int x = args[1]->ToInt32()->Value();
+		int y = args[2]->ToInt32()->Value();
+		int z = args[3]->ToInt32()->Value();
+		int width = args[4]->ToInt32()->Value();
+		int height = args[5]->ToInt32()->Value();
+		int depth = args[6]->ToInt32()->Value();
+		int color = args[7]->ToInt32()->Value();
+		texture->clear(x, y, z, width, height, depth, color);
+	}
+
 	void krom_generate_mipmaps(const FunctionCallbackInfo<Value>& args) {
 		HandleScope scope(args.GetIsolate());
 		Local<External> field = Local<External>::Cast(args[0]->ToObject()->GetInternalField(0));
@@ -1431,6 +1445,7 @@ namespace {
 		krom->Set(String::NewFromUtf8(isolate, "createRenderTarget"), FunctionTemplate::New(isolate, krom_create_render_target));
 		krom->Set(String::NewFromUtf8(isolate, "createTexture"), FunctionTemplate::New(isolate, krom_create_texture));
 		krom->Set(String::NewFromUtf8(isolate, "unlockTexture"), FunctionTemplate::New(isolate, krom_unlock_texture));
+		krom->Set(String::NewFromUtf8(isolate, "clearTexture"), FunctionTemplate::New(isolate, krom_clear_texture));
 		krom->Set(String::NewFromUtf8(isolate, "generateMipmaps"), FunctionTemplate::New(isolate, krom_generate_mipmaps));
 		krom->Set(String::NewFromUtf8(isolate, "setMipmaps"), FunctionTemplate::New(isolate, krom_set_mipmaps));
 		krom->Set(String::NewFromUtf8(isolate, "setDepthStencilFrom"), FunctionTemplate::New(isolate, krom_set_depth_stencil_from));
