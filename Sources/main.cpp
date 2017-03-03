@@ -1097,6 +1097,25 @@ namespace {
 		args.GetReturnValue().Set(obj);
 	}
 
+	void krom_create_texture_from_bytes(const FunctionCallbackInfo<Value>& args) {
+		HandleScope scope(args.GetIsolate());
+
+		Local<ArrayBuffer> buffer = Local<ArrayBuffer>::Cast(args[0]);
+		ArrayBuffer::Contents content = buffer->Externalize();
+		Kore::Texture* texture = new Kore::Texture(content.Data(), args[1]->ToInt32()->Value(), args[2]->ToInt32()->Value(), (Kore::Image::Format)args[3]->ToInt32()->Value(), args[4]->ToBoolean()->Value());
+
+		Local<ObjectTemplate> templ = ObjectTemplate::New(isolate);
+		templ->SetInternalFieldCount(1);
+		
+		Local<Object> obj = templ->NewInstance(isolate->GetCurrentContext()).ToLocalChecked();
+		obj->SetInternalField(0, External::New(isolate, texture));
+		obj->Set(String::NewFromUtf8(isolate, "width"), Int32::New(isolate, texture->width));
+		obj->Set(String::NewFromUtf8(isolate, "height"), Int32::New(isolate, texture->height));
+		obj->Set(String::NewFromUtf8(isolate, "realWidth"), Int32::New(isolate, texture->texWidth));
+		obj->Set(String::NewFromUtf8(isolate, "realHeight"), Int32::New(isolate, texture->texHeight));
+		args.GetReturnValue().Set(obj);
+	}
+
 	void krom_unlock_texture(const FunctionCallbackInfo<Value>& args) {
 		HandleScope scope(args.GetIsolate());
 
@@ -1444,6 +1463,7 @@ namespace {
 		krom->Set(String::NewFromUtf8(isolate, "screenDpi"), FunctionTemplate::New(isolate, krom_screen_dpi));
 		krom->Set(String::NewFromUtf8(isolate, "createRenderTarget"), FunctionTemplate::New(isolate, krom_create_render_target));
 		krom->Set(String::NewFromUtf8(isolate, "createTexture"), FunctionTemplate::New(isolate, krom_create_texture));
+		krom->Set(String::NewFromUtf8(isolate, "createTextureFromBytes"), FunctionTemplate::New(isolate, krom_create_texture_from_bytes));
 		krom->Set(String::NewFromUtf8(isolate, "unlockTexture"), FunctionTemplate::New(isolate, krom_unlock_texture));
 		krom->Set(String::NewFromUtf8(isolate, "clearTexture"), FunctionTemplate::New(isolate, krom_clear_texture));
 		krom->Set(String::NewFromUtf8(isolate, "generateMipmaps"), FunctionTemplate::New(isolate, krom_generate_mipmaps));
@@ -2048,6 +2068,7 @@ int kore(int argc, char** argv) {
 	return 0;
 }
 
+#ifdef SYS_WINDOWS
 #include <Windows.h>
 
 const char* getExeDir() {
@@ -2063,3 +2084,4 @@ const char* getExeDir() {
 	}
 	return path;
 }
+#endif
