@@ -50,6 +50,7 @@ const char* getExeDir();
 namespace {
 	bool debug = false;
 	bool watch = false;
+	bool nosound = false;
 
 	Platform* plat;
 	Global<Function> updateFunction;
@@ -100,9 +101,11 @@ namespace {
 		//Mixer::init();
 		//Audio::init();
         mutex.Create();
-        Kore::Audio::audioCallback = mix;
-        Kore::Audio::init();
-        initAudioBuffer();
+        if (!nosound) {
+        	Kore::Audio::audioCallback = mix;
+        	Kore::Audio::init();
+        	initAudioBuffer();
+        }
 		Kore::Random::init(Kore::System::time() * 1000);
 		
 		Kore::System::setCallback(update);
@@ -1587,7 +1590,7 @@ namespace {
     }
 	
 	void update() {
-        Kore::Audio::update();
+        if (!nosound) Kore::Audio::update();
 		Kore::Graphics::begin();
         
         //mutex.Lock();
@@ -2024,6 +2027,9 @@ int kore(int argc, char** argv) {
 		}
 		else if (strcmp(argv[i], "--watch") == 0) {
 			watch = true;
+		}
+		else if (strcmp(argv[i], "--nosound") == 0) {
+			nosound = true;
 		}
 	}
 	
