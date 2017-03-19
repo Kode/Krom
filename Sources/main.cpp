@@ -1081,6 +1081,20 @@ namespace {
 		args.GetReturnValue().Set(obj);
 	}
 
+	void krom_create_render_target_cube_map(const FunctionCallbackInfo<Value>& args) {
+		HandleScope scope(args.GetIsolate());
+		Kore::RenderTarget* renderTarget = new Kore::RenderTarget(args[0]->ToInt32()->Value(), args[1]->ToInt32()->Value(), false, (Kore::RenderTargetFormat)args[2]->ToInt32()->Value(), args[3]->ToInt32()->Value());
+		
+		Local<ObjectTemplate> templ = ObjectTemplate::New(isolate);
+		templ->SetInternalFieldCount(1);
+		
+		Local<Object> obj = templ->NewInstance(isolate->GetCurrentContext()).ToLocalChecked();
+		obj->SetInternalField(0, External::New(isolate, renderTarget));
+		obj->Set(String::NewFromUtf8(isolate, "width"), Int32::New(isolate, renderTarget->width));
+		obj->Set(String::NewFromUtf8(isolate, "height"), Int32::New(isolate, renderTarget->height));
+		args.GetReturnValue().Set(obj);
+	}
+
 	void krom_create_texture(const FunctionCallbackInfo<Value>& args) {
 		HandleScope scope(args.GetIsolate());
 		Kore::Texture* texture = new Kore::Texture(args[0]->ToInt32()->Value(), args[1]->ToInt32()->Value(), (Kore::Image::Format)args[2]->ToInt32()->Value(), false);
@@ -1369,6 +1383,15 @@ namespace {
 			}
 		}
 	}
+
+	void krom_begin_face(const FunctionCallbackInfo<Value>& args) {
+		HandleScope scope(args.GetIsolate());
+		Local<Object> obj = args[0]->ToObject()->Get(String::NewFromUtf8(isolate, "renderTarget_"))->ToObject();
+		Local<External> rtfield = Local<External>::Cast(obj->GetInternalField(0));
+		Kore::RenderTarget* renderTarget = (Kore::RenderTarget*)rtfield->Value();
+		int face = args[1]->ToInt32()->Int32Value();
+		Kore::Graphics::setRenderTargetFace(renderTarget, face);
+	}
 	
 	void krom_end(const FunctionCallbackInfo<Value>& args) {
 		HandleScope scope(args.GetIsolate());
@@ -1462,6 +1485,7 @@ namespace {
 		krom->Set(String::NewFromUtf8(isolate, "windowHeight"), FunctionTemplate::New(isolate, krom_window_height));
 		krom->Set(String::NewFromUtf8(isolate, "screenDpi"), FunctionTemplate::New(isolate, krom_screen_dpi));
 		krom->Set(String::NewFromUtf8(isolate, "createRenderTarget"), FunctionTemplate::New(isolate, krom_create_render_target));
+		krom->Set(String::NewFromUtf8(isolate, "createRenderTargetCubeMap"), FunctionTemplate::New(isolate, krom_create_render_target_cube_map));
 		krom->Set(String::NewFromUtf8(isolate, "createTexture"), FunctionTemplate::New(isolate, krom_create_texture));
 		krom->Set(String::NewFromUtf8(isolate, "createTextureFromBytes"), FunctionTemplate::New(isolate, krom_create_texture_from_bytes));
 		krom->Set(String::NewFromUtf8(isolate, "unlockTexture"), FunctionTemplate::New(isolate, krom_unlock_texture));
@@ -1479,6 +1503,7 @@ namespace {
 		krom->Set(String::NewFromUtf8(isolate, "setColorMask"), FunctionTemplate::New(isolate, krom_set_color_mask));
 		krom->Set(String::NewFromUtf8(isolate, "renderTargetsInvertedY"), FunctionTemplate::New(isolate, krom_render_targets_inverted_y));
 		krom->Set(String::NewFromUtf8(isolate, "begin"), FunctionTemplate::New(isolate, krom_begin));
+		krom->Set(String::NewFromUtf8(isolate, "beginFace"), FunctionTemplate::New(isolate, krom_begin_face));
 		krom->Set(String::NewFromUtf8(isolate, "end"), FunctionTemplate::New(isolate, krom_end));
 
 		Local<ObjectTemplate> global = ObjectTemplate::New(isolate);
