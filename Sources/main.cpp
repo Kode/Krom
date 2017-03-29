@@ -862,6 +862,22 @@ namespace {
 		}
 	}
 
+	void krom_set_image_texture(const FunctionCallbackInfo<Value>& args) {
+		HandleScope scope(args.GetIsolate());
+		Local<External> unitfield = Local<External>::Cast(args[0]->ToObject()->GetInternalField(0));
+		Kore::TextureUnit* unit = (Kore::TextureUnit*)unitfield->Value();
+		
+		if (args[1]->IsNull() || args[1]->IsUndefined()) return;
+
+		Local<Object> image = args[1]->ToObject();
+		Local<Value> tex = image->Get(String::NewFromUtf8(isolate, "texture_"));
+		if (tex->IsObject()) {
+			Local<External> texfield = Local<External>::Cast(tex->ToObject()->GetInternalField(0));
+			Kore::Texture* texture = (Kore::Texture*)texfield->Value();
+			Kore::Graphics::setImageTexture(*unit, texture);
+		}
+	}
+
 	Kore::TextureAddressing convertTextureAddressing(int index) {
 		switch (index) {
 		default:
@@ -1472,6 +1488,7 @@ namespace {
 		krom->Set(String::NewFromUtf8(isolate, "getTextureUnit"), FunctionTemplate::New(isolate, krom_get_texture_unit));
 		krom->Set(String::NewFromUtf8(isolate, "setTexture"), FunctionTemplate::New(isolate, krom_set_texture));
 		krom->Set(String::NewFromUtf8(isolate, "setTextureDepth"), FunctionTemplate::New(isolate, krom_set_texture_depth));
+		krom->Set(String::NewFromUtf8(isolate, "setImageTexture"), FunctionTemplate::New(isolate, krom_set_image_texture));
 		krom->Set(String::NewFromUtf8(isolate, "setTextureParameters"), FunctionTemplate::New(isolate, krom_set_texture_parameters));
 		krom->Set(String::NewFromUtf8(isolate, "setBool"), FunctionTemplate::New(isolate, krom_set_bool));
 		krom->Set(String::NewFromUtf8(isolate, "setInt"), FunctionTemplate::New(isolate, krom_set_int));
