@@ -862,6 +862,22 @@ namespace {
 		}
 	}
 
+	void krom_set_image_texture(const FunctionCallbackInfo<Value>& args) {
+		HandleScope scope(args.GetIsolate());
+		Local<External> unitfield = Local<External>::Cast(args[0]->ToObject()->GetInternalField(0));
+		Kore::TextureUnit* unit = (Kore::TextureUnit*)unitfield->Value();
+		
+		if (args[1]->IsNull() || args[1]->IsUndefined()) return;
+
+		Local<Object> image = args[1]->ToObject();
+		Local<Value> tex = image->Get(String::NewFromUtf8(isolate, "texture_"));
+		if (tex->IsObject()) {
+			Local<External> texfield = Local<External>::Cast(tex->ToObject()->GetInternalField(0));
+			Kore::Texture* texture = (Kore::Texture*)texfield->Value();
+			Kore::Graphics::setImageTexture(*unit, texture);
+		}
+	}
+
 	Kore::TextureAddressing convertTextureAddressing(int index) {
 		switch (index) {
 		default:
@@ -1109,6 +1125,23 @@ namespace {
 		obj->SetInternalField(0, External::New(isolate, texture));
 		obj->Set(String::NewFromUtf8(isolate, "width"), Int32::New(isolate, texture->width));
 		obj->Set(String::NewFromUtf8(isolate, "height"), Int32::New(isolate, texture->height));
+		obj->Set(String::NewFromUtf8(isolate, "realWidth"), Int32::New(isolate, texture->texWidth));
+		obj->Set(String::NewFromUtf8(isolate, "realHeight"), Int32::New(isolate, texture->texHeight));
+		args.GetReturnValue().Set(obj);
+	}
+
+	void krom_create_texture_3d(const FunctionCallbackInfo<Value>& args) {
+		HandleScope scope(args.GetIsolate());
+		Kore::Texture* texture = new Kore::Texture(args[0]->ToInt32()->Value(), args[1]->ToInt32()->Value(), args[2]->ToInt32()->Value(), (Kore::Image::Format)args[3]->ToInt32()->Value(), false);
+		
+		Local<ObjectTemplate> templ = ObjectTemplate::New(isolate);
+		templ->SetInternalFieldCount(1);
+		
+		Local<Object> obj = templ->NewInstance(isolate->GetCurrentContext()).ToLocalChecked();
+		obj->SetInternalField(0, External::New(isolate, texture));
+		obj->Set(String::NewFromUtf8(isolate, "width"), Int32::New(isolate, texture->width));
+		obj->Set(String::NewFromUtf8(isolate, "height"), Int32::New(isolate, texture->height));
+		obj->Set(String::NewFromUtf8(isolate, "depth"), Int32::New(isolate, texture->depth));
 		obj->Set(String::NewFromUtf8(isolate, "realWidth"), Int32::New(isolate, texture->texWidth));
 		obj->Set(String::NewFromUtf8(isolate, "realHeight"), Int32::New(isolate, texture->texHeight));
 		args.GetReturnValue().Set(obj);
@@ -1472,6 +1505,7 @@ namespace {
 		krom->Set(String::NewFromUtf8(isolate, "getTextureUnit"), FunctionTemplate::New(isolate, krom_get_texture_unit));
 		krom->Set(String::NewFromUtf8(isolate, "setTexture"), FunctionTemplate::New(isolate, krom_set_texture));
 		krom->Set(String::NewFromUtf8(isolate, "setTextureDepth"), FunctionTemplate::New(isolate, krom_set_texture_depth));
+		krom->Set(String::NewFromUtf8(isolate, "setImageTexture"), FunctionTemplate::New(isolate, krom_set_image_texture));
 		krom->Set(String::NewFromUtf8(isolate, "setTextureParameters"), FunctionTemplate::New(isolate, krom_set_texture_parameters));
 		krom->Set(String::NewFromUtf8(isolate, "setBool"), FunctionTemplate::New(isolate, krom_set_bool));
 		krom->Set(String::NewFromUtf8(isolate, "setInt"), FunctionTemplate::New(isolate, krom_set_int));
@@ -1490,6 +1524,7 @@ namespace {
 		krom->Set(String::NewFromUtf8(isolate, "createRenderTarget"), FunctionTemplate::New(isolate, krom_create_render_target));
 		krom->Set(String::NewFromUtf8(isolate, "createRenderTargetCubeMap"), FunctionTemplate::New(isolate, krom_create_render_target_cube_map));
 		krom->Set(String::NewFromUtf8(isolate, "createTexture"), FunctionTemplate::New(isolate, krom_create_texture));
+		krom->Set(String::NewFromUtf8(isolate, "createTexture3D"), FunctionTemplate::New(isolate, krom_create_texture_3d));
 		krom->Set(String::NewFromUtf8(isolate, "createTextureFromBytes"), FunctionTemplate::New(isolate, krom_create_texture_from_bytes));
 		krom->Set(String::NewFromUtf8(isolate, "unlockTexture"), FunctionTemplate::New(isolate, krom_unlock_texture));
 		krom->Set(String::NewFromUtf8(isolate, "clearTexture"), FunctionTemplate::New(isolate, krom_clear_texture));
