@@ -925,6 +925,18 @@ namespace {
 		Kore::Graphics::setTextureMipmapFilter(*unit, convertMipmapFilter(args[5]->ToInt32()->Int32Value()));
 	}
 
+	void krom_set_texture_3d_parameters(const FunctionCallbackInfo<Value>& args) {
+		HandleScope scope(args.GetIsolate());
+		Local<External> unitfield = Local<External>::Cast(args[0]->ToObject()->GetInternalField(0));
+		Kore::TextureUnit* unit = (Kore::TextureUnit*)unitfield->Value();
+		Kore::Graphics::setTexture3DAddressing(*unit, Kore::U, convertTextureAddressing(args[1]->ToInt32()->Int32Value()));
+		Kore::Graphics::setTexture3DAddressing(*unit, Kore::V, convertTextureAddressing(args[2]->ToInt32()->Int32Value()));
+		Kore::Graphics::setTexture3DAddressing(*unit, Kore::W, convertTextureAddressing(args[3]->ToInt32()->Int32Value()));
+		Kore::Graphics::setTexture3DMinificationFilter(*unit, convertTextureFilter(args[4]->ToInt32()->Int32Value()));
+		Kore::Graphics::setTexture3DMagnificationFilter(*unit, convertTextureFilter(args[5]->ToInt32()->Int32Value()));
+		Kore::Graphics::setTexture3DMipmapFilter(*unit, convertMipmapFilter(args[6]->ToInt32()->Int32Value()));
+	}
+
 	void krom_set_bool(const FunctionCallbackInfo<Value>& args) {
 		HandleScope scope(args.GetIsolate());
 		Local<External> locationfield = Local<External>::Cast(args[0]->ToObject()->GetInternalField(0));
@@ -1507,6 +1519,7 @@ namespace {
 		krom->Set(String::NewFromUtf8(isolate, "setTextureDepth"), FunctionTemplate::New(isolate, krom_set_texture_depth));
 		krom->Set(String::NewFromUtf8(isolate, "setImageTexture"), FunctionTemplate::New(isolate, krom_set_image_texture));
 		krom->Set(String::NewFromUtf8(isolate, "setTextureParameters"), FunctionTemplate::New(isolate, krom_set_texture_parameters));
+		krom->Set(String::NewFromUtf8(isolate, "setTexture3DParameters"), FunctionTemplate::New(isolate, krom_set_texture_3d_parameters));
 		krom->Set(String::NewFromUtf8(isolate, "setBool"), FunctionTemplate::New(isolate, krom_set_bool));
 		krom->Set(String::NewFromUtf8(isolate, "setInt"), FunctionTemplate::New(isolate, krom_set_int));
 		krom->Set(String::NewFromUtf8(isolate, "setFloat"), FunctionTemplate::New(isolate, krom_set_float));
