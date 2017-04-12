@@ -1004,20 +1004,6 @@ namespace {
 
 		Kore::Graphics::setFloats(*location, from, content.ByteLength() / 4);
 	}
-
-	void krom_set_float4s(const FunctionCallbackInfo<Value>& args) {
-		HandleScope scope(args.GetIsolate());
-		Local<External> locationfield = Local<External>::Cast(args[0]->ToObject()->GetInternalField(0));
-		Kore::ConstantLocation* location = (Kore::ConstantLocation*)locationfield->Value();
-
-		Local<Float32Array> f32array = Local<Float32Array>::Cast(args[1]);
-		ArrayBuffer::Contents content;
-		if (f32array->Buffer()->IsExternal()) content = f32array->Buffer()->GetContents();
-		else content = f32array->Buffer()->Externalize();
-		float* from = (float*)content.Data();
-
-		Kore::Graphics::setFloat4s(*location, from, content.ByteLength() / 4);
-	}
 	
 	void krom_set_matrix(const FunctionCallbackInfo<Value>& args) {
 		HandleScope scope(args.GetIsolate());
@@ -1527,7 +1513,6 @@ namespace {
 		krom->Set(String::NewFromUtf8(isolate, "setFloat3"), FunctionTemplate::New(isolate, krom_set_float3));
 		krom->Set(String::NewFromUtf8(isolate, "setFloat4"), FunctionTemplate::New(isolate, krom_set_float4));
 		krom->Set(String::NewFromUtf8(isolate, "setFloats"), FunctionTemplate::New(isolate, krom_set_floats));
-		krom->Set(String::NewFromUtf8(isolate, "setFloat4s"), FunctionTemplate::New(isolate, krom_set_float4s));
 		krom->Set(String::NewFromUtf8(isolate, "setMatrix"), FunctionTemplate::New(isolate, krom_set_matrix));
 		krom->Set(String::NewFromUtf8(isolate, "setMatrix3"), FunctionTemplate::New(isolate, krom_set_matrix3));
 		krom->Set(String::NewFromUtf8(isolate, "getTime"), FunctionTemplate::New(isolate, krom_get_time));
