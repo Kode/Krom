@@ -2,7 +2,7 @@
 
 #include "semaphore.h"
 
-#ifdef SYS_OSX
+#ifdef __APPLE__
 
 Semaphore::Semaphore(int count) {
 

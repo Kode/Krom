@@ -7,7 +7,7 @@ public:
 	void wait();
 	void signal();
 private:
-#ifdef SYS_WINDOWS
+#ifdef _WIN32
 	void* semaphore;
 #endif
 };

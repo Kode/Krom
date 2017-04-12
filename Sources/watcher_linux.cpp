@@ -1,6 +1,6 @@
 #include "pch.h"
 
-#ifdef SYS_LINUX
+#ifdef __linux__
 
 #include <Kore/Log.h>
 #include <Kore/Threads/Thread.h>

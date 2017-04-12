@@ -1,6 +1,6 @@
 #include "pch.h"
 
-#ifdef SYS_WINDOWS
+#ifdef _WIN32
 
 #include <Kore/Threads/Thread.h>
 #include <Kore/Log.h>

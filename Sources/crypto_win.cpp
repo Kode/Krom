@@ -1,4 +1,4 @@
-#ifdef SYS_WINDOWS
+#ifdef _WIN32
 
 #include <stdio.h>
 #include <exception>

@@ -2,7 +2,7 @@
 
 #include "semaphore.h"
 
-#ifdef SYS_LINUX
+#ifdef __linux__
 
 Semaphore::Semaphore(int count) {
 

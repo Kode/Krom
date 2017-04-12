@@ -1,4 +1,4 @@
-#ifdef SYS_OSX
+#ifdef __APPLE__
 
 #import <Foundation/Foundation.h>
 
