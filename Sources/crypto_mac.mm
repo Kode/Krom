@@ -1,4 +1,4 @@
-#ifdef __APPLE__
+#ifdef KORE_MACOS
 
 #import <Foundation/Foundation.h>
 

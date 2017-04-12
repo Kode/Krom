@@ -1,4 +1,4 @@
-#ifdef _WIN32
+#ifdef KORE_WINDOWS
 
 #include <stdio.h>
 #include <exception>

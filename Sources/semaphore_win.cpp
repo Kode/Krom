@@ -2,7 +2,7 @@
 
 #include "semaphore.h"
 
-#ifdef _WIN32
+#ifdef KORE_WINDOWS
 
 #include <Windows.h>
 

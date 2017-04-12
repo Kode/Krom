@@ -36,7 +36,7 @@ using namespace v8;
 
 void sendMessage(const char* message);
 
-#ifdef __APPLE__
+#ifdef KORE_MACOS
 const char* macgetresourcepath();
 #endif
 
@@ -1435,11 +1435,11 @@ namespace {
 	}
 	
 	void startV8() {
-#if defined(_WIN32)
+#if defined(KORE_WINDOWS)
 		const char* exeDir = getExeDir();
 		V8::InitializeICUDefaultLocation(exeDir);
 		V8::InitializeExternalStartupData(exeDir);
-#elif defined(__APPLE__)
+#elif defined(KORE_MACOS)
 		char filepath[256];
 		strcpy(filepath, macgetresourcepath());
 		strcat(filepath, "/");
@@ -2066,7 +2066,7 @@ extern "C" void filechanged(char* path) {
 
 int kore(int argc, char** argv) {
 	std::string bindir(argv[0]);
-#ifdef _WIN32
+#ifdef KORE_WINDOWS
 	bindir = bindir.substr(0, bindir.find_last_of("\\"));
 #else
 	bindir = bindir.substr(0, bindir.find_last_of("/"));
@@ -2134,7 +2134,7 @@ int kore(int argc, char** argv) {
 	return 0;
 }
 
-#ifdef _WIN32
+#ifdef KORE_WINDOWS
 #include <Windows.h>
 
 const char* getExeDir() {

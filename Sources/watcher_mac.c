@@ -1,4 +1,4 @@
-#ifdef __APPLE__
+#ifdef KORE_MACOS
 
 #include <stdlib.h>
 #include <string.h>

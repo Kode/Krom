@@ -1,4 +1,4 @@
-#ifdef __linux__
+#ifdef KORE_LINUX
 
 #include <openssl/sha.h> // apt-get install libssl-dev
 #include <openssl/pem.h>
