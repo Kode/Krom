@@ -15,7 +15,7 @@
 
 #include <vector>
 
-#ifdef SYS_WINDOWS
+#ifdef KORE_WINDOWS
 #include <winsock.h>
 #include <io.h>
 #else
@@ -41,7 +41,7 @@ namespace {
 	std::vector<std::string> queuedMessages;
 	volatile int step = 0;
 
-#ifdef SYS_WINDOWS
+#ifdef KORE_WINDOWS
 	SOCKET client_socket;
 #else
 	int client_socket;
@@ -248,7 +248,7 @@ Sec-WebSocket-Accept: ");
 	}
 
 	static void error_exit(const char *error_message) {
-#ifdef SYS_WINDOWS
+#ifdef KORE_WINDOWS
 		fprintf(stderr, "%s: %d\n", error_message, WSAGetLastError());
 #else
 		fprintf(stderr, "%s: %s\n", error_message, strerror(errno));
@@ -256,7 +256,7 @@ Sec-WebSocket-Accept: ");
 		exit(EXIT_FAILURE);
 	}
 	
-#ifdef SYS_WINDOWS
+#ifdef KORE_WINDOWS
 	static void echo(SOCKET client_socket)
 #else
 	static void echo(int client_socket)
@@ -301,19 +301,19 @@ Sec-WebSocket-Accept: ");
 	void startServerInThread(void*) {
 		struct sockaddr_in server, client;
 
-#ifdef _WIN32
+#ifdef KORE_WINDOWS
 		SOCKET sock, fd;
 #else
 		int sock, fd;
 #endif
 
-#ifdef _WIN32
+#ifdef KORE_WINDOWS
 		int len;
 #else
 		unsigned int len;
 #endif
 
-#ifdef _WIN32
+#ifdef KORE_WINDOWS
 		WORD wVersionRequested;
 		WSADATA wsaData;
 		wVersionRequested = MAKEWORD(1, 1);
@@ -341,7 +341,7 @@ Sec-WebSocket-Accept: ");
 			Kore::log(Kore::Info, "Data from address: %s\n", inet_ntoa(client.sin_addr));
 			echo(fd);
 
-#ifdef _WIN32
+#ifdef KORE_WINDOWS
 			closesocket(fd);
 #else
 			close(fd);

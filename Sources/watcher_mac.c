@@ -1,4 +1,4 @@
-#ifdef SYS_OSX
+#ifdef KORE_MACOS
 
 #include <stdlib.h>
 #include <string.h>
