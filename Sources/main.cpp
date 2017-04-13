@@ -1383,12 +1383,7 @@ namespace {
 
 	void krom_render_targets_inverted_y(const FunctionCallbackInfo<Value>& args) {
 		HandleScope scope(args.GetIsolate());
-		
-#ifdef OPENGL
-		args.GetReturnValue().Set(Boolean::New(isolate, true));
-#else
-		args.GetReturnValue().Set(Boolean::New(isolate, false));
-#endif
+		args.GetReturnValue().Set(Boolean::New(isolate, Kore::Graphics4::renderTargetsInvertedY()));
 	}
 	
 	void krom_begin(const FunctionCallbackInfo<Value>& args) {
