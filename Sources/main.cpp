@@ -80,13 +80,13 @@ namespace {
 	void mouseUp(int window, int button, int x, int y);
 	void mouseWheel(int window, int delta);
 	void gamepad1Axis(int axis, float value);
-	void gamepad1Button(int axis, float value);
+	void gamepad1Button(int button, float value);
 	void gamepad2Axis(int axis, float value);
-	void gamepad2Button(int axis, float value);
+	void gamepad2Button(int button, float value);
 	void gamepad3Axis(int axis, float value);
-	void gamepad3Button(int axis, float value);
+	void gamepad3Button(int button, float value);
 	void gamepad4Axis(int axis, float value);
-	void gamepad4Button(int axis, float value);
+	void gamepad4Button(int button, float value);
 
 	void krom_init(const v8::FunctionCallbackInfo<v8::Value>& args) {
 		HandleScope scope(args.GetIsolate());
