@@ -8,6 +8,7 @@
 #include <Kore/Graphics4/Shader.h>
 #include <Kore/Input/Keyboard.h>
 #include <Kore/Input/Mouse.h>
+#include <Kore/Input/Gamepad.h>
 #include <Kore/Audio2/Audio.h>
 #include <Kore/Audio1/Audio.h>
 #include <Kore/Audio1/Sound.h>
@@ -59,6 +60,9 @@ namespace {
 	Global<Function> mouseDownFunction;
 	Global<Function> mouseUpFunction;
 	Global<Function> mouseMoveFunction;
+	Global<Function> mouseWheelFunction;
+	Global<Function> gamepadAxisFunction;
+	Global<Function> gamepadButtonFunction;
     Global<Function> audioFunction;
 	std::map<std::string, bool> imageChanges;
 	std::map<std::string, bool> shaderChanges;
@@ -74,6 +78,15 @@ namespace {
 	void mouseMove(int window, int x, int y, int mx, int my);
 	void mouseDown(int window, int button, int x, int y);
 	void mouseUp(int window, int button, int x, int y);
+	void mouseWheel(int window, int delta);
+	void gamepad1Axis(int axis, float value);
+	void gamepad1Button(int button, float value);
+	void gamepad2Axis(int axis, float value);
+	void gamepad2Button(int button, float value);
+	void gamepad3Axis(int axis, float value);
+	void gamepad3Button(int button, float value);
+	void gamepad4Axis(int axis, float value);
+	void gamepad4Button(int button, float value);
 
 	void krom_init(const v8::FunctionCallbackInfo<v8::Value>& args) {
 		HandleScope scope(args.GetIsolate());
@@ -115,6 +128,15 @@ namespace {
 		Kore::Mouse::the()->Move = mouseMove;
 		Kore::Mouse::the()->Press = mouseDown;
 		Kore::Mouse::the()->Release = mouseUp;
+		Kore::Mouse::the()->Scroll = mouseWheel;
+		Kore::Gamepad::get(0)->Axis = gamepad1Axis;
+		Kore::Gamepad::get(0)->Button = gamepad1Button;
+		Kore::Gamepad::get(1)->Axis = gamepad2Axis;
+		Kore::Gamepad::get(1)->Button = gamepad2Button;
+		Kore::Gamepad::get(2)->Axis = gamepad3Axis;
+		Kore::Gamepad::get(2)->Button = gamepad3Button;
+		Kore::Gamepad::get(3)->Axis = gamepad4Axis;
+		Kore::Gamepad::get(3)->Button = gamepad4Button;
 		
 		//Mixer::play(music);
 	}
@@ -195,6 +217,27 @@ namespace {
 		Local<Value> arg = args[0];
 		Local<Function> func = Local<Function>::Cast(arg);
 		mouseMoveFunction.Reset(isolate, func);
+	}
+
+	void krom_set_mouse_wheel_callback(const FunctionCallbackInfo<Value>& args) {
+		HandleScope scope(args.GetIsolate());
+		Local<Value> arg = args[0];
+		Local<Function> func = Local<Function>::Cast(arg);
+		mouseWheelFunction.Reset(isolate, func);
+	}
+
+	void krom_set_gamepad_axis_callback(const FunctionCallbackInfo<Value>& args) {
+		HandleScope scope(args.GetIsolate());
+		Local<Value> arg = args[0];
+		Local<Function> func = Local<Function>::Cast(arg);
+		gamepadAxisFunction.Reset(isolate, func);
+	}
+
+	void krom_set_gamepad_button_callback(const FunctionCallbackInfo<Value>& args) {
+		HandleScope scope(args.GetIsolate());
+		Local<Value> arg = args[0];
+		Local<Function> func = Local<Function>::Cast(arg);
+		gamepadButtonFunction.Reset(isolate, func);
 	}
     
     void krom_set_audio_callback(const FunctionCallbackInfo<Value>& args) {
@@ -1468,6 +1511,9 @@ namespace {
 		krom->Set(String::NewFromUtf8(isolate, "setMouseDownCallback"), FunctionTemplate::New(isolate, krom_set_mouse_down_callback));
 		krom->Set(String::NewFromUtf8(isolate, "setMouseUpCallback"), FunctionTemplate::New(isolate, krom_set_mouse_up_callback));
 		krom->Set(String::NewFromUtf8(isolate, "setMouseMoveCallback"), FunctionTemplate::New(isolate, krom_set_mouse_move_callback));
+		krom->Set(String::NewFromUtf8(isolate, "setMouseWheelCallback"), FunctionTemplate::New(isolate, krom_set_mouse_wheel_callback));
+		krom->Set(String::NewFromUtf8(isolate, "setGamepadAxisCallback"), FunctionTemplate::New(isolate, krom_set_gamepad_axis_callback));
+		krom->Set(String::NewFromUtf8(isolate, "setGamepadButtonCallback"), FunctionTemplate::New(isolate, krom_set_gamepad_button_callback));
 		krom->Set(String::NewFromUtf8(isolate, "createIndexBuffer"), FunctionTemplate::New(isolate, krom_create_indexbuffer));
 		krom->Set(String::NewFromUtf8(isolate, "deleteIndexBuffer"), FunctionTemplate::New(isolate, krom_delete_indexbuffer));
 		krom->Set(String::NewFromUtf8(isolate, "setIndices"), FunctionTemplate::New(isolate, krom_set_indices));
@@ -1750,6 +1796,95 @@ namespace {
 			v8::String::Utf8Value stack_trace(try_catch.StackTrace());
 			sendLogMessage("Trace: %s", *stack_trace);
 		}
+	}
+
+	void mouseWheel(int window, int delta) {
+        v8::Locker locker{isolate};
+        
+		Isolate::Scope isolate_scope(isolate);
+		HandleScope handle_scope(isolate);
+		v8::Local<v8::Context> context = v8::Local<v8::Context>::New(isolate, globalContext);
+		Context::Scope context_scope(context);
+		
+		TryCatch try_catch(isolate);
+		v8::Local<v8::Function> func = v8::Local<v8::Function>::New(isolate, mouseWheelFunction);
+		Local<Value> result;
+		const int argc = 1;
+		Local<Value> argv[argc] = {Int32::New(isolate, delta)};
+		if (!func->Call(context, context->Global(), argc, argv).ToLocal(&result)) {
+			v8::String::Utf8Value stack_trace(try_catch.StackTrace());
+			sendLogMessage("Trace: %s", *stack_trace);
+		}
+	}
+
+	void gamepadAxis(int gamepad, int axis, float value) {
+        v8::Locker locker{isolate};
+        
+		Isolate::Scope isolate_scope(isolate);
+		HandleScope handle_scope(isolate);
+		v8::Local<v8::Context> context = v8::Local<v8::Context>::New(isolate, globalContext);
+		Context::Scope context_scope(context);
+		
+		TryCatch try_catch(isolate);
+		v8::Local<v8::Function> func = v8::Local<v8::Function>::New(isolate, gamepadAxisFunction);
+		Local<Value> result;
+		const int argc = 3;
+		Local<Value> argv[argc] = {Int32::New(isolate, gamepad), Int32::New(isolate, axis), Number::New(isolate, value)};
+		if (!func->Call(context, context->Global(), argc, argv).ToLocal(&result)) {
+			v8::String::Utf8Value stack_trace(try_catch.StackTrace());
+			sendLogMessage("Trace: %s", *stack_trace);
+		}
+	}
+
+	void gamepadButton(int gamepad, int button, float value) {
+        v8::Locker locker{isolate};
+        
+		Isolate::Scope isolate_scope(isolate);
+		HandleScope handle_scope(isolate);
+		v8::Local<v8::Context> context = v8::Local<v8::Context>::New(isolate, globalContext);
+		Context::Scope context_scope(context);
+		
+		TryCatch try_catch(isolate);
+		v8::Local<v8::Function> func = v8::Local<v8::Function>::New(isolate, gamepadButtonFunction);
+		Local<Value> result;
+		const int argc = 3;
+		Local<Value> argv[argc] = {Int32::New(isolate, gamepad), Int32::New(isolate, button), Number::New(isolate, value)};
+		if (!func->Call(context, context->Global(), argc, argv).ToLocal(&result)) {
+			v8::String::Utf8Value stack_trace(try_catch.StackTrace());
+			sendLogMessage("Trace: %s", *stack_trace);
+		}
+	}
+
+	void gamepad1Axis(int axis, float value) {
+		gamepadAxis(0, axis, value);
+	}
+
+	void gamepad1Button(int button, float value) {
+		gamepadButton(0, button, value);
+	}
+
+	void gamepad2Axis(int axis, float value) {
+		gamepadAxis(1, axis, value);
+	}
+
+	void gamepad2Button(int button, float value) {
+		gamepadButton(1, button, value);
+	}
+
+	void gamepad3Axis(int axis, float value) {
+		gamepadAxis(2, axis, value);
+	}
+
+	void gamepad3Button(int button, float value) {
+		gamepadButton(2, button, value);
+	}
+
+	void gamepad4Axis(int axis, float value) {
+		gamepadAxis(3, axis, value);
+	}
+
+	void gamepad4Button(int button, float value) {
+		gamepadButton(3, button, value);
 	}
 	
 	bool startsWith(std::string str, std::string start) {
