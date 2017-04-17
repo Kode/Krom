@@ -1620,34 +1620,34 @@ namespace {
 	bool codechanged = false;
 
 	void parseCode();
-	
-    void runV8() {
-        if (v8paused) return;
+
+	void runV8() {
+		if (v8paused) return;
+
+		if (codechanged) {
+			parseCode();
+			codechanged = false;
+		}
         
-        if (codechanged) {
-            parseCode();
-            codechanged = false;
-        }
+		v8::Locker locker{isolate};
         
-        v8::Locker locker{isolate};
+		Isolate::Scope isolate_scope(isolate);
+		v8::MicrotasksScope microtasks_scope(isolate, v8::MicrotasksScope::kRunMicrotasks);
+		HandleScope handle_scope(isolate);
+		Local<Context> context = Local<Context>::New(isolate, globalContext);
+		Context::Scope context_scope(context);
         
-        Isolate::Scope isolate_scope(isolate);
-        v8::MicrotasksScope microtasks_scope(isolate, v8::MicrotasksScope::kRunMicrotasks);
-        HandleScope handle_scope(isolate);
-        Local<Context> context = Local<Context>::New(isolate, globalContext);
-        Context::Scope context_scope(context);
+		TryCatch try_catch(isolate);
+		Local<v8::Function> func = Local<v8::Function>::New(isolate, updateFunction);
+		Local<Value> result;
         
-        TryCatch try_catch(isolate);
-        Local<v8::Function> func = Local<v8::Function>::New(isolate, updateFunction);
-        Local<Value> result;
-        
-        if (debug) v8inspector->willExecuteScript(context, func->ScriptId());
-        if (!func->Call(context, context->Global(), 0, NULL).ToLocal(&result)) {
-            v8::String::Utf8Value stack_trace(try_catch.StackTrace());
+		//**if (debug) v8inspector->willExecuteScript(context, func->ScriptId());
+		if (!func->Call(context, context->Global(), 0, NULL).ToLocal(&result)) {
+			v8::String::Utf8Value stack_trace(try_catch.StackTrace());
 			sendLogMessage("Trace: %s", *stack_trace);
-        }
-        if (debug) v8inspector->didExecuteScript(context);
-    }
+		}
+		//**if (debug) v8inspector->didExecuteScript(context);
+	}
 
 	void endV8() {
 		updateFunction.Reset();

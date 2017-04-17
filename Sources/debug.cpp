@@ -51,13 +51,13 @@ namespace {
 	};
 
 	class DebugChannel : public v8_inspector::V8Inspector::Channel {
-		void sendProtocolResponse(int callId, const v8_inspector::StringView& message) {
-			if (!message.is8Bit()) {
-				char* eightbit = (char*)alloca(message.length() + 1);
-				for (int i = 0; i < message.length(); ++i) {
-					eightbit[i] = message.characters16()[i];
+		void sendResponse(int callId, std::unique_ptr<v8_inspector::StringBuffer> message) override {
+			if (!message->string().is8Bit()) {
+				char* eightbit = (char*)alloca(message->string().length() + 1);
+				for (int i = 0; i < message->string().length(); ++i) {
+					eightbit[i] = message->string().characters16()[i];
 				}
-				eightbit[message.length()] = 0;
+				eightbit[message->string().length()] = 0;
 				
 				sendMessage(eightbit);
 			}
@@ -67,13 +67,13 @@ namespace {
 			}
 		}
 
-		void sendProtocolNotification(const v8_inspector::StringView& message) {
-			if (!message.is8Bit()) {
-				char* eightbit = (char*)alloca(message.length() + 1);
-				for (int i = 0; i < message.length(); ++i) {
-					eightbit[i] = message.characters16()[i];
+		void sendNotification(std::unique_ptr<v8_inspector::StringBuffer> message) override {
+			if (!message->string().is8Bit()) {
+				char* eightbit = (char*)alloca(message->string().length() + 1);
+				for (int i = 0; i < message->string().length(); ++i) {
+					eightbit[i] = message->string().characters16()[i];
 				}
-				eightbit[message.length()] = 0;
+				eightbit[message->string().length()] = 0;
 				
 				sendMessage(eightbit);
 			}
