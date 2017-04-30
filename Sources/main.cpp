@@ -424,6 +424,23 @@ namespace {
 		obj->Set(String::NewFromUtf8(isolate, "name"), args[1]);
 		args.GetReturnValue().Set(obj);
 	}
+
+	void krom_create_vertex_shader_from_source(const FunctionCallbackInfo<Value>& args) {
+		HandleScope scope(args.GetIsolate());
+		String::Utf8Value utf8_value(args[0]);
+		char* source = new char[strlen(source) + 1];
+		strcpy(source, *utf8_value);
+        Kore::Graphics4::Shader* shader = new Kore::Graphics4::Shader(source, Kore::Graphics4::VertexShader);
+		
+		Local<ObjectTemplate> templ = ObjectTemplate::New(isolate);
+		templ->SetInternalFieldCount(1);
+		
+		Local<Object> obj = templ->NewInstance(isolate->GetCurrentContext()).ToLocalChecked();
+		obj->SetInternalField(0, External::New(isolate, shader));
+		Local<String> name = String::NewFromUtf8(isolate, "");
+		obj->Set(String::NewFromUtf8(isolate, "name"), name);
+		args.GetReturnValue().Set(obj);
+	}
 	
 	void krom_create_fragment_shader(const FunctionCallbackInfo<Value>& args) {
 		HandleScope scope(args.GetIsolate());
@@ -437,6 +454,23 @@ namespace {
 		Local<Object> obj = templ->NewInstance(isolate->GetCurrentContext()).ToLocalChecked();
 		obj->SetInternalField(0, External::New(isolate, shader));
 		obj->Set(String::NewFromUtf8(isolate, "name"), args[1]);
+		args.GetReturnValue().Set(obj);
+	}
+
+	void krom_create_fragment_shader_from_source(const FunctionCallbackInfo<Value>& args) {
+		HandleScope scope(args.GetIsolate());
+		String::Utf8Value utf8_value(args[0]);
+		char* source = new char[strlen(source) + 1];
+		strcpy(source, *utf8_value);
+        Kore::Graphics4::Shader* shader = new Kore::Graphics4::Shader(source, Kore::Graphics4::FragmentShader);
+		
+		Local<ObjectTemplate> templ = ObjectTemplate::New(isolate);
+		templ->SetInternalFieldCount(1);
+		
+		Local<Object> obj = templ->NewInstance(isolate->GetCurrentContext()).ToLocalChecked();
+		obj->SetInternalField(0, External::New(isolate, shader));
+		Local<String> name = String::NewFromUtf8(isolate, "");
+		obj->Set(String::NewFromUtf8(isolate, "name"), name);
 		args.GetReturnValue().Set(obj);
 	}
 
@@ -1526,7 +1560,9 @@ namespace {
 		krom->Set(String::NewFromUtf8(isolate, "drawIndexedVertices"), FunctionTemplate::New(isolate, krom_draw_indexed_vertices));
 		krom->Set(String::NewFromUtf8(isolate, "drawIndexedVerticesInstanced"), FunctionTemplate::New(isolate, krom_draw_indexed_vertices_instanced));
 		krom->Set(String::NewFromUtf8(isolate, "createVertexShader"), FunctionTemplate::New(isolate, krom_create_vertex_shader));
+		krom->Set(String::NewFromUtf8(isolate, "createVertexShaderFromSource"), FunctionTemplate::New(isolate, krom_create_vertex_shader_from_source));
 		krom->Set(String::NewFromUtf8(isolate, "createFragmentShader"), FunctionTemplate::New(isolate, krom_create_fragment_shader));
+		krom->Set(String::NewFromUtf8(isolate, "createFragmentShaderFromSource"), FunctionTemplate::New(isolate, krom_create_fragment_shader_from_source));
 		krom->Set(String::NewFromUtf8(isolate, "createGeometryShader"), FunctionTemplate::New(isolate, krom_create_geometry_shader));
 		krom->Set(String::NewFromUtf8(isolate, "createTessellationControlShader"), FunctionTemplate::New(isolate, krom_create_tessellation_control_shader));
 		krom->Set(String::NewFromUtf8(isolate, "createTessellationEvaluationShader"), FunctionTemplate::New(isolate, krom_create_tessellation_evaluation_shader));
