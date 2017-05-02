@@ -428,7 +428,7 @@ namespace {
 	void krom_create_vertex_shader_from_source(const FunctionCallbackInfo<Value>& args) {
 		HandleScope scope(args.GetIsolate());
 		String::Utf8Value utf8_value(args[0]);
-		char* source = new char[strlen(source) + 1];
+		char* source = new char[strlen(*utf8_value) + 1];
 		strcpy(source, *utf8_value);
         Kore::Graphics4::Shader* shader = new Kore::Graphics4::Shader(source, Kore::Graphics4::VertexShader);
 		
@@ -460,7 +460,7 @@ namespace {
 	void krom_create_fragment_shader_from_source(const FunctionCallbackInfo<Value>& args) {
 		HandleScope scope(args.GetIsolate());
 		String::Utf8Value utf8_value(args[0]);
-		char* source = new char[strlen(source) + 1];
+		char* source = new char[strlen(*utf8_value) + 1];
 		strcpy(source, *utf8_value);
         Kore::Graphics4::Shader* shader = new Kore::Graphics4::Shader(source, Kore::Graphics4::FragmentShader);
 		
