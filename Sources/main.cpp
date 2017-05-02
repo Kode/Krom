@@ -1505,6 +1505,24 @@ namespace {
 		HandleScope scope(args.GetIsolate());
 		
 	}
+
+	void krom_file_save_bytes(const FunctionCallbackInfo<Value>& args) {
+		HandleScope scope(args.GetIsolate());
+		String::Utf8Value utf8_path(args[0]);
+		Local<ArrayBuffer> buffer = Local<ArrayBuffer>::Cast(args[1]);
+		ArrayBuffer::Contents content = buffer->Externalize();
+		FILE* file = fopen(*utf8_path, "wb");
+		if (file == nullptr) return;
+		fwrite(content.Data(), 1, (int)content.ByteLength(), file);
+		fclose(file);
+	}
+
+	void krom_sys_command(const FunctionCallbackInfo<Value>& args) {
+		HandleScope scope(args.GetIsolate());
+		String::Utf8Value utf8_cmd(args[0]);
+		int result = system(*utf8_cmd);
+		args.GetReturnValue().Set(Int32::New(isolate, result));
+	}
 	
 	void startV8() {
 #if defined(KORE_WINDOWS)
@@ -1620,6 +1638,8 @@ namespace {
 		krom->Set(String::NewFromUtf8(isolate, "begin"), FunctionTemplate::New(isolate, krom_begin));
 		krom->Set(String::NewFromUtf8(isolate, "beginFace"), FunctionTemplate::New(isolate, krom_begin_face));
 		krom->Set(String::NewFromUtf8(isolate, "end"), FunctionTemplate::New(isolate, krom_end));
+		krom->Set(String::NewFromUtf8(isolate, "fileSaveBytes"), FunctionTemplate::New(isolate, krom_file_save_bytes));
+		krom->Set(String::NewFromUtf8(isolate, "sysCommand"), FunctionTemplate::New(isolate, krom_sys_command));
 
 		Local<ObjectTemplate> global = ObjectTemplate::New(isolate);
 		global->Set(String::NewFromUtf8(isolate, "Krom"), krom);
