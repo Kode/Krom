@@ -1160,6 +1160,11 @@ namespace {
 		//int windowId = args[0]->ToInt32()->Value();
 		args.GetReturnValue().Set(Int32::New(isolate, Kore::System::screenDpi()));
 	}
+
+	void krom_request_shutdown(const FunctionCallbackInfo<Value>& args) {
+        HandleScope scope(args.GetIsolate());
+        Kore::System::stop();
+    }
 	
 	void krom_create_render_target(const FunctionCallbackInfo<Value>& args) {
 		HandleScope scope(args.GetIsolate());
@@ -1240,6 +1245,21 @@ namespace {
 		obj->Set(String::NewFromUtf8(isolate, "realHeight"), Int32::New(isolate, texture->texHeight));
 		args.GetReturnValue().Set(obj);
 	}
+
+	void krom_get_render_target_pixels(const FunctionCallbackInfo<Value>& args) {
+        HandleScope scope(args.GetIsolate());
+        
+        Local<External> field = Local<External>::Cast(args[0]->ToObject()->GetInternalField(0));
+        Kore::Graphics4::RenderTarget* rt = (Kore::Graphics4::RenderTarget*)field->Value();
+        
+        Local<ArrayBuffer> buffer = Local<ArrayBuffer>::Cast(args[1]);
+        ArrayBuffer::Contents content;
+        if (buffer->IsExternal()) content = buffer->GetContents();
+        else content = buffer->Externalize();
+        
+        Kore::u8* b = (Kore::u8*)content.Data();
+        rt->getPixels(b);
+    }
 
 	void krom_unlock_texture(const FunctionCallbackInfo<Value>& args) {
 		HandleScope scope(args.GetIsolate());
@@ -1505,6 +1525,28 @@ namespace {
 		HandleScope scope(args.GetIsolate());
 		
 	}
+
+	void krom_file_save_bytes(const FunctionCallbackInfo<Value>& args) {
+		HandleScope scope(args.GetIsolate());
+		String::Utf8Value utf8_path(args[0]);
+		
+        Local<ArrayBuffer> buffer = Local<ArrayBuffer>::Cast(args[1]);
+        ArrayBuffer::Contents content;
+        if (buffer->IsExternal()) content = buffer->GetContents();
+        else content = buffer->Externalize();
+        
+        FILE* file = fopen(*utf8_path, "wb");
+		if (file == nullptr) return;
+		fwrite(content.Data(), 1, (int)content.ByteLength(), file);
+		fclose(file);
+	}
+
+	void krom_sys_command(const FunctionCallbackInfo<Value>& args) {
+		HandleScope scope(args.GetIsolate());
+		String::Utf8Value utf8_cmd(args[0]);
+		int result = system(*utf8_cmd);
+		args.GetReturnValue().Set(Int32::New(isolate, result));
+	}
 	
 	void startV8() {
 #if defined(KORE_WINDOWS)
@@ -1598,11 +1640,13 @@ namespace {
 		krom->Set(String::NewFromUtf8(isolate, "windowWidth"), FunctionTemplate::New(isolate, krom_window_width));
 		krom->Set(String::NewFromUtf8(isolate, "windowHeight"), FunctionTemplate::New(isolate, krom_window_height));
 		krom->Set(String::NewFromUtf8(isolate, "screenDpi"), FunctionTemplate::New(isolate, krom_screen_dpi));
+		krom->Set(String::NewFromUtf8(isolate, "requestShutdown"), FunctionTemplate::New(isolate, krom_request_shutdown));
 		krom->Set(String::NewFromUtf8(isolate, "createRenderTarget"), FunctionTemplate::New(isolate, krom_create_render_target));
 		krom->Set(String::NewFromUtf8(isolate, "createRenderTargetCubeMap"), FunctionTemplate::New(isolate, krom_create_render_target_cube_map));
 		krom->Set(String::NewFromUtf8(isolate, "createTexture"), FunctionTemplate::New(isolate, krom_create_texture));
 		krom->Set(String::NewFromUtf8(isolate, "createTexture3D"), FunctionTemplate::New(isolate, krom_create_texture_3d));
 		krom->Set(String::NewFromUtf8(isolate, "createTextureFromBytes"), FunctionTemplate::New(isolate, krom_create_texture_from_bytes));
+		krom->Set(String::NewFromUtf8(isolate, "getRenderTargetPixels"), FunctionTemplate::New(isolate, krom_get_render_target_pixels));
 		krom->Set(String::NewFromUtf8(isolate, "unlockTexture"), FunctionTemplate::New(isolate, krom_unlock_texture));
 		krom->Set(String::NewFromUtf8(isolate, "clearTexture"), FunctionTemplate::New(isolate, krom_clear_texture));
 		krom->Set(String::NewFromUtf8(isolate, "generateMipmaps"), FunctionTemplate::New(isolate, krom_generate_mipmaps));
@@ -1620,6 +1664,8 @@ namespace {
 		krom->Set(String::NewFromUtf8(isolate, "begin"), FunctionTemplate::New(isolate, krom_begin));
 		krom->Set(String::NewFromUtf8(isolate, "beginFace"), FunctionTemplate::New(isolate, krom_begin_face));
 		krom->Set(String::NewFromUtf8(isolate, "end"), FunctionTemplate::New(isolate, krom_end));
+		krom->Set(String::NewFromUtf8(isolate, "fileSaveBytes"), FunctionTemplate::New(isolate, krom_file_save_bytes));
+		krom->Set(String::NewFromUtf8(isolate, "sysCommand"), FunctionTemplate::New(isolate, krom_sys_command));
 
 		Local<ObjectTemplate> global = ObjectTemplate::New(isolate);
 		global->Set(String::NewFromUtf8(isolate, "Krom"), krom);
