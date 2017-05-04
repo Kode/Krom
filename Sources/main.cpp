@@ -1547,6 +1547,11 @@ namespace {
 		int result = system(*utf8_cmd);
 		args.GetReturnValue().Set(Int32::New(isolate, result));
 	}
+
+	void krom_save_path(const FunctionCallbackInfo<Value>& args) {
+        HandleScope scope(args.GetIsolate());
+        args.GetReturnValue().Set(String::NewFromUtf8(isolate, Kore::System::savePath()));
+    }
 	
 	void startV8() {
 #if defined(KORE_WINDOWS)
@@ -1666,6 +1671,7 @@ namespace {
 		krom->Set(String::NewFromUtf8(isolate, "end"), FunctionTemplate::New(isolate, krom_end));
 		krom->Set(String::NewFromUtf8(isolate, "fileSaveBytes"), FunctionTemplate::New(isolate, krom_file_save_bytes));
 		krom->Set(String::NewFromUtf8(isolate, "sysCommand"), FunctionTemplate::New(isolate, krom_sys_command));
+		krom->Set(String::NewFromUtf8(isolate, "savePath"), FunctionTemplate::New(isolate, krom_save_path));
 
 		Local<ObjectTemplate> global = ObjectTemplate::New(isolate);
 		global->Set(String::NewFromUtf8(isolate, "Krom"), krom);
