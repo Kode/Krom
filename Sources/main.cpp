@@ -95,6 +95,8 @@ namespace {
 		int width = args[1]->ToInt32()->Value();
 		int height = args[2]->ToInt32()->Value();
 		int samplesPerPixel = args[3]->ToInt32()->Value();
+		bool vSync = args[4]->ToBoolean()->Value();
+		int windowMode = args[5]->ToInt32()->Value();
 
 		Kore::WindowOptions options;
 		options.title = *title;
@@ -103,7 +105,8 @@ namespace {
 		options.x = 100;
 		options.y = 100;
 		options.targetDisplay = 0;
-		options.mode = Kore::WindowModeWindow;
+		options.vSync = vSync;
+		options.mode = Kore::WindowMode(windowMode);
 		options.rendererOptions.depthBufferBits = 16;
 		options.rendererOptions.stencilBufferBits = 8;
 		options.rendererOptions.textureFormat = 0;
