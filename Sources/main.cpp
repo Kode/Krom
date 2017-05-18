@@ -285,12 +285,16 @@ namespace {
 		
 		Local<External> field = Local<External>::Cast(args[0]->ToObject()->GetInternalField(0));
 		Kore::Graphics4::IndexBuffer* buffer = (Kore::Graphics4::IndexBuffer*)field->Value();
+
+		Local<Uint32Array> u32array = Local<Uint32Array>::Cast(args[1]);
+		ArrayBuffer::Contents content;
+		if (u32array->Buffer()->IsExternal()) content = u32array->Buffer()->GetContents();
+		else content = u32array->Buffer()->Externalize();
 		
-		Local<Object> array = args[1]->ToObject();
-		
+		int* from = (int*)content.Data();
 		int* indices = buffer->lock();
 		for (int32_t i = 0; i < buffer->count(); ++i) {
-			indices[i] = array->Get(i)->ToInt32()->Value();
+			indices[i] = from[i];
 		}
 		buffer->unlock();
 	}
