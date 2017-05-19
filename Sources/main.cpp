@@ -1485,6 +1485,12 @@ namespace {
 		Kore::Graphics4::setColorMask(red, green, blue, alpha);
 	}
 
+	void krom_set_conservative_rasterization(const FunctionCallbackInfo<Value>& args) {
+		HandleScope scope(args.GetIsolate());
+		bool on = args[0]->ToBoolean()->Value();
+		Kore::Graphics4::setRenderState(Kore::Graphics4::ConservativeRasterization, on);
+	}
+
 	void krom_render_targets_inverted_y(const FunctionCallbackInfo<Value>& args) {
 		HandleScope scope(args.GetIsolate());
 		args.GetReturnValue().Set(Boolean::New(isolate, Kore::Graphics4::renderTargetsInvertedY()));
@@ -1672,6 +1678,7 @@ namespace {
 		krom->Set(String::NewFromUtf8(isolate, "setStencilParameters"), FunctionTemplate::New(isolate, krom_set_stencil_parameters));
 		krom->Set(String::NewFromUtf8(isolate, "setBlendingMode"), FunctionTemplate::New(isolate, krom_set_blending_mode));
 		krom->Set(String::NewFromUtf8(isolate, "setColorMask"), FunctionTemplate::New(isolate, krom_set_color_mask));
+		krom->Set(String::NewFromUtf8(isolate, "setConservativeRasterization"), FunctionTemplate::New(isolate, krom_set_conservative_rasterization));
 		krom->Set(String::NewFromUtf8(isolate, "renderTargetsInvertedY"), FunctionTemplate::New(isolate, krom_render_targets_inverted_y));
 		krom->Set(String::NewFromUtf8(isolate, "begin"), FunctionTemplate::New(isolate, krom_begin));
 		krom->Set(String::NewFromUtf8(isolate, "beginFace"), FunctionTemplate::New(isolate, krom_begin_face));
