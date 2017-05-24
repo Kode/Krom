@@ -420,7 +420,9 @@ namespace {
 	void krom_create_vertex_shader(const FunctionCallbackInfo<Value>& args) {
 		HandleScope scope(args.GetIsolate());
 		Local<ArrayBuffer> buffer = Local<ArrayBuffer>::Cast(args[0]);
-		ArrayBuffer::Contents content = buffer->Externalize();
+		ArrayBuffer::Contents content;
+		if (buffer->IsExternal()) content = buffer->GetContents();
+		else content = buffer->Externalize();
 		Kore::Graphics4::Shader* shader = new Kore::Graphics4::Shader(content.Data(), (int)content.ByteLength(), Kore::Graphics4::VertexShader);
 		
 		Local<ObjectTemplate> templ = ObjectTemplate::New(isolate);
@@ -452,7 +454,9 @@ namespace {
 	void krom_create_fragment_shader(const FunctionCallbackInfo<Value>& args) {
 		HandleScope scope(args.GetIsolate());
 		Local<ArrayBuffer> buffer = Local<ArrayBuffer>::Cast(args[0]);
-		ArrayBuffer::Contents content = buffer->Externalize();
+		ArrayBuffer::Contents content;
+		if (buffer->IsExternal()) content = buffer->GetContents();
+		else content = buffer->Externalize();
 		Kore::Graphics4::Shader* shader = new Kore::Graphics4::Shader(content.Data(), (int)content.ByteLength(), Kore::Graphics4::FragmentShader);
 		
 		Local<ObjectTemplate> templ = ObjectTemplate::New(isolate);
@@ -484,7 +488,9 @@ namespace {
 	void krom_create_geometry_shader(const FunctionCallbackInfo<Value>& args) {
 		HandleScope scope(args.GetIsolate());
 		Local<ArrayBuffer> buffer = Local<ArrayBuffer>::Cast(args[0]);
-		ArrayBuffer::Contents content = buffer->Externalize();
+		ArrayBuffer::Contents content;
+		if (buffer->IsExternal()) content = buffer->GetContents();
+		else content = buffer->Externalize();
 		Kore::Graphics4::Shader* shader = new Kore::Graphics4::Shader(content.Data(), (int)content.ByteLength(), Kore::Graphics4::GeometryShader);
 		
 		Local<ObjectTemplate> templ = ObjectTemplate::New(isolate);
@@ -499,7 +505,9 @@ namespace {
 	void krom_create_tessellation_control_shader(const FunctionCallbackInfo<Value>& args) {
 		HandleScope scope(args.GetIsolate());
 		Local<ArrayBuffer> buffer = Local<ArrayBuffer>::Cast(args[0]);
-		ArrayBuffer::Contents content = buffer->Externalize();
+		ArrayBuffer::Contents content;
+		if (buffer->IsExternal()) content = buffer->GetContents();
+		else content = buffer->Externalize();
 		Kore::Graphics4::Shader* shader = new Kore::Graphics4::Shader(content.Data(), (int)content.ByteLength(), Kore::Graphics4::TessellationControlShader);
 		
 		Local<ObjectTemplate> templ = ObjectTemplate::New(isolate);
@@ -514,7 +522,9 @@ namespace {
 	void krom_create_tessellation_evaluation_shader(const FunctionCallbackInfo<Value>& args) {
 		HandleScope scope(args.GetIsolate());
 		Local<ArrayBuffer> buffer = Local<ArrayBuffer>::Cast(args[0]);
-		ArrayBuffer::Contents content = buffer->Externalize();
+		ArrayBuffer::Contents content;
+		if (buffer->IsExternal()) content = buffer->GetContents();
+		else content = buffer->Externalize();
 		Kore::Graphics4::Shader* shader = new Kore::Graphics4::Shader(content.Data(), (int)content.ByteLength(), Kore::Graphics4::TessellationEvaluationShader);
 		
 		Local<ObjectTemplate> templ = ObjectTemplate::New(isolate);
