@@ -383,14 +383,16 @@ namespace {
 
 	void krom_set_vertexbuffers(const FunctionCallbackInfo<Value>& args) {
 		HandleScope scope(args.GetIsolate());
-		Kore::Graphics4::VertexBuffer* vertexBuffers[4] = { nullptr, nullptr, nullptr, nullptr };
-		int count = args[4]->ToInt32()->Value();
-		for (int32_t i = 0; i < count; ++i) {
-			Local<External> field = Local<External>::Cast(args[i]->ToObject()->GetInternalField(0));
-			Kore::Graphics4::VertexBuffer* buffer = (Kore::Graphics4::VertexBuffer*)field->Value();
+		Kore::Graphics4::VertexBuffer* vertexBuffers[8] = { nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr };
+		Local<Object> jsarray = args[0]->ToObject();
+		int32_t length = jsarray->Get(String::NewFromUtf8(isolate, "length"))->ToInt32()->Value();
+		for (int32_t i = 0; i < length; ++i) {
+			Local<Object> bufferobj = jsarray->Get(i)->ToObject()->Get(String::NewFromUtf8(isolate, "buffer"))->ToObject();
+			Local<External> bufferfield = Local<External>::Cast(bufferobj->GetInternalField(0));
+			Kore::Graphics4::VertexBuffer* buffer = (Kore::Graphics4::VertexBuffer*)bufferfield->Value();
 			vertexBuffers[i] = buffer;
-		}		
-		Kore::Graphics4::setVertexBuffers(vertexBuffers, count);
+		}
+		Kore::Graphics4::setVertexBuffers(vertexBuffers, length);
 	}
 	
 	void krom_draw_indexed_vertices(const FunctionCallbackInfo<Value>& args) {
