@@ -5,6 +5,7 @@
 #include "pch.h"
 #include <Kore/IO/FileReader.h>
 #include <Kore/Graphics4/Graphics.h>
+#include <Kore/Graphics4/PipelineState.h>
 #include <Kore/Graphics4/Shader.h>
 #include <Kore/Input/Keyboard.h>
 #include <Kore/Input/Mouse.h>
@@ -49,7 +50,7 @@ extern std::unique_ptr<v8_inspector::V8Inspector> v8inspector;
 const char* getExeDir();
 
 namespace {
-	bool debug = false;
+	bool debugMode = false;
 	bool watch = false;
 	bool nosound = false;
 
@@ -113,7 +114,6 @@ namespace {
 		options.rendererOptions.antialiasing = samplesPerPixel;
 		Kore::System::initWindow(options);
 		
-		Kore::Graphics4::setRenderState(Kore::Graphics4::DepthTest, false);
 		//Mixer::init();
 		//Audio::init();
 		mutex.Create();
@@ -545,24 +545,24 @@ namespace {
 		delete shader;
 	}
 	
-	void krom_create_program(const FunctionCallbackInfo<Value>& args) {
+	void krom_create_pipeline(const FunctionCallbackInfo<Value>& args) {
 		HandleScope scope(args.GetIsolate());
-		Kore::Graphics4::Program* program = new Kore::Graphics4::Program();
+		Kore::Graphics4::PipelineState* pipeline = new Kore::Graphics4::PipelineState;
 		
 		Local<ObjectTemplate> templ = ObjectTemplate::New(isolate);
 		templ->SetInternalFieldCount(8);
 		
 		Local<Object> obj = templ->NewInstance(isolate->GetCurrentContext()).ToLocalChecked();
-		obj->SetInternalField(0, External::New(isolate, program));
+		obj->SetInternalField(0, External::New(isolate, pipeline));
 		args.GetReturnValue().Set(obj);
 	}
 
-	void krom_delete_program(const FunctionCallbackInfo<Value>& args) {
+	void krom_delete_pipeline(const FunctionCallbackInfo<Value>& args) {
 		HandleScope scope(args.GetIsolate());
 		Local<Object> progobj = args[0]->ToObject();
 		Local<External> progfield = Local<External>::Cast(progobj->GetInternalField(0));
-		Kore::Graphics4::Program* program = (Kore::Graphics4::Program*)progfield->Value();
-		delete program;
+		Kore::Graphics4::PipelineState* pipeline = (Kore::Graphics4::PipelineState*)progfield->Value();
+		delete pipeline;
 	}
 	
 	void recompileProgram(Local<Object> projobj) {
@@ -578,31 +578,36 @@ namespace {
 		Local<External> fsfield = Local<External>::Cast(projobj->GetInternalField(4));
 		Kore::Graphics4::Shader* fs = (Kore::Graphics4::Shader*)fsfield->Value();
 
-		Kore::Graphics4::Program* program = new Kore::Graphics4::Program();
-		program->setVertexShader(vs);
-		program->setFragmentShader(fs);
+		Kore::Graphics4::PipelineState* pipeline = new Kore::Graphics4::PipelineState;
+		pipeline->vertexShader = vs;
+		pipeline->fragmentShader = fs;
 
 		Local<External> gsfield = Local<External>::Cast(projobj->GetInternalField(5));
 		if (!gsfield->IsNull() && !gsfield->IsUndefined()) {
 			Kore::Graphics4::Shader* gs = (Kore::Graphics4::Shader*)gsfield->Value();
-			program->setGeometryShader(gs);
+			pipeline->geometryShader = gs;
 		}
 
 		Local<External> tcsfield = Local<External>::Cast(projobj->GetInternalField(6));
 		if (!tcsfield->IsNull() && !tcsfield->IsUndefined()) {
 			Kore::Graphics4::Shader* tcs = (Kore::Graphics4::Shader*)tcsfield->Value();
-			program->setTessellationControlShader(tcs);
+			pipeline->tessellationControlShader = tcs;
 		}
 
 		Local<External> tesfield = Local<External>::Cast(projobj->GetInternalField(7));
 		if (!tesfield->IsNull() && !tesfield->IsUndefined()) {
 			Kore::Graphics4::Shader* tes = (Kore::Graphics4::Shader*)tesfield->Value();
-			program->setTessellationEvaluationShader(tes);
+			pipeline->tessellationEvaluationShader = tes;
 		}
+
+		for (int i = 0; i < size; ++i) {
+			pipeline->inputLayout[i] = structures[i];
+		}
+		pipeline->inputLayout[size] = nullptr;
 		
-		program->link(structures, size);
+		pipeline->compile();
 		
-		projobj->SetInternalField(0, External::New(isolate, program));
+		projobj->SetInternalField(0, External::New(isolate, pipeline));
 	}
 	
 	void krom_compile_program(const FunctionCallbackInfo<Value>& args) {
@@ -611,7 +616,7 @@ namespace {
 		Local<Object> progobj = args[0]->ToObject();
 		
 		Local<External> progfield = Local<External>::Cast(progobj->GetInternalField(0));
-		Kore::Graphics4::Program* program = (Kore::Graphics4::Program*)progfield->Value();
+		Kore::Graphics4::PipelineState* pipeline = (Kore::Graphics4::PipelineState*)progfield->Value();
 		
 		Kore::Graphics4::VertexStructure s0, s1, s2, s3;
 		Kore::Graphics4::VertexStructure* structures[4] = { &s0, &s1, &s2, &s3 };
@@ -645,15 +650,15 @@ namespace {
 		progobj->SetInternalField(4, External::New(isolate, fragmentShader));
 		progobj->Set(String::NewFromUtf8(isolate, "fsname"), args[7]->ToObject()->Get(String::NewFromUtf8(isolate, "name")));
 		
-		program->setVertexShader(vertexShader);
-		program->setFragmentShader(fragmentShader);
+		pipeline->vertexShader = vertexShader;
+		pipeline->fragmentShader = fragmentShader;
 
 		if (!args[8]->IsNull() && !args[8]->IsUndefined()) {
 			Local<External> gsfield = Local<External>::Cast(args[8]->ToObject()->GetInternalField(0));
 			Kore::Graphics4::Shader* geometryShader = (Kore::Graphics4::Shader*)gsfield->Value();
 			progobj->SetInternalField(5, External::New(isolate, geometryShader));
 			progobj->Set(String::NewFromUtf8(isolate, "gsname"), args[8]->ToObject()->Get(String::NewFromUtf8(isolate, "name")));
-			program->setGeometryShader(geometryShader);
+			pipeline->geometryShader = geometryShader;
 		}
 
 		if (!args[9]->IsNull() && !args[9]->IsUndefined()) {
@@ -661,7 +666,7 @@ namespace {
 			Kore::Graphics4::Shader* tessellationControlShader = (Kore::Graphics4::Shader*)tcsfield->Value();
 			progobj->SetInternalField(6, External::New(isolate, tessellationControlShader));
 			progobj->Set(String::NewFromUtf8(isolate, "tcsname"), args[9]->ToObject()->Get(String::NewFromUtf8(isolate, "name")));
-			program->setTessellationControlShader(tessellationControlShader);
+			pipeline->tessellationControlShader = tessellationControlShader;
 		}
 
 		if (!args[10]->IsNull() && !args[10]->IsUndefined()) {
@@ -669,10 +674,15 @@ namespace {
 			Kore::Graphics4::Shader* tessellationEvaluationShader = (Kore::Graphics4::Shader*)tesfield->Value();
 			progobj->SetInternalField(7, External::New(isolate, tessellationEvaluationShader));
 			progobj->Set(String::NewFromUtf8(isolate, "tesname"), args[10]->ToObject()->Get(String::NewFromUtf8(isolate, "name")));
-			program->setTessellationEvaluationShader(tessellationEvaluationShader);
+			pipeline->tessellationEvaluationShader = tessellationEvaluationShader;
 		}
 
-		program->link(structures, size);
+		for (int i = 0; i < size; ++i) {
+			pipeline->inputLayout[i] = structures[i];
+		}
+		pipeline->inputLayout[size] = nullptr;
+
+		pipeline->compile();
 	}
 
 	std::string shadersdir;
@@ -681,7 +691,7 @@ namespace {
 		HandleScope scope(args.GetIsolate());
 		Local<Object> progobj = args[0]->ToObject();
 		Local<External> progfield = Local<External>::Cast(progobj->GetInternalField(0));
-		Kore::Graphics4::Program* program = (Kore::Graphics4::Program*)progfield->Value();
+		Kore::Graphics4::PipelineState* pipeline = (Kore::Graphics4::PipelineState*)progfield->Value();
 		
 		Local<Value> vsnameobj = progobj->Get(String::NewFromUtf8(isolate, "vsname"));
 		String::Utf8Value vsname(vsnameobj);
@@ -761,10 +771,10 @@ namespace {
 		if (shaderChanged) {
 			recompileProgram(progobj);
 			Local<External> progfield = Local<External>::Cast(progobj->GetInternalField(0));
-			program = (Kore::Graphics4::Program*)progfield->Value();
+			pipeline = (Kore::Graphics4::PipelineState*)progfield->Value();
 		}
 		
-		program->set();
+		Kore::Graphics4::setPipeline(pipeline);
 	}
 	
 	void krom_load_image(const FunctionCallbackInfo<Value>& args) {
@@ -880,10 +890,10 @@ namespace {
 	void krom_get_constant_location(const FunctionCallbackInfo<Value>& args) {
 		HandleScope scope(args.GetIsolate());
 		Local<External> progfield = Local<External>::Cast(args[0]->ToObject()->GetInternalField(0));
-		Kore::Graphics4::Program* program = (Kore::Graphics4::Program*)progfield->Value();
+		Kore::Graphics4::PipelineState* pipeline = (Kore::Graphics4::PipelineState*)progfield->Value();
 		
 		String::Utf8Value utf8_value(args[1]);
-		Kore::Graphics4::ConstantLocation location = program->getConstantLocation(*utf8_value);
+		Kore::Graphics4::ConstantLocation location = pipeline->getConstantLocation(*utf8_value);
 		
 		Local<ObjectTemplate> templ = ObjectTemplate::New(isolate);
 		templ->SetInternalFieldCount(1);
@@ -896,10 +906,10 @@ namespace {
 	void krom_get_texture_unit(const FunctionCallbackInfo<Value>& args) {
 		HandleScope scope(args.GetIsolate());
 		Local<External> progfield = Local<External>::Cast(args[0]->ToObject()->GetInternalField(0));
-		Kore::Graphics4::Program* program = (Kore::Graphics4::Program*)progfield->Value();
+		Kore::Graphics4::PipelineState* pipeline = (Kore::Graphics4::PipelineState*)progfield->Value();
 		
 		String::Utf8Value utf8_value(args[1]);
-		Kore::Graphics4::TextureUnit unit = program->getTextureUnit(*utf8_value);
+		Kore::Graphics4::TextureUnit unit = pipeline->getTextureUnit(*utf8_value);
 		
 		Local<ObjectTemplate> templ = ObjectTemplate::New(isolate);
 		templ->SetInternalFieldCount(1);
@@ -1374,7 +1384,7 @@ namespace {
 		bool write = args[0]->ToBoolean()->Value();
 		int mode = args[1]->ToInt32()->Int32Value();
 
-		switch (mode) {
+		/**switch (mode) {
 		case 0:
 			write ? Kore::Graphics4::setRenderState(Kore::Graphics4::DepthTest, true) : Kore::Graphics4::setRenderState(Kore::Graphics4::DepthTest, false);
 			Kore::Graphics4::setRenderState(Kore::Graphics4::DepthTestCompare, Kore::Graphics4::ZCompareAlways);
@@ -1408,13 +1418,13 @@ namespace {
 			Kore::Graphics4::setRenderState(Kore::Graphics4::DepthTestCompare, Kore::Graphics4::ZCompareGreaterEqual);
 			break;
 		}
-		Kore::Graphics4::setRenderState(Kore::Graphics4::DepthWrite, write);
+		Kore::Graphics4::setRenderState(Kore::Graphics4::DepthWrite, write);*/
 	}
 
 	void krom_set_cull_mode(const FunctionCallbackInfo<Value>& args) {
 		HandleScope scope(args.GetIsolate());
-		int mode = args[0]->ToInt32()->Int32Value();
-		Kore::Graphics4::setRenderState(Kore::Graphics4::BackfaceCulling, mode);
+		/**int mode = args[0]->ToInt32()->Int32Value();
+		Kore::Graphics4::setRenderState(Kore::Graphics4::BackfaceCulling, mode);*/
 	}
 
 	Kore::Graphics4::ZCompareMode convertCompareMode(int mode) {
@@ -1463,19 +1473,19 @@ namespace {
 
 	void krom_set_stencil_parameters(const FunctionCallbackInfo<Value>& args) {
 		HandleScope scope(args.GetIsolate());		
-		int compareMode = args[0]->ToInt32()->Int32Value();
+		/**int compareMode = args[0]->ToInt32()->Int32Value();
 		int bothPass = args[1]->ToInt32()->Int32Value();
 		int depthFail = args[2]->ToInt32()->Int32Value();
 		int stencilFail = args[3]->ToInt32()->Int32Value();
 		int referenceValue = args[4]->ToInt32()->Int32Value();
 		int readMask = args[5]->ToInt32()->Int32Value();
 		int writeMask = args[6]->ToInt32()->Int32Value();
-		Kore::Graphics4::setStencilParameters(convertCompareMode(compareMode), convertStencilAction(bothPass), convertStencilAction(depthFail), convertStencilAction(stencilFail), referenceValue, readMask, writeMask);
+		Kore::Graphics4::setStencilParameters(convertCompareMode(compareMode), convertStencilAction(bothPass), convertStencilAction(depthFail), convertStencilAction(stencilFail), referenceValue, readMask, writeMask);*/
 	}
 	
 	void krom_set_blending_mode(const FunctionCallbackInfo<Value>& args) {
 		HandleScope scope(args.GetIsolate());		
-		int source = args[0]->ToInt32()->Int32Value();
+		/**int source = args[0]->ToInt32()->Int32Value();
 		int destination = args[1]->ToInt32()->Int32Value();
 		int alphaSource = args[2]->ToInt32()->Int32Value();
 		int alphaDestination = args[3]->ToInt32()->Int32Value();
@@ -1485,22 +1495,22 @@ namespace {
 		else {
 			Kore::Graphics4::setRenderState(Kore::Graphics4::BlendingState, true);
 			Kore::Graphics4::setBlendingModeSeparate((Kore::Graphics4::BlendingOperation)source, (Kore::Graphics4::BlendingOperation)destination, (Kore::Graphics4::BlendingOperation)alphaSource, (Kore::Graphics4::BlendingOperation)alphaDestination);
-		}
+		}*/
 	}
 
 	void krom_set_color_mask(const FunctionCallbackInfo<Value>& args) {
-		HandleScope scope(args.GetIsolate());		
+		/**HandleScope scope(args.GetIsolate());		
 		bool red = args[0]->ToBoolean()->Value();
 		bool green = args[1]->ToBoolean()->Value();
 		bool blue = args[2]->ToBoolean()->Value();
 		bool alpha = args[3]->ToBoolean()->Value();
-		Kore::Graphics4::setColorMask(red, green, blue, alpha);
+		Kore::Graphics4::setColorMask(red, green, blue, alpha);*/
 	}
 
 	void krom_set_conservative_rasterization(const FunctionCallbackInfo<Value>& args) {
-		HandleScope scope(args.GetIsolate());
+		/**HandleScope scope(args.GetIsolate());
 		bool on = args[0]->ToBoolean()->Value();
-		Kore::Graphics4::setRenderState(Kore::Graphics4::ConservativeRasterization, on);
+		Kore::Graphics4::setRenderState(Kore::Graphics4::ConservativeRasterization, on);*/
 	}
 
 	void krom_render_targets_inverted_y(const FunctionCallbackInfo<Value>& args) {
@@ -1639,8 +1649,8 @@ namespace {
 		krom->Set(String::NewFromUtf8(isolate, "createTessellationControlShader"), FunctionTemplate::New(isolate, krom_create_tessellation_control_shader));
 		krom->Set(String::NewFromUtf8(isolate, "createTessellationEvaluationShader"), FunctionTemplate::New(isolate, krom_create_tessellation_evaluation_shader));
 		krom->Set(String::NewFromUtf8(isolate, "deleteShader"), FunctionTemplate::New(isolate, krom_delete_shader));
-		krom->Set(String::NewFromUtf8(isolate, "createProgram"), FunctionTemplate::New(isolate, krom_create_program));
-		krom->Set(String::NewFromUtf8(isolate, "deleteProgram"), FunctionTemplate::New(isolate, krom_delete_program));
+		krom->Set(String::NewFromUtf8(isolate, "createPipeline"), FunctionTemplate::New(isolate, krom_create_pipeline));
+		krom->Set(String::NewFromUtf8(isolate, "deletePipeline"), FunctionTemplate::New(isolate, krom_delete_pipeline));
 		krom->Set(String::NewFromUtf8(isolate, "compileProgram"), FunctionTemplate::New(isolate, krom_compile_program));
 		krom->Set(String::NewFromUtf8(isolate, "setProgram"), FunctionTemplate::New(isolate, krom_set_program));
 		krom->Set(String::NewFromUtf8(isolate, "loadImage"), FunctionTemplate::New(isolate, krom_load_image));
@@ -1755,12 +1765,12 @@ namespace {
 		Local<v8::Function> func = Local<v8::Function>::New(isolate, updateFunction);
 		Local<Value> result;
 		
-		//**if (debug) v8inspector->willExecuteScript(context, func->ScriptId());
+		//**if (debugMode) v8inspector->willExecuteScript(context, func->ScriptId());
 		if (!func->Call(context, context->Global(), 0, NULL).ToLocal(&result)) {
 			v8::String::Utf8Value stack_trace(try_catch.StackTrace());
 			sendLogMessage("Trace: %s", *stack_trace);
 		}
-		//**if (debug) v8inspector->didExecuteScript(context);
+		//**if (debugMode) v8inspector->didExecuteScript(context);
 	}
 
 	void endV8() {
@@ -1812,7 +1822,7 @@ namespace {
 		runV8();
 		//mutex.Unlock();
 		
-		if (debug) tickDebugger();
+		if (debugMode) tickDebugger();
 		Kore::Graphics4::end();
 		Kore::Graphics4::swapBuffers();
 	}
@@ -2326,7 +2336,7 @@ int kore(int argc, char** argv) {
 			readPort = false;
 		}
 		else if (strcmp(argv[i], "--debug") == 0) {
-			debug = true;
+			debugMode = true;
 			readPort = true;
 		}
 		else if (strcmp(argv[i], "--watch") == 0) {
@@ -2362,7 +2372,7 @@ int kore(int argc, char** argv) {
 		watchDirectories(argv[1], argv[2]);
 	}
 	
-	if (debug) {
+	if (debugMode) {
 		startDebugger(isolate, port);
 		while (!tickDebugger()) {}
 		//Sleep(1000);
