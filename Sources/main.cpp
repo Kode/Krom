@@ -565,7 +565,7 @@ namespace {
 		delete pipeline;
 	}
 	
-	void recompileProgram(Local<Object> projobj) {
+	void recompilePipeline(Local<Object> projobj) {
 		Local<External> structsfield = Local<External>::Cast(projobj->GetInternalField(1));
 		Kore::Graphics4::VertexStructure** structures = (Kore::Graphics4::VertexStructure**)structsfield->Value();
 		
@@ -610,7 +610,7 @@ namespace {
 		projobj->SetInternalField(0, External::New(isolate, pipeline));
 	}
 	
-	void krom_compile_program(const FunctionCallbackInfo<Value>& args) {
+	void krom_compile_pipeline(const FunctionCallbackInfo<Value>& args) {
 		HandleScope scope(args.GetIsolate());
 		
 		Local<Object> progobj = args[0]->ToObject();
@@ -682,12 +682,37 @@ namespace {
 		}
 		pipeline->inputLayout[size] = nullptr;
 
+		pipeline->cullMode = (Kore::Graphics4::CullMode)args[11]->ToObject()->Get(String::NewFromUtf8(isolate, "cullMode"))->Int32Value();
+
+		pipeline->depthWrite = args[11]->ToObject()->Get(String::NewFromUtf8(isolate, "depthWrite"))->BooleanValue();
+		pipeline->depthMode = (Kore::Graphics4::ZCompareMode)args[11]->ToObject()->Get(String::NewFromUtf8(isolate, "depthMode"))->Int32Value();
+
+		pipeline->stencilMode = (Kore::Graphics4::ZCompareMode)args[11]->ToObject()->Get(String::NewFromUtf8(isolate, "stencilMode"))->Int32Value();
+		pipeline->stencilBothPass = (Kore::Graphics4::StencilAction)args[11]->ToObject()->Get(String::NewFromUtf8(isolate, "stencilBothPass"))->Int32Value();
+		pipeline->stencilDepthFail = (Kore::Graphics4::StencilAction)args[11]->ToObject()->Get(String::NewFromUtf8(isolate, "stencilDepthFail"))->Int32Value();
+		pipeline->stencilFail = (Kore::Graphics4::StencilAction)args[11]->ToObject()->Get(String::NewFromUtf8(isolate, "stencilFail"))->Int32Value();
+		pipeline->stencilReferenceValue = args[11]->ToObject()->Get(String::NewFromUtf8(isolate, "stencilReferenceValue"))->Int32Value();
+		pipeline->stencilReadMask = args[11]->ToObject()->Get(String::NewFromUtf8(isolate, "stencilReadMask"))->Int32Value();
+		pipeline->stencilWriteMask = args[11]->ToObject()->Get(String::NewFromUtf8(isolate, "stencilWriteMask"))->Int32Value();
+
+		pipeline->blendSource = (Kore::Graphics4::BlendingOperation)args[11]->ToObject()->Get(String::NewFromUtf8(isolate, "blendSource"))->Int32Value();
+		pipeline->blendDestination = (Kore::Graphics4::BlendingOperation)args[11]->ToObject()->Get(String::NewFromUtf8(isolate, "blendDestination"))->Int32Value();
+		pipeline->alphaBlendSource = (Kore::Graphics4::BlendingOperation)args[11]->ToObject()->Get(String::NewFromUtf8(isolate, "alphaBlendSource"))->Int32Value();
+		pipeline->alphaBlendDestination = (Kore::Graphics4::BlendingOperation)args[11]->ToObject()->Get(String::NewFromUtf8(isolate, "alphaBlendDestination"))->Int32Value();
+
+		pipeline->colorWriteMaskRed = args[11]->ToObject()->Get(String::NewFromUtf8(isolate, "colorWriteMaskRed"))->BooleanValue();
+		pipeline->colorWriteMaskGreen = args[11]->ToObject()->Get(String::NewFromUtf8(isolate, "colorWriteMaskGreen"))->BooleanValue();
+		pipeline->colorWriteMaskBlue = args[11]->ToObject()->Get(String::NewFromUtf8(isolate, "colorWriteMaskBlue"))->BooleanValue();
+		pipeline->colorWriteMaskAlpha = args[11]->ToObject()->Get(String::NewFromUtf8(isolate, "colorWriteMaskAlpha"))->BooleanValue();
+
+		pipeline->conservativeRasterization = args[11]->ToObject()->Get(String::NewFromUtf8(isolate, "conservativeRasterization"))->BooleanValue();
+
 		pipeline->compile();
 	}
 
 	std::string shadersdir;
 	
-	void krom_set_program(const FunctionCallbackInfo<Value>& args) {
+	void krom_set_pipeline(const FunctionCallbackInfo<Value>& args) {
 		HandleScope scope(args.GetIsolate());
 		Local<Object> progobj = args[0]->ToObject();
 		Local<External> progfield = Local<External>::Cast(progobj->GetInternalField(0));
@@ -769,7 +794,7 @@ namespace {
 		}
 		
 		if (shaderChanged) {
-			recompileProgram(progobj);
+			recompilePipeline(progobj);
 			Local<External> progfield = Local<External>::Cast(progobj->GetInternalField(0));
 			pipeline = (Kore::Graphics4::PipelineState*)progfield->Value();
 		}
@@ -1377,142 +1402,7 @@ namespace {
 	void krom_disable_scissor(const FunctionCallbackInfo<Value>& args) {
 		Kore::Graphics4::disableScissor();
 	}
-
-	void krom_set_depth_mode(const FunctionCallbackInfo<Value>& args) {
-		HandleScope scope(args.GetIsolate());
-
-		bool write = args[0]->ToBoolean()->Value();
-		int mode = args[1]->ToInt32()->Int32Value();
-
-		/**switch (mode) {
-		case 0:
-			write ? Kore::Graphics4::setRenderState(Kore::Graphics4::DepthTest, true) : Kore::Graphics4::setRenderState(Kore::Graphics4::DepthTest, false);
-			Kore::Graphics4::setRenderState(Kore::Graphics4::DepthTestCompare, Kore::Graphics4::ZCompareAlways);
-			break;
-		case 1:
-			Kore::Graphics4::setRenderState(Kore::Graphics4::DepthTest, true);
-			Kore::Graphics4::setRenderState(Kore::Graphics4::DepthTestCompare, Kore::Graphics4::ZCompareNever);
-			break;
-		case 2:
-			Kore::Graphics4::setRenderState(Kore::Graphics4::DepthTest, true);
-			Kore::Graphics4::setRenderState(Kore::Graphics4::DepthTestCompare, Kore::Graphics4::ZCompareEqual);
-			break;
-		case 3:
-			Kore::Graphics4::setRenderState(Kore::Graphics4::DepthTest, true);
-			Kore::Graphics4::setRenderState(Kore::Graphics4::DepthTestCompare, Kore::Graphics4::ZCompareNotEqual);
-			break;
-		case 4:
-			Kore::Graphics4::setRenderState(Kore::Graphics4::DepthTest, true);
-			Kore::Graphics4::setRenderState(Kore::Graphics4::DepthTestCompare, Kore::Graphics4::ZCompareLess);
-			break;
-		case 5:
-			Kore::Graphics4::setRenderState(Kore::Graphics4::DepthTest, true);
-			Kore::Graphics4::setRenderState(Kore::Graphics4::DepthTestCompare, Kore::Graphics4::ZCompareLessEqual);
-			break;
-		case 6:
-			Kore::Graphics4::setRenderState(Kore::Graphics4::DepthTest, true);
-			Kore::Graphics4::setRenderState(Kore::Graphics4::DepthTestCompare, Kore::Graphics4::ZCompareGreater);
-			break;
-		case 7:
-			Kore::Graphics4::setRenderState(Kore::Graphics4::DepthTest, true);
-			Kore::Graphics4::setRenderState(Kore::Graphics4::DepthTestCompare, Kore::Graphics4::ZCompareGreaterEqual);
-			break;
-		}
-		Kore::Graphics4::setRenderState(Kore::Graphics4::DepthWrite, write);*/
-	}
-
-	void krom_set_cull_mode(const FunctionCallbackInfo<Value>& args) {
-		HandleScope scope(args.GetIsolate());
-		/**int mode = args[0]->ToInt32()->Int32Value();
-		Kore::Graphics4::setRenderState(Kore::Graphics4::BackfaceCulling, mode);*/
-	}
-
-	Kore::Graphics4::ZCompareMode convertCompareMode(int mode) {
-		switch (mode) {
-		case 0:
-			return Kore::Graphics4::ZCompareAlways;
-		case 1:
-			return Kore::Graphics4::ZCompareNever;
-		case 2:
-			return Kore::Graphics4::ZCompareEqual;
-		case 3:
-			return Kore::Graphics4::ZCompareNotEqual;
-		case 4:
-			return Kore::Graphics4::ZCompareLess;
-		case 5:
-			return Kore::Graphics4::ZCompareLessEqual;
-		case 6:
-			return Kore::Graphics4::ZCompareGreater;
-		case 7:
-		default:
-			return Kore::Graphics4::ZCompareGreaterEqual;
-		}
-	}
-
-	Kore::Graphics4::StencilAction convertStencilAction(int action) {
-		switch (action) {
-		case 0:
-			return Kore::Graphics4::Keep;
-		case 1:
-			return Kore::Graphics4::Zero;
-		case 2:
-			return Kore::Graphics4::Replace;
-		case 3:
-			return Kore::Graphics4::Increment;
-		case 4:
-			return Kore::Graphics4::IncrementWrap;
-		case 5:
-			return Kore::Graphics4::Decrement;
-		case 6:
-			return Kore::Graphics4::DecrementWrap;
-		case 7:
-		default:
-			return Kore::Graphics4::Invert;
-		}
-	}
-
-	void krom_set_stencil_parameters(const FunctionCallbackInfo<Value>& args) {
-		HandleScope scope(args.GetIsolate());		
-		/**int compareMode = args[0]->ToInt32()->Int32Value();
-		int bothPass = args[1]->ToInt32()->Int32Value();
-		int depthFail = args[2]->ToInt32()->Int32Value();
-		int stencilFail = args[3]->ToInt32()->Int32Value();
-		int referenceValue = args[4]->ToInt32()->Int32Value();
-		int readMask = args[5]->ToInt32()->Int32Value();
-		int writeMask = args[6]->ToInt32()->Int32Value();
-		Kore::Graphics4::setStencilParameters(convertCompareMode(compareMode), convertStencilAction(bothPass), convertStencilAction(depthFail), convertStencilAction(stencilFail), referenceValue, readMask, writeMask);*/
-	}
 	
-	void krom_set_blending_mode(const FunctionCallbackInfo<Value>& args) {
-		HandleScope scope(args.GetIsolate());		
-		/**int source = args[0]->ToInt32()->Int32Value();
-		int destination = args[1]->ToInt32()->Int32Value();
-		int alphaSource = args[2]->ToInt32()->Int32Value();
-		int alphaDestination = args[3]->ToInt32()->Int32Value();
-		if (source == 0 && destination == 1) {
-			Kore::Graphics4::setRenderState(Kore::Graphics4::BlendingState, false);
-		}
-		else {
-			Kore::Graphics4::setRenderState(Kore::Graphics4::BlendingState, true);
-			Kore::Graphics4::setBlendingModeSeparate((Kore::Graphics4::BlendingOperation)source, (Kore::Graphics4::BlendingOperation)destination, (Kore::Graphics4::BlendingOperation)alphaSource, (Kore::Graphics4::BlendingOperation)alphaDestination);
-		}*/
-	}
-
-	void krom_set_color_mask(const FunctionCallbackInfo<Value>& args) {
-		/**HandleScope scope(args.GetIsolate());		
-		bool red = args[0]->ToBoolean()->Value();
-		bool green = args[1]->ToBoolean()->Value();
-		bool blue = args[2]->ToBoolean()->Value();
-		bool alpha = args[3]->ToBoolean()->Value();
-		Kore::Graphics4::setColorMask(red, green, blue, alpha);*/
-	}
-
-	void krom_set_conservative_rasterization(const FunctionCallbackInfo<Value>& args) {
-		/**HandleScope scope(args.GetIsolate());
-		bool on = args[0]->ToBoolean()->Value();
-		Kore::Graphics4::setRenderState(Kore::Graphics4::ConservativeRasterization, on);*/
-	}
-
 	void krom_render_targets_inverted_y(const FunctionCallbackInfo<Value>& args) {
 		HandleScope scope(args.GetIsolate());
 		args.GetReturnValue().Set(Boolean::New(isolate, Kore::Graphics4::renderTargetsInvertedY()));
@@ -1651,8 +1541,8 @@ namespace {
 		krom->Set(String::NewFromUtf8(isolate, "deleteShader"), FunctionTemplate::New(isolate, krom_delete_shader));
 		krom->Set(String::NewFromUtf8(isolate, "createPipeline"), FunctionTemplate::New(isolate, krom_create_pipeline));
 		krom->Set(String::NewFromUtf8(isolate, "deletePipeline"), FunctionTemplate::New(isolate, krom_delete_pipeline));
-		krom->Set(String::NewFromUtf8(isolate, "compileProgram"), FunctionTemplate::New(isolate, krom_compile_program));
-		krom->Set(String::NewFromUtf8(isolate, "setProgram"), FunctionTemplate::New(isolate, krom_set_program));
+		krom->Set(String::NewFromUtf8(isolate, "compilePipeline"), FunctionTemplate::New(isolate, krom_compile_pipeline));
+		krom->Set(String::NewFromUtf8(isolate, "setPipeline"), FunctionTemplate::New(isolate, krom_set_pipeline));
 		krom->Set(String::NewFromUtf8(isolate, "loadImage"), FunctionTemplate::New(isolate, krom_load_image));
 		krom->Set(String::NewFromUtf8(isolate, "unloadImage"), FunctionTemplate::New(isolate, krom_unload_image));
 		krom->Set(String::NewFromUtf8(isolate, "loadSound"), FunctionTemplate::New(isolate, krom_load_sound));
@@ -1695,12 +1585,6 @@ namespace {
 		krom->Set(String::NewFromUtf8(isolate, "viewport"), FunctionTemplate::New(isolate, krom_viewport));
 		krom->Set(String::NewFromUtf8(isolate, "scissor"), FunctionTemplate::New(isolate, krom_scissor));
 		krom->Set(String::NewFromUtf8(isolate, "disableScissor"), FunctionTemplate::New(isolate, krom_disable_scissor));
-		krom->Set(String::NewFromUtf8(isolate, "setDepthMode"), FunctionTemplate::New(isolate, krom_set_depth_mode));
-		krom->Set(String::NewFromUtf8(isolate, "setCullMode"), FunctionTemplate::New(isolate, krom_set_cull_mode));
-		krom->Set(String::NewFromUtf8(isolate, "setStencilParameters"), FunctionTemplate::New(isolate, krom_set_stencil_parameters));
-		krom->Set(String::NewFromUtf8(isolate, "setBlendingMode"), FunctionTemplate::New(isolate, krom_set_blending_mode));
-		krom->Set(String::NewFromUtf8(isolate, "setColorMask"), FunctionTemplate::New(isolate, krom_set_color_mask));
-		krom->Set(String::NewFromUtf8(isolate, "setConservativeRasterization"), FunctionTemplate::New(isolate, krom_set_conservative_rasterization));
 		krom->Set(String::NewFromUtf8(isolate, "renderTargetsInvertedY"), FunctionTemplate::New(isolate, krom_render_targets_inverted_y));
 		krom->Set(String::NewFromUtf8(isolate, "begin"), FunctionTemplate::New(isolate, krom_begin));
 		krom->Set(String::NewFromUtf8(isolate, "beginFace"), FunctionTemplate::New(isolate, krom_begin_face));
