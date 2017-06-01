@@ -23,25 +23,20 @@ extern v8::Isolate* isolate;
 
 std::unique_ptr<v8_inspector::V8Inspector> v8inspector;
 
-bool v8paused = false;
+bool messageLoopPaused = false;
 
 namespace {
 	class InspectorClient : public v8_inspector::V8InspectorClient {
 	public:
 		void runMessageLoopOnPause(int contextGroupId) override {
-			int a = 3;
-			++a;
+			messageLoopPaused = true;
 		}
 		
 		void quitMessageLoopOnPause() override {
-			int a = 3;
-			++a;
+			messageLoopPaused = false;
 		}
 		
 		void runIfWaitingForDebugger(int contextGroupId) override {
-			int a = 3;
-			++a;
-			//v8paused = true;
 			Kore::log(Kore::Info, "Waiting for debugger.");
 		}
 

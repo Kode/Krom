@@ -1630,7 +1630,7 @@ namespace {
 	void parseCode();
 
 	void runV8() {
-		if (v8paused) return;
+		if (messageLoopPaused) return;
 
 		if (codechanged) {
 			parseCode();
@@ -1706,7 +1706,11 @@ namespace {
 		runV8();
 		//mutex.Unlock();
 		
-		if (debugMode) tickDebugger();
+		if (debugMode) {
+			do {
+				tickDebugger();
+			} while (messageLoopPaused);
+		}
 		Kore::Graphics4::end();
 		Kore::Graphics4::swapBuffers();
 	}
@@ -2275,17 +2279,18 @@ int kore(int argc, char** argv) {
 #ifdef KORE_WINDOWS
 #include <Windows.h>
 
+static char _exe_dir_path[MAX_PATH];
+
 const char* getExeDir() {
 	HMODULE hModule = GetModuleHandleW(NULL);
-	char path[MAX_PATH];
-	GetModuleFileNameA(hModule, path, MAX_PATH);
-	size_t length = strlen(path);
+	GetModuleFileNameA(hModule, _exe_dir_path, MAX_PATH);
+	size_t length = strlen(_exe_dir_path);
 	for (int i = length - 1; i >= 0; --i) {
-		if (path[i] == '\\') {
-			path[i] = 0;
+		if (_exe_dir_path[i] == '\\') {
+			_exe_dir_path[i] = 0;
 			break;
 		}
 	}
-	return path;
+	return _exe_dir_path;
 }
 #endif

@@ -6,4 +6,4 @@
 void startDebugger(v8::Isolate* isolate, int port);
 bool tickDebugger();
 
-extern bool v8paused;
+extern bool messageLoopPaused;
