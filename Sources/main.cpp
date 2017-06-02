@@ -53,6 +53,7 @@ namespace {
 	bool debugMode = false;
 	bool watch = false;
 	bool nosound = false;
+	bool nowindow = false;
 
 	Platform* plat;
 	Global<Function> updateFunction;
@@ -106,6 +107,8 @@ namespace {
 		options.x = 100;
 		options.y = 100;
 		options.targetDisplay = 0;
+		options.showWindow = !nowindow;
+		Kore::System::setShowWindowFlag(options.showWindow);
 		options.vSync = vSync;
 		options.mode = Kore::WindowMode(windowMode);
 		options.rendererOptions.depthBufferBits = 16;
@@ -2232,6 +2235,9 @@ int kore(int argc, char** argv) {
 		}
 		else if (strcmp(argv[i], "--nosound") == 0) {
 			nosound = true;
+		}
+		else if (strcmp(argv[i], "--nowindow") == 0) {
+			nowindow = true;
 		}
 	}
 	
