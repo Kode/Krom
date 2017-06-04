@@ -53,6 +53,7 @@ namespace {
 	bool debugMode = false;
 	bool watch = false;
 	bool nosound = false;
+	bool nowindow = false;
 
 	Platform* plat;
 	Global<Function> updateFunction;
@@ -106,6 +107,8 @@ namespace {
 		options.x = 100;
 		options.y = 100;
 		options.targetDisplay = 0;
+		options.showWindow = !nowindow;
+		Kore::System::setShowWindowFlag(options.showWindow);
 		options.vSync = vSync;
 		options.mode = Kore::WindowMode(windowMode);
 		options.rendererOptions.depthBufferBits = 16;
@@ -1285,7 +1288,9 @@ namespace {
 		HandleScope scope(args.GetIsolate());
 
 		Local<ArrayBuffer> buffer = Local<ArrayBuffer>::Cast(args[0]);
-		ArrayBuffer::Contents content = buffer->Externalize();
+		ArrayBuffer::Contents content;
+		if (buffer->IsExternal()) content = buffer->GetContents();
+		else content = buffer->Externalize();
 		Kore::Graphics4::Texture* texture = new Kore::Graphics4::Texture(content.Data(), args[1]->ToInt32()->Value(), args[2]->ToInt32()->Value(), (Kore::Graphics4::Image::Format)args[3]->ToInt32()->Value(), args[4]->ToBoolean()->Value());
 
 		Local<ObjectTemplate> templ = ObjectTemplate::New(isolate);
@@ -2232,6 +2237,9 @@ int kore(int argc, char** argv) {
 		}
 		else if (strcmp(argv[i], "--nosound") == 0) {
 			nosound = true;
+		}
+		else if (strcmp(argv[i], "--nowindow") == 0) {
+			nowindow = true;
 		}
 	}
 	
