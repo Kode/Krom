@@ -1,7 +1,7 @@
 #include "pch.h"
 #include "debug.h"
 #include "debug_server.h"
-#include "../V8/include/v8-debug.h"
+#include <v8-debug.h>
 #include <v8-inspector.h>
 #include "pch.h"
 #include <Kore/Threads/Thread.h>

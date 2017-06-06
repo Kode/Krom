@@ -22,8 +22,8 @@
 
 #include "debug.h"
 
-#include "../V8/include/libplatform/libplatform.h"
-#include "../V8/include/v8.h"
+#include <libplatform/libplatform.h>
+#include <v8.h>
 #include <v8-inspector.h>
 
 #include <stdio.h>
