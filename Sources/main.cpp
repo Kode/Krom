@@ -59,6 +59,7 @@ namespace {
 	Global<Function> updateFunction;
 	Global<Function> keyboardDownFunction;
 	Global<Function> keyboardUpFunction;
+	Global<Function> keyboardPressFunction;
 	Global<Function> mouseDownFunction;
 	Global<Function> mouseUpFunction;
 	Global<Function> mouseMoveFunction;
@@ -75,8 +76,9 @@ namespace {
 	void update();
 	void initAudioBuffer();
 	void mix(int samples);
-	void keyDown(Kore::KeyCode code, wchar_t character);
-	void keyUp(Kore::KeyCode code, wchar_t character);
+	void keyDown(Kore::KeyCode code);
+	void keyUp(Kore::KeyCode code);
+    void keyPress(wchar_t character);
 	void mouseMove(int window, int x, int y, int mx, int my);
 	void mouseDown(int window, int button, int x, int y);
 	void mouseUp(int window, int button, int x, int y);
@@ -131,6 +133,7 @@ namespace {
 		
 		Kore::Keyboard::the()->KeyDown = keyDown;
 		Kore::Keyboard::the()->KeyUp = keyUp;
+        Kore::Keyboard::the()->KeyPress = keyPress;
 		Kore::Mouse::the()->Move = mouseMove;
 		Kore::Mouse::the()->Press = mouseDown;
 		Kore::Mouse::the()->Release = mouseUp;
@@ -202,6 +205,13 @@ namespace {
 		Local<Value> arg = args[0];
 		Local<Function> func = Local<Function>::Cast(arg);
 		keyboardUpFunction.Reset(isolate, func);
+	}
+
+	void krom_set_keyboard_press_callback(const FunctionCallbackInfo<Value>& args) {
+		HandleScope scope(args.GetIsolate());
+		Local<Value> arg = args[0];
+		Local<Function> func = Local<Function>::Cast(arg);
+		keyboardPressFunction.Reset(isolate, func);
 	}
 	
 	void krom_set_mouse_down_callback(const FunctionCallbackInfo<Value>& args) {
@@ -1519,6 +1529,7 @@ namespace {
 		krom->Set(String::NewFromUtf8(isolate, "setCallback"), FunctionTemplate::New(isolate, krom_set_callback));
 		krom->Set(String::NewFromUtf8(isolate, "setKeyboardDownCallback"), FunctionTemplate::New(isolate, krom_set_keyboard_down_callback));
 		krom->Set(String::NewFromUtf8(isolate, "setKeyboardUpCallback"), FunctionTemplate::New(isolate, krom_set_keyboard_up_callback));
+		krom->Set(String::NewFromUtf8(isolate, "setKeyboardPressCallback"), FunctionTemplate::New(isolate, krom_set_keyboard_press_callback));
 		krom->Set(String::NewFromUtf8(isolate, "setMouseDownCallback"), FunctionTemplate::New(isolate, krom_set_mouse_down_callback));
 		krom->Set(String::NewFromUtf8(isolate, "setMouseUpCallback"), FunctionTemplate::New(isolate, krom_set_mouse_up_callback));
 		krom->Set(String::NewFromUtf8(isolate, "setMouseMoveCallback"), FunctionTemplate::New(isolate, krom_set_mouse_move_callback));
@@ -1720,7 +1731,7 @@ namespace {
 		Kore::Graphics4::swapBuffers();
 	}
 	
-	void keyDown(Kore::KeyCode code, wchar_t character) {
+	void keyDown(Kore::KeyCode code) {
 		v8::Locker locker{isolate};
 		
 		Isolate::Scope isolate_scope(isolate);
@@ -1731,15 +1742,15 @@ namespace {
 		TryCatch try_catch(isolate);
 		v8::Local<v8::Function> func = v8::Local<v8::Function>::New(isolate, keyboardDownFunction);
 		Local<Value> result;
-		const int argc = 2;
-		Local<Value> argv[argc] = {Int32::New(isolate, (int)code), Int32::New(isolate, (int)character)};
+		const int argc = 1;
+		Local<Value> argv[argc] = {Int32::New(isolate, (int)code)};
 		if (!func->Call(context, context->Global(), argc, argv).ToLocal(&result)) {
 			v8::String::Utf8Value stack_trace(try_catch.StackTrace());
 			sendLogMessage("Trace: %s", *stack_trace);
 		}
 	}
 	
-	void keyUp(Kore::KeyCode code, wchar_t character) {
+	void keyUp(Kore::KeyCode code) {
 		v8::Locker locker{isolate};
 		
 		Isolate::Scope isolate_scope(isolate);
@@ -1750,13 +1761,32 @@ namespace {
 		TryCatch try_catch(isolate);
 		v8::Local<v8::Function> func = v8::Local<v8::Function>::New(isolate, keyboardUpFunction);
 		Local<Value> result;
-		const int argc = 2;
-		Local<Value> argv[argc] = {Int32::New(isolate, (int)code), Int32::New(isolate, (int)character)};
+		const int argc = 1;
+		Local<Value> argv[argc] = {Int32::New(isolate, (int)code)};
 		if (!func->Call(context, context->Global(), argc, argv).ToLocal(&result)) {
 			v8::String::Utf8Value stack_trace(try_catch.StackTrace());
 			sendLogMessage("Trace: %s", *stack_trace);
 		}
 	}
+    
+    void keyPress(wchar_t character) {
+        v8::Locker locker{isolate};
+        
+        Isolate::Scope isolate_scope(isolate);
+        HandleScope handle_scope(isolate);
+        v8::Local<v8::Context> context = v8::Local<v8::Context>::New(isolate, globalContext);
+        Context::Scope context_scope(context);
+        
+        TryCatch try_catch(isolate);
+        v8::Local<v8::Function> func = v8::Local<v8::Function>::New(isolate, keyboardPressFunction);
+        Local<Value> result;
+        const int argc = 1;
+        Local<Value> argv[argc] = {Int32::New(isolate, (int)character)};
+        if (!func->Call(context, context->Global(), argc, argv).ToLocal(&result)) {
+            v8::String::Utf8Value stack_trace(try_catch.StackTrace());
+            sendLogMessage("Trace: %s", *stack_trace);
+        }
+    }
 	
 	void mouseMove(int window, int x, int y, int mx, int my) {
 		v8::Locker locker{isolate};
