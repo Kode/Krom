@@ -57,6 +57,7 @@ namespace {
 
 	Platform* plat;
 	Global<Function> updateFunction;
+	Global<Function> dropFilesFunction;
 	Global<Function> keyboardDownFunction;
 	Global<Function> keyboardUpFunction;
 	Global<Function> keyboardPressFunction;
@@ -76,6 +77,7 @@ namespace {
 	void update();
 	void initAudioBuffer();
 	void mix(int samples);
+	void dropFiles(wchar_t* filePath);
 	void keyDown(Kore::KeyCode code);
 	void keyUp(Kore::KeyCode code);
     void keyPress(wchar_t character);
@@ -130,6 +132,7 @@ namespace {
 		Kore::Random::init(Kore::System::time() * 1000);
 		
 		Kore::System::setCallback(update);
+		Kore::System::setDropFilesCallback(dropFiles);
 		
 		Kore::Keyboard::the()->KeyDown = keyDown;
 		Kore::Keyboard::the()->KeyUp = keyUp;
@@ -192,7 +195,14 @@ namespace {
 		Local<Function> func = Local<Function>::Cast(arg);
 		updateFunction.Reset(isolate, func);
 	}
-	
+
+	void krom_set_drop_files_callback(const FunctionCallbackInfo<Value>& args) {
+		HandleScope scope(args.GetIsolate());
+		Local<Value> arg = args[0];
+		Local<Function> func = Local<Function>::Cast(arg);
+		dropFilesFunction.Reset(isolate, func);
+	}
+
 	void krom_set_keyboard_down_callback(const FunctionCallbackInfo<Value>& args) {
 		HandleScope scope(args.GetIsolate());
 		Local<Value> arg = args[0];
@@ -1527,6 +1537,7 @@ namespace {
 		krom->Set(String::NewFromUtf8(isolate, "log"), FunctionTemplate::New(isolate, LogCallback));
 		krom->Set(String::NewFromUtf8(isolate, "clear"), FunctionTemplate::New(isolate, graphics_clear));
 		krom->Set(String::NewFromUtf8(isolate, "setCallback"), FunctionTemplate::New(isolate, krom_set_callback));
+		krom->Set(String::NewFromUtf8(isolate, "setDropFilesCallback"), FunctionTemplate::New(isolate, krom_set_drop_files_callback));
 		krom->Set(String::NewFromUtf8(isolate, "setKeyboardDownCallback"), FunctionTemplate::New(isolate, krom_set_keyboard_down_callback));
 		krom->Set(String::NewFromUtf8(isolate, "setKeyboardUpCallback"), FunctionTemplate::New(isolate, krom_set_keyboard_up_callback));
 		krom->Set(String::NewFromUtf8(isolate, "setKeyboardPressCallback"), FunctionTemplate::New(isolate, krom_set_keyboard_press_callback));
@@ -1729,6 +1740,25 @@ namespace {
 		}
 		Kore::Graphics4::end();
 		Kore::Graphics4::swapBuffers();
+	}
+
+	void dropFiles(wchar_t* filePath) {
+		v8::Locker locker{isolate};
+		
+		Isolate::Scope isolate_scope(isolate);
+		HandleScope handle_scope(isolate);
+		v8::Local<v8::Context> context = v8::Local<v8::Context>::New(isolate, globalContext);
+		Context::Scope context_scope(context);
+		
+		TryCatch try_catch(isolate);
+		v8::Local<v8::Function> func = v8::Local<v8::Function>::New(isolate, dropFilesFunction);
+		Local<Value> result;
+		const int argc = 1;
+		Local<Value> argv[argc] = {String::NewFromTwoByte(isolate, (const uint16_t*)filePath)};
+		if (!func->Call(context, context->Global(), argc, argv).ToLocal(&result)) {
+			v8::String::Utf8Value stack_trace(try_catch.StackTrace());
+			sendLogMessage("Trace: %s", *stack_trace);
+		}
 	}
 	
 	void keyDown(Kore::KeyCode code) {
