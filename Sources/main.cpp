@@ -1238,6 +1238,11 @@ namespace {
 		args.GetReturnValue().Set(Int32::New(isolate, Kore::System::screenDpi()));
 	}
 
+	void krom_system_id(const FunctionCallbackInfo<Value>& args) {
+		HandleScope scope(args.GetIsolate());
+		args.GetReturnValue().Set(String::NewFromUtf8(isolate, Kore::System::systemId()));
+	}
+
 	void krom_request_shutdown(const FunctionCallbackInfo<Value>& args) {
 		HandleScope scope(args.GetIsolate());
 		Kore::System::stop();
@@ -1597,6 +1602,7 @@ namespace {
 		krom->Set(String::NewFromUtf8(isolate, "windowWidth"), FunctionTemplate::New(isolate, krom_window_width));
 		krom->Set(String::NewFromUtf8(isolate, "windowHeight"), FunctionTemplate::New(isolate, krom_window_height));
 		krom->Set(String::NewFromUtf8(isolate, "screenDpi"), FunctionTemplate::New(isolate, krom_screen_dpi));
+		krom->Set(String::NewFromUtf8(isolate, "systemId"), FunctionTemplate::New(isolate, krom_system_id));
 		krom->Set(String::NewFromUtf8(isolate, "requestShutdown"), FunctionTemplate::New(isolate, krom_request_shutdown));
 		krom->Set(String::NewFromUtf8(isolate, "createRenderTarget"), FunctionTemplate::New(isolate, krom_create_render_target));
 		krom->Set(String::NewFromUtf8(isolate, "createRenderTargetCubeMap"), FunctionTemplate::New(isolate, krom_create_render_target_cube_map));
