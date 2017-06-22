@@ -704,6 +704,7 @@ namespace {
 			pipeline->inputLayout[i] = structures[i];
 		}
 		pipeline->inputLayout[size] = nullptr;
+		pipeline->interleavedLayout = args[11]->ToObject()->Get(String::NewFromUtf8(isolate, "interleavedLayout"))->BooleanValue();
 
 		pipeline->cullMode = (Kore::Graphics4::CullMode)args[11]->ToObject()->Get(String::NewFromUtf8(isolate, "cullMode"))->Int32Value();
 
