@@ -4,7 +4,7 @@
 
 Krom allows you to build portable applications or embed into existing ones. It executes [JS](https://github.com/luboslenco/krom_jstest) or webassembly through V8 and is fully supported in [Kha](https://github.com/Kode/Kha) as one of the backends. See [bindings](https://github.com/Kode/Kha/blob/master/Backends/Krom/Krom.hx). In Krom, native C++ part is precompiled and the JS part is developed with 'zero' compile times, live code patching and deployed to all OSs at once.
 
-Note that Krom does not rely on web technologies. It rather exposes a full, native hardware capabilities. Think of it as an extension to the Kore library with scripting support.
+Note that Krom does not rely on web technologies. It rather exposes full, native hardware capabilities. Think of it as an extension to the Kore library with scripting support.
 
 ## Build instructions
 
