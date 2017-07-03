@@ -2354,7 +2354,7 @@ int kore(int argc, char** argv) {
 #ifdef KORE_WINDOWS
 #include <Windows.h>
 
-static char _exe_dir_path[MAX_PATH];
+static char _exe_dir_path[MAX_PATH + 1];
 
 const char* getExeDir() {
 	HMODULE hModule = GetModuleHandleW(NULL);
@@ -2362,7 +2362,7 @@ const char* getExeDir() {
 	size_t length = strlen(_exe_dir_path);
 	for (int i = length - 1; i >= 0; --i) {
 		if (_exe_dir_path[i] == '\\') {
-			_exe_dir_path[i] = 0;
+			_exe_dir_path[i + 1] = 0;
 			break;
 		}
 	}
