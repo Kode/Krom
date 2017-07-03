@@ -2030,7 +2030,7 @@ namespace {
 		while (std::getline(infile, line)) {
 			switch (mode) {
 				case ParseRegular: {
-					if (endsWith(line, ".prototype = {")) { // parse methods
+					if (endsWith(line, ".prototype = {") || line.find(".prototype = $extend(") != std::string::npos) { // parse methods
 						mode = ParseMethods;
 					}
 					else if (line.find(" = function(") != std::string::npos && line.find("var ") == std::string::npos) {
@@ -2128,7 +2128,7 @@ namespace {
 						currentBody = "";
 						brackets = 1;
 					}
-					else if (endsWith(line, "};")) {
+					else if (endsWith(line, "};") || endsWith(line, "});")) { // Base or extended class
 						mode = ParseRegular;
 					}
 					break;
