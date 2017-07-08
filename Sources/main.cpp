@@ -57,6 +57,7 @@ namespace {
 
 	Platform* plat;
 	Global<Function> updateFunction;
+	Global<Function> dropFilesFunction;
 	Global<Function> keyboardDownFunction;
 	Global<Function> keyboardUpFunction;
 	Global<Function> keyboardPressFunction;
@@ -76,6 +77,7 @@ namespace {
 	void update();
 	void initAudioBuffer();
 	void mix(int samples);
+	void dropFiles(wchar_t* filePath);
 	void keyDown(Kore::KeyCode code);
 	void keyUp(Kore::KeyCode code);
     void keyPress(wchar_t character);
@@ -130,6 +132,7 @@ namespace {
 		Kore::Random::init(Kore::System::time() * 1000);
 		
 		Kore::System::setCallback(update);
+		Kore::System::setDropFilesCallback(dropFiles);
 		
 		Kore::Keyboard::the()->KeyDown = keyDown;
 		Kore::Keyboard::the()->KeyUp = keyUp;
@@ -192,7 +195,14 @@ namespace {
 		Local<Function> func = Local<Function>::Cast(arg);
 		updateFunction.Reset(isolate, func);
 	}
-	
+
+	void krom_set_drop_files_callback(const FunctionCallbackInfo<Value>& args) {
+		HandleScope scope(args.GetIsolate());
+		Local<Value> arg = args[0];
+		Local<Function> func = Local<Function>::Cast(arg);
+		dropFilesFunction.Reset(isolate, func);
+	}
+
 	void krom_set_keyboard_down_callback(const FunctionCallbackInfo<Value>& args) {
 		HandleScope scope(args.GetIsolate());
 		Local<Value> arg = args[0];
@@ -694,6 +704,7 @@ namespace {
 			pipeline->inputLayout[i] = structures[i];
 		}
 		pipeline->inputLayout[size] = nullptr;
+		pipeline->interleavedLayout = args[11]->ToObject()->Get(String::NewFromUtf8(isolate, "interleavedLayout"))->BooleanValue();
 
 		pipeline->cullMode = (Kore::Graphics4::CullMode)args[11]->ToObject()->Get(String::NewFromUtf8(isolate, "cullMode"))->Int32Value();
 
@@ -1228,6 +1239,11 @@ namespace {
 		args.GetReturnValue().Set(Int32::New(isolate, Kore::System::screenDpi()));
 	}
 
+	void krom_system_id(const FunctionCallbackInfo<Value>& args) {
+		HandleScope scope(args.GetIsolate());
+		args.GetReturnValue().Set(String::NewFromUtf8(isolate, Kore::System::systemId()));
+	}
+
 	void krom_request_shutdown(const FunctionCallbackInfo<Value>& args) {
 		HandleScope scope(args.GetIsolate());
 		Kore::System::stop();
@@ -1527,6 +1543,7 @@ namespace {
 		krom->Set(String::NewFromUtf8(isolate, "log"), FunctionTemplate::New(isolate, LogCallback));
 		krom->Set(String::NewFromUtf8(isolate, "clear"), FunctionTemplate::New(isolate, graphics_clear));
 		krom->Set(String::NewFromUtf8(isolate, "setCallback"), FunctionTemplate::New(isolate, krom_set_callback));
+		krom->Set(String::NewFromUtf8(isolate, "setDropFilesCallback"), FunctionTemplate::New(isolate, krom_set_drop_files_callback));
 		krom->Set(String::NewFromUtf8(isolate, "setKeyboardDownCallback"), FunctionTemplate::New(isolate, krom_set_keyboard_down_callback));
 		krom->Set(String::NewFromUtf8(isolate, "setKeyboardUpCallback"), FunctionTemplate::New(isolate, krom_set_keyboard_up_callback));
 		krom->Set(String::NewFromUtf8(isolate, "setKeyboardPressCallback"), FunctionTemplate::New(isolate, krom_set_keyboard_press_callback));
@@ -1586,6 +1603,7 @@ namespace {
 		krom->Set(String::NewFromUtf8(isolate, "windowWidth"), FunctionTemplate::New(isolate, krom_window_width));
 		krom->Set(String::NewFromUtf8(isolate, "windowHeight"), FunctionTemplate::New(isolate, krom_window_height));
 		krom->Set(String::NewFromUtf8(isolate, "screenDpi"), FunctionTemplate::New(isolate, krom_screen_dpi));
+		krom->Set(String::NewFromUtf8(isolate, "systemId"), FunctionTemplate::New(isolate, krom_system_id));
 		krom->Set(String::NewFromUtf8(isolate, "requestShutdown"), FunctionTemplate::New(isolate, krom_request_shutdown));
 		krom->Set(String::NewFromUtf8(isolate, "createRenderTarget"), FunctionTemplate::New(isolate, krom_create_render_target));
 		krom->Set(String::NewFromUtf8(isolate, "createRenderTargetCubeMap"), FunctionTemplate::New(isolate, krom_create_render_target_cube_map));
@@ -1729,6 +1747,25 @@ namespace {
 		}
 		Kore::Graphics4::end();
 		Kore::Graphics4::swapBuffers();
+	}
+
+	void dropFiles(wchar_t* filePath) {
+		v8::Locker locker{isolate};
+		
+		Isolate::Scope isolate_scope(isolate);
+		HandleScope handle_scope(isolate);
+		v8::Local<v8::Context> context = v8::Local<v8::Context>::New(isolate, globalContext);
+		Context::Scope context_scope(context);
+		
+		TryCatch try_catch(isolate);
+		v8::Local<v8::Function> func = v8::Local<v8::Function>::New(isolate, dropFilesFunction);
+		Local<Value> result;
+		const int argc = 1;
+		Local<Value> argv[argc] = {String::NewFromTwoByte(isolate, (const uint16_t*)filePath)};
+		if (!func->Call(context, context->Global(), argc, argv).ToLocal(&result)) {
+			v8::String::Utf8Value stack_trace(try_catch.StackTrace());
+			sendLogMessage("Trace: %s", *stack_trace);
+		}
 	}
 	
 	void keyDown(Kore::KeyCode code) {
@@ -1993,7 +2030,7 @@ namespace {
 		while (std::getline(infile, line)) {
 			switch (mode) {
 				case ParseRegular: {
-					if (endsWith(line, ".prototype = {")) { // parse methods
+					if (endsWith(line, ".prototype = {") || line.find(".prototype = $extend(") != std::string::npos) { // parse methods
 						mode = ParseMethods;
 					}
 					else if (line.find(" = function(") != std::string::npos && line.find("var ") == std::string::npos) {
@@ -2091,7 +2128,7 @@ namespace {
 						currentBody = "";
 						brackets = 1;
 					}
-					else if (endsWith(line, "};")) {
+					else if (endsWith(line, "};") || endsWith(line, "});")) { // Base or extended class
 						mode = ParseRegular;
 					}
 					break;
@@ -2317,7 +2354,7 @@ int kore(int argc, char** argv) {
 #ifdef KORE_WINDOWS
 #include <Windows.h>
 
-static char _exe_dir_path[MAX_PATH];
+static char _exe_dir_path[MAX_PATH + 1];
 
 const char* getExeDir() {
 	HMODULE hModule = GetModuleHandleW(NULL);
@@ -2325,7 +2362,7 @@ const char* getExeDir() {
 	size_t length = strlen(_exe_dir_path);
 	for (int i = length - 1; i >= 0; --i) {
 		if (_exe_dir_path[i] == '\\') {
-			_exe_dir_path[i] = 0;
+			_exe_dir_path[i + 1] = 0;
 			break;
 		}
 	}
