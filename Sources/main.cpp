@@ -1761,7 +1761,17 @@ namespace {
 		v8::Local<v8::Function> func = v8::Local<v8::Function>::New(isolate, dropFilesFunction);
 		Local<Value> result;
 		const int argc = 1;
-		Local<Value> argv[argc] = {String::NewFromTwoByte(isolate, (const uint16_t*)filePath)};
+		Local<Value> argv[argc];
+		if (sizeof(wchar_t) == 2) {
+			argv[0] = {String::NewFromTwoByte(isolate, (const uint16_t*)filePath)};
+		}
+		else {
+			size_t len = wcslen(filePath);
+			uint16_t str[len + 1];
+			for (int i = 0; i < len; i++) str[i] = filePath[i];
+			str[len] = 0;
+			argv[0] = {String::NewFromTwoByte(isolate, str)};
+		}
 		if (!func->Call(context, context->Global(), argc, argv).ToLocal(&result)) {
 			v8::String::Utf8Value stack_trace(try_catch.StackTrace());
 			sendLogMessage("Trace: %s", *stack_trace);
