@@ -103,6 +103,9 @@ namespace {
 		int samplesPerPixel = args[3]->ToInt32()->Value();
 		bool vSync = args[4]->ToBoolean()->Value();
 		int windowMode = args[5]->ToInt32()->Value();
+		bool resizable = args[6]->ToBoolean()->Value();
+		bool maximizable = args[7]->ToBoolean()->Value();
+		bool minimizable = args[8]->ToBoolean()->Value();
 
 		Kore::WindowOptions options;
 		options.title = *title;
@@ -115,6 +118,9 @@ namespace {
 		Kore::System::setShowWindowFlag(options.showWindow);
 		options.vSync = vSync;
 		options.mode = Kore::WindowMode(windowMode);
+		options.resizable = resizable;
+		options.maximizable = maximizable;
+		options.minimizable = minimizable;
 		options.rendererOptions.depthBufferBits = 16;
 		options.rendererOptions.stencilBufferBits = 8;
 		options.rendererOptions.textureFormat = 0;
