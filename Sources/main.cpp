@@ -1773,7 +1773,7 @@ namespace {
 		}
 		else {
 			size_t len = wcslen(filePath);
-			uint16_t* str = new uint16_t(len + 1);
+			uint16_t* str = new uint16_t[len + 1];
 			for (int i = 0; i < len; i++) str[i] = filePath[i];
 			str[len] = 0;
 			argv[0] = {String::NewFromTwoByte(isolate, str)};
