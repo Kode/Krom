@@ -16,6 +16,7 @@
 #include <Kore/Audio1/SoundStream.h>
 #include <Kore/Math/Random.h>
 #include <Kore/System.h>
+#include <Kore/Display.h>
 #include <Kore/Log.h>
 #include <Kore/Threads/Thread.h>
 #include <Kore/Threads/Mutex.h>
@@ -1254,6 +1255,41 @@ namespace {
 		HandleScope scope(args.GetIsolate());
 		Kore::System::stop();
 	}
+
+	void krom_display_count(const FunctionCallbackInfo<Value>& args) {
+		HandleScope scope(args.GetIsolate());
+		args.GetReturnValue().Set(Int32::New(isolate, Kore::Display::count()));
+	}
+
+	void krom_display_width(const FunctionCallbackInfo<Value>& args) {
+		HandleScope scope(args.GetIsolate());
+		int index = args[0]->ToInt32()->Value();
+		args.GetReturnValue().Set(Int32::New(isolate, Kore::Display::width(index)));
+	}
+
+	void krom_display_height(const FunctionCallbackInfo<Value>& args) {
+		HandleScope scope(args.GetIsolate());
+		int index = args[0]->ToInt32()->Value();
+		args.GetReturnValue().Set(Int32::New(isolate, Kore::Display::height(index)));
+	}
+
+	void krom_display_x(const FunctionCallbackInfo<Value>& args) {
+		HandleScope scope(args.GetIsolate());
+		int index = args[0]->ToInt32()->Value();
+		args.GetReturnValue().Set(Int32::New(isolate, Kore::Display::x(index)));
+	}
+
+	void krom_display_y(const FunctionCallbackInfo<Value>& args) {
+		HandleScope scope(args.GetIsolate());
+		int index = args[0]->ToInt32()->Value();
+		args.GetReturnValue().Set(Int32::New(isolate, Kore::Display::y(index)));
+	}
+
+	void krom_display_is_primary(const FunctionCallbackInfo<Value>& args) {
+		HandleScope scope(args.GetIsolate());
+		int index = args[0]->ToInt32()->Value();
+		args.GetReturnValue().Set(Boolean::New(isolate, Kore::Display::isPrimary(index)));
+	}
 	
 	void krom_create_render_target(const FunctionCallbackInfo<Value>& args) {
 		HandleScope scope(args.GetIsolate());
@@ -1633,6 +1669,12 @@ namespace {
 		krom->Set(String::NewFromUtf8(isolate, "screenDpi"), FunctionTemplate::New(isolate, krom_screen_dpi));
 		krom->Set(String::NewFromUtf8(isolate, "systemId"), FunctionTemplate::New(isolate, krom_system_id));
 		krom->Set(String::NewFromUtf8(isolate, "requestShutdown"), FunctionTemplate::New(isolate, krom_request_shutdown));
+		krom->Set(String::NewFromUtf8(isolate, "displayCount"), FunctionTemplate::New(isolate, krom_display_count));
+		krom->Set(String::NewFromUtf8(isolate, "displayWidth"), FunctionTemplate::New(isolate, krom_display_width));
+		krom->Set(String::NewFromUtf8(isolate, "displayHeight"), FunctionTemplate::New(isolate, krom_display_height));
+		krom->Set(String::NewFromUtf8(isolate, "displayX"), FunctionTemplate::New(isolate, krom_display_x));
+		krom->Set(String::NewFromUtf8(isolate, "displayY"), FunctionTemplate::New(isolate, krom_display_y));
+		krom->Set(String::NewFromUtf8(isolate, "displayIsPrimary"), FunctionTemplate::New(isolate, krom_display_is_primary));
 		krom->Set(String::NewFromUtf8(isolate, "createRenderTarget"), FunctionTemplate::New(isolate, krom_create_render_target));
 		krom->Set(String::NewFromUtf8(isolate, "createRenderTargetCubeMap"), FunctionTemplate::New(isolate, krom_create_render_target_cube_map));
 		krom->Set(String::NewFromUtf8(isolate, "createTexture"), FunctionTemplate::New(isolate, krom_create_texture));
