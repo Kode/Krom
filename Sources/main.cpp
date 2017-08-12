@@ -1574,19 +1574,16 @@ namespace {
 	
 	void startV8() {
 #if defined(KORE_WINDOWS)
-		const char* exeDir = getExeDir();
-		V8::InitializeICUDefaultLocation(exeDir);
-		V8::InitializeExternalStartupData(exeDir);
+		V8::InitializeExternalStartupData(getExeDir());
+		V8::InitializeExternalStartupData(".\\");
 #elif defined(KORE_MACOS)
 		char filepath[256];
 		strcpy(filepath, macgetresourcepath());
 		strcat(filepath, "/");
 		strcat(filepath, "macos");
 		strcat(filepath, "/");
-		V8::InitializeICUDefaultLocation(filepath);
 		V8::InitializeExternalStartupData(filepath);
 #else
-		V8::InitializeICUDefaultLocation("./");
 		V8::InitializeExternalStartupData("./");
 #endif
 

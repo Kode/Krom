@@ -102,10 +102,12 @@ void startDebugger(v8::Isolate* isolate, int port) {
 }
 
 bool tickDebugger() {
+	v8::Locker locker{ isolate };
+
 	bool started = false;
 	std::string message = receiveMessage();
 	while (message.size() > 0) {
-		if (message.find("Runtime.run", 0) != std::string::npos) {
+		if (message.find("\"Runtime.run\"", 0) != std::string::npos) {
 			started = true;
 		}
 		v8_inspector::StringView messageview((const uint8_t*)message.c_str(), message.size());
