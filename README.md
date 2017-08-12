@@ -28,6 +28,31 @@ Add Library Search Paths (`/path/to/Krom/V8/Libraries/macos/debug` or `/path/to/
 
 Add Runtime Search Paths (`@loader_path/../Resources/macos`)
 
+## Build instructions for V8
+
+Set some env vars for Windows:
+set PATH=path\to\depot_tools;%PATH%
+set DEPOT_TOOLS_WIN_TOOLCHAIN=0
+set GYP_MSVS_VERSION=2015
+
+debug:
+gn args out.gn/debug
+
+is_debug = true
+is_component_build = true
+v8_enable_i18n_support = false
+
+ninja -C out.gn/debug
+
+release:
+gn args out.gn/release
+
+is_debug = false
+is_component_build = true
+v8_enable_i18n_support = false
+
+ninja -C out.gn/release
+
 ## Running
 
 `krom [assetsdir shadersdir [--flags]]`
