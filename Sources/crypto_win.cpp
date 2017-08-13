@@ -9,6 +9,8 @@
 #include <string>
 #include <vector>
 
+#include <Kore/Log.h>
+
 #include <Windows.h>
 #include <bcrypt.h>
 
@@ -228,9 +230,9 @@ namespace {
 			}*/
 
 			DWORD size;
-			CryptBinaryToStringA(hashValue, sizeof(hashValue), CRYPT_STRING_BASE64, m_hashDigest, &size);
-
-
+			BOOL success = CryptBinaryToStringA(hashValue, sizeof(hashValue), CRYPT_STRING_BASE64, m_hashDigest, &size);
+			Kore::log(Kore::Info, "Crypt: %i", success); // This log fixes some optimization in VS2017 release mode
+			
 			/*m_hashDigest.resize(sizeof(hashValue));
 			for (size_t i = 0; i < sizeof(hashValue); ++i) {
 				m_hashDigest[i] = hashValue[i];
