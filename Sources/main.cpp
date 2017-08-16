@@ -4,6 +4,7 @@
 
 #include "pch.h"
 #include <Kore/IO/FileReader.h>
+#include <Kore/IO/FileWriter.h>
 #include <Kore/Graphics4/Graphics.h>
 #include <Kore/Graphics4/PipelineState.h>
 #include <Kore/Graphics4/Shader.h>
@@ -1289,6 +1290,38 @@ namespace {
 		int index = args[0]->ToInt32()->Value();
 		args.GetReturnValue().Set(Boolean::New(isolate, Kore::Display::isPrimary(index)));
 	}
+
+	void krom_write_storage(const FunctionCallbackInfo<Value>& args) {
+		HandleScope scope(args.GetIsolate());
+		String::Utf8Value utf8_name(args[0]);
+
+		Local<ArrayBuffer> buffer = Local<ArrayBuffer>::Cast(args[1]);
+		ArrayBuffer::Contents content;
+		if (buffer->IsExternal()) content = buffer->GetContents();
+		else content = buffer->Externalize();
+
+		Kore::FileWriter writer;
+		if (!writer.open(*utf8_name)) return;
+		writer.write(content.Data(), (int)content.ByteLength());
+	}
+
+	void krom_read_storage(const FunctionCallbackInfo<Value>& args) {
+		HandleScope scope(args.GetIsolate());
+		String::Utf8Value utf8_name(args[0]);
+
+		Kore::FileReader reader;
+		if (!reader.open(*utf8_name, Kore::FileReader::Save)) return;
+
+		Local<ArrayBuffer> buffer = ArrayBuffer::New(isolate, reader.size());
+		ArrayBuffer::Contents contents = buffer->Externalize();
+		unsigned char* from = (unsigned char*)reader.readAll();
+		unsigned char* to = (unsigned char*)contents.Data();
+		for (int i = 0; i < reader.size(); ++i) {
+			to[i] = from[i];
+		}
+		reader.close();
+		args.GetReturnValue().Set(buffer);
+	}
 	
 	void krom_create_render_target(const FunctionCallbackInfo<Value>& args) {
 		HandleScope scope(args.GetIsolate());
@@ -1671,6 +1704,8 @@ namespace {
 		krom->Set(String::NewFromUtf8(isolate, "displayX"), FunctionTemplate::New(isolate, krom_display_x));
 		krom->Set(String::NewFromUtf8(isolate, "displayY"), FunctionTemplate::New(isolate, krom_display_y));
 		krom->Set(String::NewFromUtf8(isolate, "displayIsPrimary"), FunctionTemplate::New(isolate, krom_display_is_primary));
+		krom->Set(String::NewFromUtf8(isolate, "writeStorage"), FunctionTemplate::New(isolate, krom_write_storage));
+		krom->Set(String::NewFromUtf8(isolate, "readStorage"), FunctionTemplate::New(isolate, krom_read_storage));
 		krom->Set(String::NewFromUtf8(isolate, "createRenderTarget"), FunctionTemplate::New(isolate, krom_create_render_target));
 		krom->Set(String::NewFromUtf8(isolate, "createRenderTargetCubeMap"), FunctionTemplate::New(isolate, krom_create_render_target_cube_map));
 		krom->Set(String::NewFromUtf8(isolate, "createTexture"), FunctionTemplate::New(isolate, krom_create_texture));
