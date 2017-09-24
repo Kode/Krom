@@ -40,6 +40,7 @@ if (platform === Platform.Linux) {
 	project.addLib('../' + libdir + 'libv8.so');
 	project.addLib('../' + libdir + 'libv8_libplatform.so');
 	project.addLib('../' + libdir + 'libv8_libbase.so');
+	project.addLib('../' + libdir + 'libc++.so');
 	project.addLib('libssl');
 	project.addLib('libcrypto');
 }
