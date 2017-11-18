@@ -1473,11 +1473,18 @@ namespace {
 		texture->clear(x, y, z, width, height, depth, color);
 	}
 
-	void krom_generate_mipmaps(const FunctionCallbackInfo<Value>& args) {
+	void krom_generate_texture_mipmaps(const FunctionCallbackInfo<Value>& args) {
 		HandleScope scope(args.GetIsolate());
 		Local<External> field = Local<External>::Cast(args[0]->ToObject()->GetInternalField(0));
 		Kore::Graphics4::Texture* texture = (Kore::Graphics4::Texture*)field->Value();
 		texture->generateMipmaps(args[0]->ToInt32()->Value());
+	}
+
+	void krom_generate_render_target_mipmaps(const FunctionCallbackInfo<Value>& args) {
+		HandleScope scope(args.GetIsolate());
+		Local<External> field = Local<External>::Cast(args[0]->ToObject()->GetInternalField(0));
+		Kore::Graphics4::RenderTarget* rt = (Kore::Graphics4::RenderTarget*)field->Value();
+		rt->generateMipmaps(args[0]->ToInt32()->Value());
 	}
 
 	void krom_set_mipmaps(const FunctionCallbackInfo<Value>& args) {
@@ -1713,7 +1720,8 @@ namespace {
 		krom->Set(String::NewFromUtf8(isolate, "getRenderTargetPixels"), FunctionTemplate::New(isolate, krom_get_render_target_pixels));
 		krom->Set(String::NewFromUtf8(isolate, "unlockTexture"), FunctionTemplate::New(isolate, krom_unlock_texture));
 		krom->Set(String::NewFromUtf8(isolate, "clearTexture"), FunctionTemplate::New(isolate, krom_clear_texture));
-		krom->Set(String::NewFromUtf8(isolate, "generateMipmaps"), FunctionTemplate::New(isolate, krom_generate_mipmaps));
+		krom->Set(String::NewFromUtf8(isolate, "generateTextureMipmaps"), FunctionTemplate::New(isolate, krom_generate_texture_mipmaps));
+		krom->Set(String::NewFromUtf8(isolate, "generateRenderTargetMipmaps"), FunctionTemplate::New(isolate, krom_generate_render_target_mipmaps));
 		krom->Set(String::NewFromUtf8(isolate, "setMipmaps"), FunctionTemplate::New(isolate, krom_set_mipmaps));
 		krom->Set(String::NewFromUtf8(isolate, "setDepthStencilFrom"), FunctionTemplate::New(isolate, krom_set_depth_stencil_from));
 		krom->Set(String::NewFromUtf8(isolate, "viewport"), FunctionTemplate::New(isolate, krom_viewport));
