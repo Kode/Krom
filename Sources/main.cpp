@@ -113,8 +113,8 @@ namespace {
 		options.title = *title;
 		options.width = width;
 		options.height = height;
-		options.x = 100;
-		options.y = 100;
+		options.x = -1;
+		options.y = -1;
 		options.targetDisplay = 0;
 		options.showWindow = !nowindow;
 		Kore::System::setShowWindowFlag(options.showWindow);
