@@ -274,6 +274,26 @@ namespace {
 		gamepadButtonFunction.Reset(isolate, func);
 	}
 
+	void krom_lock_mouse(const FunctionCallbackInfo<Value>& args) {
+		HandleScope scope(args.GetIsolate());
+		Kore::Mouse::the()->lock(0);
+	}
+
+	void krom_unlock_mouse(const FunctionCallbackInfo<Value>& args) {
+		HandleScope scope(args.GetIsolate());
+		Kore::Mouse::the()->unlock(0);
+	}
+
+	void krom_can_lock_mouse(const FunctionCallbackInfo<Value>& args) {
+		HandleScope scope(args.GetIsolate());
+		Kore::Mouse::the()->canLock(0);
+	}
+
+	void krom_is_mouse_locked(const FunctionCallbackInfo<Value>& args) {
+		HandleScope scope(args.GetIsolate());
+		Kore::Mouse::the()->isLocked(0);
+	}
+
 	void krom_set_audio_callback(const FunctionCallbackInfo<Value>& args) {
 		HandleScope scope(args.GetIsolate());
 		Local<Value> arg = args[0];
@@ -1651,6 +1671,10 @@ namespace {
 		krom->Set(String::NewFromUtf8(isolate, "setMouseWheelCallback"), FunctionTemplate::New(isolate, krom_set_mouse_wheel_callback));
 		krom->Set(String::NewFromUtf8(isolate, "setGamepadAxisCallback"), FunctionTemplate::New(isolate, krom_set_gamepad_axis_callback));
 		krom->Set(String::NewFromUtf8(isolate, "setGamepadButtonCallback"), FunctionTemplate::New(isolate, krom_set_gamepad_button_callback));
+		krom->Set(String::NewFromUtf8(isolate, "lockMouse"), FunctionTemplate::New(isolate, krom_lock_mouse));
+		krom->Set(String::NewFromUtf8(isolate, "unlockMouse"), FunctionTemplate::New(isolate, krom_unlock_mouse));
+		krom->Set(String::NewFromUtf8(isolate, "canLockMouse"), FunctionTemplate::New(isolate, krom_can_lock_mouse));
+		krom->Set(String::NewFromUtf8(isolate, "isMouseLocked"), FunctionTemplate::New(isolate, krom_is_mouse_locked));
 		krom->Set(String::NewFromUtf8(isolate, "createIndexBuffer"), FunctionTemplate::New(isolate, krom_create_indexbuffer));
 		krom->Set(String::NewFromUtf8(isolate, "deleteIndexBuffer"), FunctionTemplate::New(isolate, krom_delete_indexbuffer));
 		krom->Set(String::NewFromUtf8(isolate, "setIndices"), FunctionTemplate::New(isolate, krom_set_indices));
