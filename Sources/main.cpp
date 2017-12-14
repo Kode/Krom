@@ -286,12 +286,12 @@ namespace {
 
 	void krom_can_lock_mouse(const FunctionCallbackInfo<Value>& args) {
 		HandleScope scope(args.GetIsolate());
-		Kore::Mouse::the()->canLock(0);
+		args.GetReturnValue().Set(Boolean::New(isolate, Kore::Mouse::the()->canLock(0)));
 	}
 
 	void krom_is_mouse_locked(const FunctionCallbackInfo<Value>& args) {
 		HandleScope scope(args.GetIsolate());
-		Kore::Mouse::the()->isLocked(0);
+		args.GetReturnValue().Set(Boolean::New(isolate, Kore::Mouse::the()->isLocked(0)));
 	}
 
 	void krom_set_audio_callback(const FunctionCallbackInfo<Value>& args) {
