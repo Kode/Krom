@@ -205,10 +205,10 @@ Sec-WebSocket-Accept: ");
 
 			Kore::log(Kore::Info, "WebSocket message: %s", decoded);
 
-			mutex.Lock();
+			mutex.lock();
 			queuedMessages.push_back((char*)decoded);
 			//**receiveMessageCallback((char*)decoded);
-			mutex.Unlock();
+			mutex.unlock();
 
 			step = 3;
 
@@ -356,15 +356,15 @@ void sendMessage(const char* message) {
 }
 
 std::string receiveMessage() {
-	mutex.Lock();
+	mutex.lock();
 	if (queuedMessages.size() < 1) {
-		mutex.Unlock();
+		mutex.unlock();
 		return "";
 	}
 	else {
 		std::string message = queuedMessages[0];
 		queuedMessages.erase(queuedMessages.begin());
-		mutex.Unlock();
+		mutex.unlock();
 		return message;
 	}
 }
@@ -373,7 +373,7 @@ void startServer(int port) { // v8::base::Semaphore* semaphore) {
 	PORT = port;
 	//ready_semaphore = semaphore;
 	//Kore::threadsInit();
-	mutex.Create();
+	mutex.create();
 	Kore::createAndRunThread(startServerInThread, nullptr);
 
 	//while (step < 3) { }

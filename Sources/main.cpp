@@ -130,7 +130,7 @@ namespace {
 		
 		//Mixer::init();
 		//Audio::init();
-		mutex.Create();
+		mutex.create();
 		if (!nosound) {
 			Kore::Audio2::audioCallback = mix;
 			Kore::Audio2::init();
@@ -286,8 +286,8 @@ namespace {
 		bool lock = args[0]->ToBoolean()->Value();
 		
 
-		if (lock) mutex.Lock();    //v8::Locker::Locker(isolate);
-		else mutex.Unlock();       //v8::Unlocker(args.GetIsolate());
+		if (lock) mutex.lock();    //v8::Locker::Locker(isolate);
+		else mutex.unlock();       //v8::Unlocker(args.GetIsolate());
 		
 		
 	}
