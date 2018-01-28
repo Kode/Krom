@@ -16,7 +16,8 @@ Run `node Kore/make --noshaders` and compile resulting Visual Studio project loc
 
 ### Linux
 
-Run `node Kore/make --noshaders` and compile resulting makefiles located in build/ folder.
+Run `node Kore/make --noshaders`, open the Code::Blocks project and change the rpath option to `-Wl,-rpath=XORIGIN/`.
+After compiling cd to build/bin/Release and run `chrpath -r "\$ORIGIN/" Krom`.
 
 ### macOS
 

@@ -2,6 +2,7 @@
 #include "debug.h"
 #include "debug_server.h"
 #include "../V8/include/v8-debug.h"
+#include "../V8/include/v8.h"
 #include <v8-inspector.h>
 #include "pch.h"
 #include <Kore/Threads/Thread.h>
@@ -21,6 +22,17 @@
 extern v8::Global<v8::Context> globalContext;
 extern v8::Isolate* isolate;
 
+#ifdef KORE_LINUX
+#define V8_BASE_EXPORT __attribute__((visibility("default")))
+namespace v8 {
+namespace base {
+namespace bits {
+V8_BASE_EXPORT bool SignedMulOverflow64(int64_t lhs, int64_t rhs, int64_t* val);
+}
+}
+}
+#endif
+
 std::unique_ptr<v8_inspector::V8Inspector> v8inspector;
 
 bool messageLoopPaused = false;
@@ -31,13 +43,20 @@ namespace {
 		void runMessageLoopOnPause(int contextGroupId) override {
 			messageLoopPaused = true;
 		}
-		
+
 		void quitMessageLoopOnPause() override {
 			messageLoopPaused = false;
 		}
-		
+
 		void runIfWaitingForDebugger(int contextGroupId) override {
 			Kore::log(Kore::Info, "Waiting for debugger.");
+			#ifdef KORE_LINUX
+			// Call some random V8 base function to force-link v8_libbase.
+			// This way v8_libbase is loaded using Krom's rpath, otherwise
+			// it's indirectly loaded by another v8 lib without the rpath.
+			int64_t val;
+			v8::base::bits::SignedMulOverflow64(0, 0, &val);
+			#endif
 		}
 
 		v8::Local<v8::Context> ensureDefaultContextInGroup(int) override {
@@ -53,7 +72,7 @@ namespace {
 					eightbit[i] = message->string().characters16()[i];
 				}
 				eightbit[message->string().length()] = 0;
-				
+
 				sendMessage(eightbit);
 			}
 			else {
@@ -69,7 +88,7 @@ namespace {
 					eightbit[i] = message->string().characters16()[i];
 				}
 				eightbit[message->string().length()] = 0;
-				
+
 				sendMessage(eightbit);
 			}
 			else {
