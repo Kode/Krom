@@ -47,8 +47,4 @@ if (platform === Platform.Linux) {
 
 project.setDebugDir('Deployment/' + build + '/' + system);
 
-Project.createProject('Kore', __dirname).then((kore) => {
-	project.addSubProject(kore);
-	resolve(project);
-});
-
+resolve(project);
