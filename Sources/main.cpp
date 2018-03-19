@@ -10,6 +10,7 @@
 #include <Kore/Graphics4/Shader.h>
 #include <Kore/Input/Keyboard.h>
 #include <Kore/Input/Mouse.h>
+#include <Kore/Input/Pen.h>
 #include <Kore/Input/Gamepad.h>
 #include <Kore/Audio2/Audio.h>
 #include <Kore/Audio1/Audio.h>
@@ -67,6 +68,9 @@ namespace {
 	Global<Function> mouseUpFunction;
 	Global<Function> mouseMoveFunction;
 	Global<Function> mouseWheelFunction;
+	Global<Function> penDownFunction;
+	Global<Function> penUpFunction;
+	Global<Function> penMoveFunction;
 	Global<Function> gamepadAxisFunction;
 	Global<Function> gamepadButtonFunction;
 	Global<Function> audioFunction;
@@ -87,6 +91,9 @@ namespace {
 	void mouseDown(int window, int button, int x, int y);
 	void mouseUp(int window, int button, int x, int y);
 	void mouseWheel(int window, int delta);
+	void penDown(int window, int x, int y, float pressure);
+	void penUp(int window, int x, int y, float pressure);
+	void penMove(int window, int x, int y, float pressure);
 	void gamepad1Axis(int axis, float value);
 	void gamepad1Button(int button, float value);
 	void gamepad2Axis(int axis, float value);
@@ -144,11 +151,14 @@ namespace {
 
 		Kore::Keyboard::the()->KeyDown = keyDown;
 		Kore::Keyboard::the()->KeyUp = keyUp;
-        Kore::Keyboard::the()->KeyPress = keyPress;
+		Kore::Keyboard::the()->KeyPress = keyPress;
 		Kore::Mouse::the()->Move = mouseMove;
 		Kore::Mouse::the()->Press = mouseDown;
 		Kore::Mouse::the()->Release = mouseUp;
 		Kore::Mouse::the()->Scroll = mouseWheel;
+		Kore::Pen::the()->Press = penDown;
+		Kore::Pen::the()->Release = penUp;
+		Kore::Pen::the()->Move = penMove;
 		Kore::Gamepad::get(0)->Axis = gamepad1Axis;
 		Kore::Gamepad::get(0)->Button = gamepad1Button;
 		Kore::Gamepad::get(1)->Axis = gamepad2Axis;
@@ -258,6 +268,27 @@ namespace {
 		Local<Value> arg = args[0];
 		Local<Function> func = Local<Function>::Cast(arg);
 		mouseWheelFunction.Reset(isolate, func);
+	}
+
+	void krom_set_pen_down_callback(const FunctionCallbackInfo<Value>& args) {
+		HandleScope scope(args.GetIsolate());
+		Local<Value> arg = args[0];
+		Local<Function> func = Local<Function>::Cast(arg);
+		penDownFunction.Reset(isolate, func);
+	}
+
+	void krom_set_pen_up_callback(const FunctionCallbackInfo<Value>& args) {
+		HandleScope scope(args.GetIsolate());
+		Local<Value> arg = args[0];
+		Local<Function> func = Local<Function>::Cast(arg);
+		penUpFunction.Reset(isolate, func);
+	}
+
+	void krom_set_pen_move_callback(const FunctionCallbackInfo<Value>& args) {
+		HandleScope scope(args.GetIsolate());
+		Local<Value> arg = args[0];
+		Local<Function> func = Local<Function>::Cast(arg);
+		penMoveFunction.Reset(isolate, func);
 	}
 
 	void krom_set_gamepad_axis_callback(const FunctionCallbackInfo<Value>& args) {
@@ -1668,6 +1699,9 @@ namespace {
 		krom->Set(String::NewFromUtf8(isolate, "setMouseUpCallback"), FunctionTemplate::New(isolate, krom_set_mouse_up_callback));
 		krom->Set(String::NewFromUtf8(isolate, "setMouseMoveCallback"), FunctionTemplate::New(isolate, krom_set_mouse_move_callback));
 		krom->Set(String::NewFromUtf8(isolate, "setMouseWheelCallback"), FunctionTemplate::New(isolate, krom_set_mouse_wheel_callback));
+		krom->Set(String::NewFromUtf8(isolate, "setPenDownCallback"), FunctionTemplate::New(isolate, krom_set_pen_down_callback));
+		krom->Set(String::NewFromUtf8(isolate, "setPenUpCallback"), FunctionTemplate::New(isolate, krom_set_pen_up_callback));
+		krom->Set(String::NewFromUtf8(isolate, "setPenMoveCallback"), FunctionTemplate::New(isolate, krom_set_pen_move_callback));
 		krom->Set(String::NewFromUtf8(isolate, "setGamepadAxisCallback"), FunctionTemplate::New(isolate, krom_set_gamepad_axis_callback));
 		krom->Set(String::NewFromUtf8(isolate, "setGamepadButtonCallback"), FunctionTemplate::New(isolate, krom_set_gamepad_button_callback));
 		krom->Set(String::NewFromUtf8(isolate, "lockMouse"), FunctionTemplate::New(isolate, krom_lock_mouse));
@@ -2037,6 +2071,63 @@ namespace {
 		Local<Value> result;
 		const int argc = 1;
 		Local<Value> argv[argc] = {Int32::New(isolate, delta)};
+		if (!func->Call(context, context->Global(), argc, argv).ToLocal(&result)) {
+			v8::String::Utf8Value stack_trace(try_catch.StackTrace());
+			sendLogMessage("Trace: %s", *stack_trace);
+		}
+	}
+
+	void penDown(int window, int x, int y, float pressure) {
+		v8::Locker locker{isolate};
+
+		Isolate::Scope isolate_scope(isolate);
+		HandleScope handle_scope(isolate);
+		v8::Local<v8::Context> context = v8::Local<v8::Context>::New(isolate, globalContext);
+		Context::Scope context_scope(context);
+
+		TryCatch try_catch(isolate);
+		v8::Local<v8::Function> func = v8::Local<v8::Function>::New(isolate, penDownFunction);
+		Local<Value> result;
+		const int argc = 3;
+		Local<Value> argv[argc] = {Int32::New(isolate, x), Int32::New(isolate, y), Number::New(isolate, pressure)};
+		if (!func->Call(context, context->Global(), argc, argv).ToLocal(&result)) {
+			v8::String::Utf8Value stack_trace(try_catch.StackTrace());
+			sendLogMessage("Trace: %s", *stack_trace);
+		}
+	}
+
+	void penUp(int window, int x, int y, float pressure) {
+		v8::Locker locker{isolate};
+
+		Isolate::Scope isolate_scope(isolate);
+		HandleScope handle_scope(isolate);
+		v8::Local<v8::Context> context = v8::Local<v8::Context>::New(isolate, globalContext);
+		Context::Scope context_scope(context);
+
+		TryCatch try_catch(isolate);
+		v8::Local<v8::Function> func = v8::Local<v8::Function>::New(isolate, penUpFunction);
+		Local<Value> result;
+		const int argc = 3;
+		Local<Value> argv[argc] = {Int32::New(isolate, x), Int32::New(isolate, y), Number::New(isolate, pressure)};
+		if (!func->Call(context, context->Global(), argc, argv).ToLocal(&result)) {
+			v8::String::Utf8Value stack_trace(try_catch.StackTrace());
+			sendLogMessage("Trace: %s", *stack_trace);
+		}
+	}
+
+	void penMove(int window, int x, int y, float pressure) {
+		v8::Locker locker{isolate};
+
+		Isolate::Scope isolate_scope(isolate);
+		HandleScope handle_scope(isolate);
+		v8::Local<v8::Context> context = v8::Local<v8::Context>::New(isolate, globalContext);
+		Context::Scope context_scope(context);
+
+		TryCatch try_catch(isolate);
+		v8::Local<v8::Function> func = v8::Local<v8::Function>::New(isolate, penMoveFunction);
+		Local<Value> result;
+		const int argc = 3;
+		Local<Value> argv[argc] = {Int32::New(isolate, x), Int32::New(isolate, y), Number::New(isolate, pressure)};
 		if (!func->Call(context, context->Global(), argc, argv).ToLocal(&result)) {
 			v8::String::Utf8Value stack_trace(try_catch.StackTrace());
 			sendLogMessage("Trace: %s", *stack_trace);
