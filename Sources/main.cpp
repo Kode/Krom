@@ -8,6 +8,7 @@
 #include <Kore/Graphics4/Graphics.h>
 #include <Kore/Graphics4/PipelineState.h>
 #include <Kore/Graphics4/Shader.h>
+#include <Kore/Compute/Compute.h>
 #include <Kore/Input/Keyboard.h>
 #include <Kore/Input/Mouse.h>
 #include <Kore/Input/Pen.h>
@@ -1662,6 +1663,281 @@ namespace {
 		args.GetReturnValue().Set(String::NewFromUtf8(isolate, Kore::System::savePath()));
 	}
 
+	void krom_set_bool_compute(const FunctionCallbackInfo<Value>& args) {
+		HandleScope scope(args.GetIsolate());
+		Local<External> locationfield = Local<External>::Cast(args[0]->ToObject()->GetInternalField(0));
+		Kore::ComputeConstantLocation* location = (Kore::ComputeConstantLocation*)locationfield->Value();
+		int32_t value = args[1]->ToInt32()->Value();
+		Kore::Compute::setBool(*location, value != 0);
+	}
+
+	void krom_set_int_compute(const FunctionCallbackInfo<Value>& args) {
+		HandleScope scope(args.GetIsolate());
+		Local<External> locationfield = Local<External>::Cast(args[0]->ToObject()->GetInternalField(0));
+		Kore::ComputeConstantLocation* location = (Kore::ComputeConstantLocation*)locationfield->Value();
+		int32_t value = args[1]->ToInt32()->Value();
+		Kore::Compute::setInt(*location, value);
+	}
+
+	void krom_set_float_compute(const FunctionCallbackInfo<Value>& args) {
+		HandleScope scope(args.GetIsolate());
+		Local<External> locationfield = Local<External>::Cast(args[0]->ToObject()->GetInternalField(0));
+		Kore::ComputeConstantLocation* location = (Kore::ComputeConstantLocation*)locationfield->Value();
+		float value = (float)args[1]->ToNumber()->Value();
+		Kore::Compute::setFloat(*location, value);
+	}
+
+	void krom_set_float2_compute(const FunctionCallbackInfo<Value>& args) {
+		HandleScope scope(args.GetIsolate());
+		Local<External> locationfield = Local<External>::Cast(args[0]->ToObject()->GetInternalField(0));
+		Kore::ComputeConstantLocation* location = (Kore::ComputeConstantLocation*)locationfield->Value();
+		float value1 = (float)args[1]->ToNumber()->Value();
+		float value2 = (float)args[2]->ToNumber()->Value();
+		Kore::Compute::setFloat2(*location, value1, value2);
+	}
+
+	void krom_set_float3_compute(const FunctionCallbackInfo<Value>& args) {
+		HandleScope scope(args.GetIsolate());
+		Local<External> locationfield = Local<External>::Cast(args[0]->ToObject()->GetInternalField(0));
+		Kore::ComputeConstantLocation* location = (Kore::ComputeConstantLocation*)locationfield->Value();
+		float value1 = (float)args[1]->ToNumber()->Value();
+		float value2 = (float)args[2]->ToNumber()->Value();
+		float value3 = (float)args[3]->ToNumber()->Value();
+		Kore::Compute::setFloat3(*location, value1, value2, value3);
+	}
+
+	void krom_set_float4_compute(const FunctionCallbackInfo<Value>& args) {
+		HandleScope scope(args.GetIsolate());
+		Local<External> locationfield = Local<External>::Cast(args[0]->ToObject()->GetInternalField(0));
+		Kore::ComputeConstantLocation* location = (Kore::ComputeConstantLocation*)locationfield->Value();
+		float value1 = (float)args[1]->ToNumber()->Value();
+		float value2 = (float)args[2]->ToNumber()->Value();
+		float value3 = (float)args[3]->ToNumber()->Value();
+		float value4 = (float)args[4]->ToNumber()->Value();
+		Kore::Compute::setFloat4(*location, value1, value2, value3, value4);
+	}
+
+	void krom_set_floats_compute(const FunctionCallbackInfo<Value>& args) {
+		HandleScope scope(args.GetIsolate());
+		Local<External> locationfield = Local<External>::Cast(args[0]->ToObject()->GetInternalField(0));
+		Kore::ComputeConstantLocation* location = (Kore::ComputeConstantLocation*)locationfield->Value();
+
+		Local<Float32Array> f32array = Local<Float32Array>::Cast(args[1]);
+		ArrayBuffer::Contents content;
+		if (f32array->Buffer()->IsExternal()) content = f32array->Buffer()->GetContents();
+		else content = f32array->Buffer()->Externalize();
+		float* from = (float*)content.Data();
+
+		Kore::Compute::setFloats(*location, from, int(content.ByteLength() / 4));
+	}
+
+	void krom_set_matrix_compute(const FunctionCallbackInfo<Value>& args) {
+		HandleScope scope(args.GetIsolate());
+		Local<External> locationfield = Local<External>::Cast(args[0]->ToObject()->GetInternalField(0));
+		Kore::ComputeConstantLocation* location = (Kore::ComputeConstantLocation*)locationfield->Value();
+
+		Local<Object> matrix = args[1]->ToObject();
+		float _00 = matrix->Get(String::NewFromUtf8(isolate, "_00"))->ToNumber()->Value();
+		float _01 = matrix->Get(String::NewFromUtf8(isolate, "_01"))->ToNumber()->Value();
+		float _02 = matrix->Get(String::NewFromUtf8(isolate, "_02"))->ToNumber()->Value();
+		float _03 = matrix->Get(String::NewFromUtf8(isolate, "_03"))->ToNumber()->Value();
+		float _10 = matrix->Get(String::NewFromUtf8(isolate, "_10"))->ToNumber()->Value();
+		float _11 = matrix->Get(String::NewFromUtf8(isolate, "_11"))->ToNumber()->Value();
+		float _12 = matrix->Get(String::NewFromUtf8(isolate, "_12"))->ToNumber()->Value();
+		float _13 = matrix->Get(String::NewFromUtf8(isolate, "_13"))->ToNumber()->Value();
+		float _20 = matrix->Get(String::NewFromUtf8(isolate, "_20"))->ToNumber()->Value();
+		float _21 = matrix->Get(String::NewFromUtf8(isolate, "_21"))->ToNumber()->Value();
+		float _22 = matrix->Get(String::NewFromUtf8(isolate, "_22"))->ToNumber()->Value();
+		float _23 = matrix->Get(String::NewFromUtf8(isolate, "_23"))->ToNumber()->Value();
+		float _30 = matrix->Get(String::NewFromUtf8(isolate, "_30"))->ToNumber()->Value();
+		float _31 = matrix->Get(String::NewFromUtf8(isolate, "_31"))->ToNumber()->Value();
+		float _32 = matrix->Get(String::NewFromUtf8(isolate, "_32"))->ToNumber()->Value();
+		float _33 = matrix->Get(String::NewFromUtf8(isolate, "_33"))->ToNumber()->Value();
+
+		Kore::mat4 m;
+		m.Set(0, 0, _00); m.Set(1, 0, _01); m.Set(2, 0, _02); m.Set(3, 0, _03);
+		m.Set(0, 1, _10); m.Set(1, 1, _11); m.Set(2, 1, _12); m.Set(3, 1, _13);
+		m.Set(0, 2, _20); m.Set(1, 2, _21); m.Set(2, 2, _22); m.Set(3, 2, _23);
+		m.Set(0, 3, _30); m.Set(1, 3, _31); m.Set(2, 3, _32); m.Set(3, 3, _33);
+
+		Kore::Compute::setMatrix(*location, m);
+	}
+
+	void krom_set_matrix3_compute(const FunctionCallbackInfo<Value>& args) {
+		HandleScope scope(args.GetIsolate());
+		Local<External> locationfield = Local<External>::Cast(args[0]->ToObject()->GetInternalField(0));
+		Kore::ComputeConstantLocation* location = (Kore::ComputeConstantLocation*)locationfield->Value();
+
+		Local<Object> matrix = args[1]->ToObject();
+		float _00 = matrix->Get(String::NewFromUtf8(isolate, "_00"))->ToNumber()->Value();
+		float _01 = matrix->Get(String::NewFromUtf8(isolate, "_01"))->ToNumber()->Value();
+		float _02 = matrix->Get(String::NewFromUtf8(isolate, "_02"))->ToNumber()->Value();
+		float _10 = matrix->Get(String::NewFromUtf8(isolate, "_10"))->ToNumber()->Value();
+		float _11 = matrix->Get(String::NewFromUtf8(isolate, "_11"))->ToNumber()->Value();
+		float _12 = matrix->Get(String::NewFromUtf8(isolate, "_12"))->ToNumber()->Value();
+		float _20 = matrix->Get(String::NewFromUtf8(isolate, "_20"))->ToNumber()->Value();
+		float _21 = matrix->Get(String::NewFromUtf8(isolate, "_21"))->ToNumber()->Value();
+		float _22 = matrix->Get(String::NewFromUtf8(isolate, "_22"))->ToNumber()->Value();
+
+		Kore::mat3 m;
+		m.Set(0, 0, _00); m.Set(1, 0, _01); m.Set(2, 0, _02);
+		m.Set(0, 1, _10); m.Set(1, 1, _11); m.Set(2, 1, _12);
+		m.Set(0, 2, _20); m.Set(1, 2, _21); m.Set(2, 2, _22);
+
+		Kore::Compute::setMatrix(*location, m);
+	}
+
+	void krom_set_texture_compute(const FunctionCallbackInfo<Value>& args) {
+		HandleScope scope(args.GetIsolate());
+		Local<External> unitfield = Local<External>::Cast(args[0]->ToObject()->GetInternalField(0));
+		Kore::ComputeTextureUnit* unit = (Kore::ComputeTextureUnit*)unitfield->Value();
+		if (args[1]->IsNull() || args[1]->IsUndefined()) return;
+		Local<Object> image = args[1]->ToObject();
+		Local<Value> tex = image->Get(String::NewFromUtf8(isolate, "texture_"));
+		Local<Value> rt = image->Get(String::NewFromUtf8(isolate, "renderTarget_"));
+		int access = args[2]->ToInt32()->Int32Value();
+		if (tex->IsObject()) {
+			Local<External> texfield = Local<External>::Cast(tex->ToObject()->GetInternalField(0));
+			Kore::Graphics4::Texture* texture = (Kore::Graphics4::Texture*)texfield->Value();
+			Kore::Compute::setTexture(*unit, texture, (Kore::Compute::Access)access);
+		}
+		else if (rt->IsObject()) {
+			Local<External> rtfield = Local<External>::Cast(rt->ToObject()->GetInternalField(0));
+			Kore::Graphics4::RenderTarget* renderTarget = (Kore::Graphics4::RenderTarget*)rtfield->Value();
+			Kore::Compute::setTexture(*unit, renderTarget, (Kore::Compute::Access)access);
+		}
+	}
+
+	void krom_set_sampled_texture_compute(const FunctionCallbackInfo<Value>& args) {
+		HandleScope scope(args.GetIsolate());
+		Local<External> unitfield = Local<External>::Cast(args[0]->ToObject()->GetInternalField(0));
+		Kore::ComputeTextureUnit* unit = (Kore::ComputeTextureUnit*)unitfield->Value();
+		if (args[1]->IsNull() || args[1]->IsUndefined()) return;
+		Local<Object> image = args[1]->ToObject();
+		Local<Value> tex = image->Get(String::NewFromUtf8(isolate, "texture_"));
+		Local<Value> rt = image->Get(String::NewFromUtf8(isolate, "renderTarget_"));
+		if (tex->IsObject()) {
+			Local<External> texfield = Local<External>::Cast(tex->ToObject()->GetInternalField(0));
+			Kore::Graphics4::Texture* texture = (Kore::Graphics4::Texture*)texfield->Value();
+			Kore::Compute::setSampledTexture(*unit, texture);
+		}
+		else if (rt->IsObject()) {
+			Local<External> rtfield = Local<External>::Cast(rt->ToObject()->GetInternalField(0));
+			Kore::Graphics4::RenderTarget* renderTarget = (Kore::Graphics4::RenderTarget*)rtfield->Value();
+			Kore::Compute::setSampledTexture(*unit, renderTarget);
+		}
+	}
+
+	void krom_set_sampled_depth_texture_compute(const FunctionCallbackInfo<Value>& args) {
+		HandleScope scope(args.GetIsolate());
+		Local<External> unitfield = Local<External>::Cast(args[0]->ToObject()->GetInternalField(0));
+		Kore::ComputeTextureUnit* unit = (Kore::ComputeTextureUnit*)unitfield->Value();
+
+		if (args[1]->IsNull() || args[1]->IsUndefined()) return;
+
+		Local<Object> image = args[1]->ToObject();
+		Local<Value> rt = image->Get(String::NewFromUtf8(isolate, "renderTarget_"));
+		if (rt->IsObject()) {
+			Local<External> rtfield = Local<External>::Cast(rt->ToObject()->GetInternalField(0));
+			Kore::Graphics4::RenderTarget* renderTarget = (Kore::Graphics4::RenderTarget*)rtfield->Value();
+			Kore::Compute::setSampledDepthTexture(*unit, renderTarget);
+		}
+	}
+
+	void krom_set_texture_parameters_compute(const FunctionCallbackInfo<Value>& args) {
+		HandleScope scope(args.GetIsolate());
+		Local<External> unitfield = Local<External>::Cast(args[0]->ToObject()->GetInternalField(0));
+		Kore::ComputeTextureUnit* unit = (Kore::ComputeTextureUnit*)unitfield->Value();
+		Kore::Compute::setTextureAddressing(*unit, Kore::Graphics4::U, convertTextureAddressing(args[1]->ToInt32()->Int32Value()));
+		Kore::Compute::setTextureAddressing(*unit, Kore::Graphics4::V, convertTextureAddressing(args[2]->ToInt32()->Int32Value()));
+		Kore::Compute::setTextureMinificationFilter(*unit, convertTextureFilter(args[3]->ToInt32()->Int32Value()));
+		Kore::Compute::setTextureMagnificationFilter(*unit, convertTextureFilter(args[4]->ToInt32()->Int32Value()));
+		Kore::Compute::setTextureMipmapFilter(*unit, convertMipmapFilter(args[5]->ToInt32()->Int32Value()));
+	}
+
+	void krom_set_texture_3d_parameters_compute(const FunctionCallbackInfo<Value>& args) {
+		HandleScope scope(args.GetIsolate());
+		Local<External> unitfield = Local<External>::Cast(args[0]->ToObject()->GetInternalField(0));
+		Kore::ComputeTextureUnit* unit = (Kore::ComputeTextureUnit*)unitfield->Value();
+		Kore::Compute::setTexture3DAddressing(*unit, Kore::Graphics4::U, convertTextureAddressing(args[1]->ToInt32()->Int32Value()));
+		Kore::Compute::setTexture3DAddressing(*unit, Kore::Graphics4::V, convertTextureAddressing(args[2]->ToInt32()->Int32Value()));
+		Kore::Compute::setTexture3DAddressing(*unit, Kore::Graphics4::W, convertTextureAddressing(args[3]->ToInt32()->Int32Value()));
+		Kore::Compute::setTexture3DMinificationFilter(*unit, convertTextureFilter(args[4]->ToInt32()->Int32Value()));
+		Kore::Compute::setTexture3DMagnificationFilter(*unit, convertTextureFilter(args[5]->ToInt32()->Int32Value()));
+		Kore::Compute::setTexture3DMipmapFilter(*unit, convertMipmapFilter(args[6]->ToInt32()->Int32Value()));
+	}
+
+	void krom_set_shader_compute(const FunctionCallbackInfo<Value>& args) {
+		HandleScope scope(args.GetIsolate());
+		Local<External> shaderfield = Local<External>::Cast(args[0]->ToObject()->GetInternalField(0));
+		Kore::ComputeShader* shader = (Kore::ComputeShader*)shaderfield->Value();
+		Kore::Compute::setShader(shader);
+	}
+
+	void krom_create_shader_compute(const FunctionCallbackInfo<Value>& args) {
+		HandleScope scope(args.GetIsolate());
+		Local<ArrayBuffer> buffer = Local<ArrayBuffer>::Cast(args[0]);
+		ArrayBuffer::Contents content;
+		if (buffer->IsExternal()) content = buffer->GetContents();
+		else content = buffer->Externalize();
+		Kore::ComputeShader* shader = new Kore::ComputeShader(content.Data(), (int)content.ByteLength());
+
+		Local<ObjectTemplate> templ = ObjectTemplate::New(isolate);
+		templ->SetInternalFieldCount(1);
+
+		Local<Object> obj = templ->NewInstance(isolate->GetCurrentContext()).ToLocalChecked();
+		obj->SetInternalField(0, External::New(isolate, shader));
+		args.GetReturnValue().Set(obj);
+	}
+
+	void krom_delete_shader_compute(const FunctionCallbackInfo<Value>& args) {
+		HandleScope scope(args.GetIsolate());
+		Local<Object> shaderobj = args[0]->ToObject();
+		Local<External> shaderfield = Local<External>::Cast(shaderobj->GetInternalField(0));
+		Kore::ComputeShader* shader = (Kore::ComputeShader*)shaderfield->Value();
+		delete shader;
+	}
+
+	void krom_get_constant_location_compute(const FunctionCallbackInfo<Value>& args) {
+		HandleScope scope(args.GetIsolate());
+		Local<External> shaderfield = Local<External>::Cast(args[0]->ToObject()->GetInternalField(0));
+		Kore::ComputeShader* shader = (Kore::ComputeShader*)shaderfield->Value();
+
+		String::Utf8Value utf8_value(args[1]);
+		Kore::ComputeConstantLocation location = shader->getConstantLocation(*utf8_value);
+
+		Local<ObjectTemplate> templ = ObjectTemplate::New(isolate);
+		templ->SetInternalFieldCount(1);
+
+		Local<Object> obj = templ->NewInstance(isolate->GetCurrentContext()).ToLocalChecked();
+		obj->SetInternalField(0, External::New(isolate, new Kore::ComputeConstantLocation(location)));
+		args.GetReturnValue().Set(obj);
+	}
+
+	void krom_get_texture_unit_compute(const FunctionCallbackInfo<Value>& args) {
+		HandleScope scope(args.GetIsolate());
+		Local<External> shaderfield = Local<External>::Cast(args[0]->ToObject()->GetInternalField(0));
+		Kore::ComputeShader* shader = (Kore::ComputeShader*)shaderfield->Value();
+
+		String::Utf8Value utf8_value(args[1]);
+		Kore::ComputeTextureUnit unit = shader->getTextureUnit(*utf8_value);
+
+		Local<ObjectTemplate> templ = ObjectTemplate::New(isolate);
+		templ->SetInternalFieldCount(1);
+
+		Local<Object> obj = templ->NewInstance(isolate->GetCurrentContext()).ToLocalChecked();
+		obj->SetInternalField(0, External::New(isolate, new Kore::ComputeTextureUnit(unit)));
+		args.GetReturnValue().Set(obj);
+	}
+
+	void krom_compute(const FunctionCallbackInfo<Value>& args) {
+		HandleScope scope(args.GetIsolate());
+		int x = args[0]->ToInt32()->Value();
+		int y = args[1]->ToInt32()->Value();
+		int z = args[2]->ToInt32()->Value();
+		Kore::Compute::compute(x, y, z);
+	}
+
 	void startV8(const char* bindir) {
 #if defined(KORE_MACOS)
 		char filepath[256];
@@ -1791,6 +2067,26 @@ namespace {
 		krom->Set(String::NewFromUtf8(isolate, "fileSaveBytes"), FunctionTemplate::New(isolate, krom_file_save_bytes));
 		krom->Set(String::NewFromUtf8(isolate, "sysCommand"), FunctionTemplate::New(isolate, krom_sys_command));
 		krom->Set(String::NewFromUtf8(isolate, "savePath"), FunctionTemplate::New(isolate, krom_save_path));
+		krom->Set(String::NewFromUtf8(isolate, "setBoolCompute"), FunctionTemplate::New(isolate, krom_set_bool_compute));
+		krom->Set(String::NewFromUtf8(isolate, "setIntCompute"), FunctionTemplate::New(isolate, krom_set_int_compute));
+		krom->Set(String::NewFromUtf8(isolate, "setFloatCompute"), FunctionTemplate::New(isolate, krom_set_float_compute));
+		krom->Set(String::NewFromUtf8(isolate, "setFloat2Compute"), FunctionTemplate::New(isolate, krom_set_float2_compute));
+		krom->Set(String::NewFromUtf8(isolate, "setFloat3Compute"), FunctionTemplate::New(isolate, krom_set_float3_compute));
+		krom->Set(String::NewFromUtf8(isolate, "setFloat4Compute"), FunctionTemplate::New(isolate, krom_set_float4_compute));
+		krom->Set(String::NewFromUtf8(isolate, "setFloatsCompute"), FunctionTemplate::New(isolate, krom_set_floats_compute));
+		krom->Set(String::NewFromUtf8(isolate, "setMatrixCompute"), FunctionTemplate::New(isolate, krom_set_matrix_compute));
+		krom->Set(String::NewFromUtf8(isolate, "setMatrix3Compute"), FunctionTemplate::New(isolate, krom_set_matrix3_compute));
+		krom->Set(String::NewFromUtf8(isolate, "setTextureCompute"), FunctionTemplate::New(isolate, krom_set_texture_compute));
+		krom->Set(String::NewFromUtf8(isolate, "setSampledTextureCompute"), FunctionTemplate::New(isolate, krom_set_sampled_texture_compute));
+		krom->Set(String::NewFromUtf8(isolate, "setSampledDepthTextureCompute"), FunctionTemplate::New(isolate, krom_set_sampled_depth_texture_compute));
+		krom->Set(String::NewFromUtf8(isolate, "setTextureParametersCompute"), FunctionTemplate::New(isolate, krom_set_texture_parameters_compute));
+		krom->Set(String::NewFromUtf8(isolate, "setTexture3DParametersCompute"), FunctionTemplate::New(isolate, krom_set_texture_3d_parameters_compute));
+		krom->Set(String::NewFromUtf8(isolate, "setShaderCompute"), FunctionTemplate::New(isolate, krom_set_shader_compute));
+		krom->Set(String::NewFromUtf8(isolate, "deleteShaderCompute"), FunctionTemplate::New(isolate, krom_delete_shader_compute));
+		krom->Set(String::NewFromUtf8(isolate, "createShaderCompute"), FunctionTemplate::New(isolate, krom_create_shader_compute));
+		krom->Set(String::NewFromUtf8(isolate, "getConstantLocationCompute"), FunctionTemplate::New(isolate, krom_get_constant_location_compute));
+		krom->Set(String::NewFromUtf8(isolate, "getTextureUnitCompute"), FunctionTemplate::New(isolate, krom_get_texture_unit_compute));
+		krom->Set(String::NewFromUtf8(isolate, "compute"), FunctionTemplate::New(isolate, krom_compute));
 
 		Local<ObjectTemplate> global = ObjectTemplate::New(isolate);
 		global->Set(String::NewFromUtf8(isolate, "Krom"), krom);
