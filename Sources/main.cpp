@@ -139,15 +139,13 @@ namespace {
 		options.rendererOptions.antialiasing = samplesPerPixel;
 		Kore::System::initWindow(options);
 
-		//Mixer::init();
-		//Audio::init();
 		mutex.create();
 		if (!nosound) {
 			Kore::Audio2::audioCallback = mix;
 			Kore::Audio2::init();
 			initAudioBuffer();
 		}
-		Kore::Random::init(Kore::System::time() * 1000);
+		Kore::Random::init((int)(Kore::System::time() * 1000));
 
 		Kore::System::setCallback(update);
 		Kore::System::setDropFilesCallback(dropFiles);
@@ -170,8 +168,6 @@ namespace {
 		Kore::Gamepad::get(2)->Button = gamepad3Button;
 		Kore::Gamepad::get(3)->Axis = gamepad4Axis;
 		Kore::Gamepad::get(3)->Button = gamepad4Button;
-
-		//Mixer::play(music);
 	}
 
 	void sendLogMessageArgs(const char* format, va_list args) {
@@ -208,7 +204,7 @@ namespace {
 		HandleScope scope(args.GetIsolate());
 		int flags = args[0]->ToInt32()->Value();
 		int color = args[1]->ToInt32()->Value();
-		float depth = args[2]->ToNumber()->Value();
+		float depth = (float)args[2]->ToNumber()->Value();
 		int stencil = args[3]->ToInt32()->Value();
 		Kore::Graphics4::clear(flags, color, depth, stencil);
 	}
@@ -345,8 +341,6 @@ namespace {
 
 		if (lock) mutex.lock();    //v8::Locker::Locker(isolate);
 		else mutex.unlock();       //v8::Unlocker(args.GetIsolate());
-
-
 	}
 
 	void krom_create_indexbuffer(const FunctionCallbackInfo<Value>& args) {
@@ -367,22 +361,19 @@ namespace {
 		delete buffer;
 	}
 
-	void krom_set_indices(const FunctionCallbackInfo<Value>& args) {
+	void krom_lock_index_buffer(const FunctionCallbackInfo<Value>& args) {
 		HandleScope scope(args.GetIsolate());
-
 		Local<External> field = Local<External>::Cast(args[0]->ToObject()->GetInternalField(0));
 		Kore::Graphics4::IndexBuffer* buffer = (Kore::Graphics4::IndexBuffer*)field->Value();
+		int* vertices = buffer->lock();
+		Local<ArrayBuffer> abuffer = ArrayBuffer::New(isolate, vertices, buffer->count() * sizeof(int));
+		args.GetReturnValue().Set(Uint32Array::New(abuffer, 0, buffer->count()));
+	}
 
-		Local<Uint32Array> u32array = Local<Uint32Array>::Cast(args[1]);
-		ArrayBuffer::Contents content;
-		if (u32array->Buffer()->IsExternal()) content = u32array->Buffer()->GetContents();
-		else content = u32array->Buffer()->Externalize();
-
-		int* from = (int*)content.Data();
-		int* indices = buffer->lock();
-		for (int32_t i = 0; i < buffer->count(); ++i) {
-			indices[i] = from[i];
-		}
+	void krom_unlock_index_buffer(const FunctionCallbackInfo<Value>& args) {
+		HandleScope scope(args.GetIsolate());
+		Local<External> field = Local<External>::Cast(args[0]->ToObject()->GetInternalField(0));
+		Kore::Graphics4::IndexBuffer* buffer = (Kore::Graphics4::IndexBuffer*)field->Value();
 		buffer->unlock();
 	}
 
@@ -442,22 +433,19 @@ namespace {
 		delete buffer;
 	}
 
-	void krom_set_vertices(const FunctionCallbackInfo<Value>& args) {
+	void krom_lock_vertex_buffer(const FunctionCallbackInfo<Value>& args) {
 		HandleScope scope(args.GetIsolate());
-
 		Local<External> field = Local<External>::Cast(args[0]->ToObject()->GetInternalField(0));
 		Kore::Graphics4::VertexBuffer* buffer = (Kore::Graphics4::VertexBuffer*)field->Value();
-
-		Local<Float32Array> f32array = Local<Float32Array>::Cast(args[1]);
-		ArrayBuffer::Contents content;
-		if (f32array->Buffer()->IsExternal()) content = f32array->Buffer()->GetContents();
-		else content = f32array->Buffer()->Externalize();
-
-		float* from = (float*)content.Data();
 		float* vertices = buffer->lock();
-		for (int32_t i = 0; i < buffer->count() * buffer->stride() / 4; ++i) {
-			vertices[i] = from[i];
-		}
+		Local<ArrayBuffer> abuffer = ArrayBuffer::New(isolate, vertices, buffer->count() * buffer->stride());
+		args.GetReturnValue().Set(Float32Array::New(abuffer, 0, buffer->count() * buffer->stride() / 4));
+	}
+
+	void krom_unlock_vertex_buffer(const FunctionCallbackInfo<Value>& args) {
+		HandleScope scope(args.GetIsolate());
+		Local<External> field = Local<External>::Cast(args[0]->ToObject()->GetInternalField(0));
+		Kore::Graphics4::VertexBuffer* buffer = (Kore::Graphics4::VertexBuffer*)field->Value();
 		buffer->unlock();
 	}
 
@@ -805,85 +793,87 @@ namespace {
 		Local<External> progfield = Local<External>::Cast(progobj->GetInternalField(0));
 		Kore::Graphics4::PipelineState* pipeline = (Kore::Graphics4::PipelineState*)progfield->Value();
 
-		Local<Value> vsnameobj = progobj->Get(String::NewFromUtf8(isolate, "vsname"));
-		String::Utf8Value vsname(vsnameobj);
+		if (debugMode) {
+			Local<Value> vsnameobj = progobj->Get(String::NewFromUtf8(isolate, "vsname"));
+			String::Utf8Value vsname(vsnameobj);
 
-		Local<Value> fsnameobj = progobj->Get(String::NewFromUtf8(isolate, "fsname"));
-		String::Utf8Value fsname(fsnameobj);
+			Local<Value> fsnameobj = progobj->Get(String::NewFromUtf8(isolate, "fsname"));
+			String::Utf8Value fsname(fsnameobj);
 
-		bool shaderChanged = false;
+			bool shaderChanged = false;
 
-		if (shaderChanges[*vsname]) {
-			shaderChanged = true;
-			sendLogMessage("Reloading shader %s.", *vsname);
-			std::string filename = shaderFileNames[*vsname];
-			std::ifstream input((shadersdir + "/" + filename).c_str(), std::ios::binary );
-			std::vector<char> buffer((std::istreambuf_iterator<char>(input)), (std::istreambuf_iterator<char>()));
-			Kore::Graphics4::Shader* vertexShader = new Kore::Graphics4::Shader(buffer.data(), (int)buffer.size(), Kore::Graphics4::VertexShader);
-			progobj->SetInternalField(3, External::New(isolate, vertexShader));
-			shaderChanges[*vsname] = false;
-		}
-
-		if (shaderChanges[*fsname]) {
-			shaderChanged = true;
-			sendLogMessage("Reloading shader %s.", *fsname);
-			std::string filename = shaderFileNames[*fsname];
-			std::ifstream input((shadersdir + "/" + filename).c_str(), std::ios::binary );
-			std::vector<char> buffer((std::istreambuf_iterator<char>(input)), (std::istreambuf_iterator<char>()));
-			Kore::Graphics4::Shader* fragmentShader = new Kore::Graphics4::Shader(buffer.data(), (int)buffer.size(), Kore::Graphics4::FragmentShader);
-			progobj->SetInternalField(4, External::New(isolate, fragmentShader));
-			shaderChanges[*fsname] = false;
-		}
-
-		Local<Value> gsnameobj = progobj->Get(String::NewFromUtf8(isolate, "gsname"));
-		if (!gsnameobj->IsNull() && !gsnameobj->IsUndefined()) {
-			String::Utf8Value gsname(gsnameobj);
-			if (shaderChanges[*gsname]) {
+			if (shaderChanges[*vsname]) {
 				shaderChanged = true;
-				sendLogMessage("Reloading shader %s.", *gsname);
-				std::string filename = shaderFileNames[*gsname];
-				std::ifstream input((shadersdir + "/" + filename).c_str(), std::ios::binary );
+				sendLogMessage("Reloading shader %s.", *vsname);
+				std::string filename = shaderFileNames[*vsname];
+				std::ifstream input((shadersdir + "/" + filename).c_str(), std::ios::binary);
 				std::vector<char> buffer((std::istreambuf_iterator<char>(input)), (std::istreambuf_iterator<char>()));
-				Kore::Graphics4::Shader* geometryShader = new Kore::Graphics4::Shader(buffer.data(), (int)buffer.size(), Kore::Graphics4::GeometryShader);
-				progobj->SetInternalField(5, External::New(isolate, geometryShader));
-				shaderChanges[*gsname] = false;
+				Kore::Graphics4::Shader* vertexShader = new Kore::Graphics4::Shader(buffer.data(), (int)buffer.size(), Kore::Graphics4::VertexShader);
+				progobj->SetInternalField(3, External::New(isolate, vertexShader));
+				shaderChanges[*vsname] = false;
 			}
-		}
 
-		Local<Value> tcsnameobj = progobj->Get(String::NewFromUtf8(isolate, "tcsname"));
-		if (!tcsnameobj->IsNull() && !tcsnameobj->IsUndefined()) {
-			String::Utf8Value tcsname(tcsnameobj);
-			if (shaderChanges[*tcsname]) {
+			if (shaderChanges[*fsname]) {
 				shaderChanged = true;
-				sendLogMessage("Reloading shader %s.", *tcsname);
-				std::string filename = shaderFileNames[*tcsname];
-				std::ifstream input((shadersdir + "/" + filename).c_str(), std::ios::binary );
+				sendLogMessage("Reloading shader %s.", *fsname);
+				std::string filename = shaderFileNames[*fsname];
+				std::ifstream input((shadersdir + "/" + filename).c_str(), std::ios::binary);
 				std::vector<char> buffer((std::istreambuf_iterator<char>(input)), (std::istreambuf_iterator<char>()));
-				Kore::Graphics4::Shader* tessellationControlShader = new Kore::Graphics4::Shader(buffer.data(), (int)buffer.size(), Kore::Graphics4::TessellationControlShader);
-				progobj->SetInternalField(6, External::New(isolate, tessellationControlShader));
-				shaderChanges[*tcsname] = false;
+				Kore::Graphics4::Shader* fragmentShader = new Kore::Graphics4::Shader(buffer.data(), (int)buffer.size(), Kore::Graphics4::FragmentShader);
+				progobj->SetInternalField(4, External::New(isolate, fragmentShader));
+				shaderChanges[*fsname] = false;
 			}
-		}
 
-		Local<Value> tesnameobj = progobj->Get(String::NewFromUtf8(isolate, "tesname"));
-		if (!tesnameobj->IsNull() && !tesnameobj->IsUndefined()) {
-			String::Utf8Value tesname(tesnameobj);
-			if (shaderChanges[*tesname]) {
-				shaderChanged = true;
-				sendLogMessage("Reloading shader %s.", *tesname);
-				std::string filename = shaderFileNames[*tesname];
-				std::ifstream input((shadersdir + "/" + filename).c_str(), std::ios::binary );
-				std::vector<char> buffer((std::istreambuf_iterator<char>(input)), (std::istreambuf_iterator<char>()));
-				Kore::Graphics4::Shader* tessellationEvaluationShader = new Kore::Graphics4::Shader(buffer.data(), (int)buffer.size(), Kore::Graphics4::TessellationEvaluationShader);
-				progobj->SetInternalField(7, External::New(isolate, tessellationEvaluationShader));
-				shaderChanges[*tesname] = false;
+			Local<Value> gsnameobj = progobj->Get(String::NewFromUtf8(isolate, "gsname"));
+			if (!gsnameobj->IsNull() && !gsnameobj->IsUndefined()) {
+				String::Utf8Value gsname(gsnameobj);
+				if (shaderChanges[*gsname]) {
+					shaderChanged = true;
+					sendLogMessage("Reloading shader %s.", *gsname);
+					std::string filename = shaderFileNames[*gsname];
+					std::ifstream input((shadersdir + "/" + filename).c_str(), std::ios::binary);
+					std::vector<char> buffer((std::istreambuf_iterator<char>(input)), (std::istreambuf_iterator<char>()));
+					Kore::Graphics4::Shader* geometryShader = new Kore::Graphics4::Shader(buffer.data(), (int)buffer.size(), Kore::Graphics4::GeometryShader);
+					progobj->SetInternalField(5, External::New(isolate, geometryShader));
+					shaderChanges[*gsname] = false;
+				}
 			}
-		}
 
-		if (shaderChanged) {
-			recompilePipeline(progobj);
-			Local<External> progfield = Local<External>::Cast(progobj->GetInternalField(0));
-			pipeline = (Kore::Graphics4::PipelineState*)progfield->Value();
+			Local<Value> tcsnameobj = progobj->Get(String::NewFromUtf8(isolate, "tcsname"));
+			if (!tcsnameobj->IsNull() && !tcsnameobj->IsUndefined()) {
+				String::Utf8Value tcsname(tcsnameobj);
+				if (shaderChanges[*tcsname]) {
+					shaderChanged = true;
+					sendLogMessage("Reloading shader %s.", *tcsname);
+					std::string filename = shaderFileNames[*tcsname];
+					std::ifstream input((shadersdir + "/" + filename).c_str(), std::ios::binary);
+					std::vector<char> buffer((std::istreambuf_iterator<char>(input)), (std::istreambuf_iterator<char>()));
+					Kore::Graphics4::Shader* tessellationControlShader = new Kore::Graphics4::Shader(buffer.data(), (int)buffer.size(), Kore::Graphics4::TessellationControlShader);
+					progobj->SetInternalField(6, External::New(isolate, tessellationControlShader));
+					shaderChanges[*tcsname] = false;
+				}
+			}
+
+			Local<Value> tesnameobj = progobj->Get(String::NewFromUtf8(isolate, "tesname"));
+			if (!tesnameobj->IsNull() && !tesnameobj->IsUndefined()) {
+				String::Utf8Value tesname(tesnameobj);
+				if (shaderChanges[*tesname]) {
+					shaderChanged = true;
+					sendLogMessage("Reloading shader %s.", *tesname);
+					std::string filename = shaderFileNames[*tesname];
+					std::ifstream input((shadersdir + "/" + filename).c_str(), std::ios::binary);
+					std::vector<char> buffer((std::istreambuf_iterator<char>(input)), (std::istreambuf_iterator<char>()));
+					Kore::Graphics4::Shader* tessellationEvaluationShader = new Kore::Graphics4::Shader(buffer.data(), (int)buffer.size(), Kore::Graphics4::TessellationEvaluationShader);
+					progobj->SetInternalField(7, External::New(isolate, tessellationEvaluationShader));
+					shaderChanges[*tesname] = false;
+				}
+			}
+
+			if (shaderChanged) {
+				recompilePipeline(progobj);
+				Local<External> progfield = Local<External>::Cast(progobj->GetInternalField(0));
+				pipeline = (Kore::Graphics4::PipelineState*)progfield->Value();
+			}
 		}
 
 		Kore::Graphics4::setPipeline(pipeline);
@@ -944,8 +934,8 @@ namespace {
 			float* to = (float*)content.Data();
 
 			for (int i = 0; i < sound->size; i += 2) {
-				to[i + 0] = sound->left[i / 2] / 255.0 * 2.0 - 1.0;
-				to[i + 1] = sound->right[i / 2] / 255.0 * 2.0 - 1.0;
+				to[i + 0] = (float)(sound->left[i / 2] / 255.0 * 2.0 - 1.0);
+				to[i + 1] = (float)(sound->right[i / 2] / 255.0 * 2.0 - 1.0);
 			}
 		}
 		else if (sound->format.bitsPerSample == 16) {
@@ -1040,24 +1030,27 @@ namespace {
 
 		Local<Object> image = args[1]->ToObject();
 		Local<Value> tex = image->Get(String::NewFromUtf8(isolate, "texture_"));
-		Local<Value> rt = image->Get(String::NewFromUtf8(isolate, "renderTarget_"));
-
 		if (tex->IsObject()) {
 			Kore::Graphics4::Texture* texture;
-			String::Utf8Value filename(tex->ToObject()->Get(String::NewFromUtf8(isolate, "filename")));
-			if (imageChanges[*filename]) {
-				imageChanges[*filename] = false;
-				sendLogMessage("Image %s changed.", *filename);
-				texture = new Kore::Graphics4::Texture(*filename);
-				tex->ToObject()->SetInternalField(0, External::New(isolate, texture));
+			bool imageChanged = false;
+			if (debugMode) {
+				String::Utf8Value filename(tex->ToObject()->Get(String::NewFromUtf8(isolate, "filename")));
+				if (imageChanges[*filename]) {
+					imageChanges[*filename] = false;
+					sendLogMessage("Image %s changed.", *filename);
+					texture = new Kore::Graphics4::Texture(*filename);
+					tex->ToObject()->SetInternalField(0, External::New(isolate, texture));
+					imageChanged = true;
+				}
 			}
-			else {
+			if (!imageChanged) {
 				Local<External> texfield = Local<External>::Cast(tex->ToObject()->GetInternalField(0));
 				texture = (Kore::Graphics4::Texture*)texfield->Value();
 			}
 			Kore::Graphics4::setTexture(*unit, texture);
 		}
-		else if (rt->IsObject()) {
+		else {
+			Local<Value> rt = image->Get(String::NewFromUtf8(isolate, "renderTarget_"));
 			Local<External> rtfield = Local<External>::Cast(rt->ToObject()->GetInternalField(0));
 			Kore::Graphics4::RenderTarget* renderTarget = (Kore::Graphics4::RenderTarget*)rtfield->Value();
 			renderTarget->useColorAsTexture(*unit);
@@ -1228,29 +1221,16 @@ namespace {
 		Local<External> locationfield = Local<External>::Cast(args[0]->ToObject()->GetInternalField(0));
 		Kore::Graphics4::ConstantLocation* location = (Kore::Graphics4::ConstantLocation*)locationfield->Value();
 
-		Local<Object> matrix = args[1]->ToObject();
-		float _00 = matrix->Get(String::NewFromUtf8(isolate, "_00"))->ToNumber()->Value();
-		float _01 = matrix->Get(String::NewFromUtf8(isolate, "_01"))->ToNumber()->Value();
-		float _02 = matrix->Get(String::NewFromUtf8(isolate, "_02"))->ToNumber()->Value();
-		float _03 = matrix->Get(String::NewFromUtf8(isolate, "_03"))->ToNumber()->Value();
-		float _10 = matrix->Get(String::NewFromUtf8(isolate, "_10"))->ToNumber()->Value();
-		float _11 = matrix->Get(String::NewFromUtf8(isolate, "_11"))->ToNumber()->Value();
-		float _12 = matrix->Get(String::NewFromUtf8(isolate, "_12"))->ToNumber()->Value();
-		float _13 = matrix->Get(String::NewFromUtf8(isolate, "_13"))->ToNumber()->Value();
-		float _20 = matrix->Get(String::NewFromUtf8(isolate, "_20"))->ToNumber()->Value();
-		float _21 = matrix->Get(String::NewFromUtf8(isolate, "_21"))->ToNumber()->Value();
-		float _22 = matrix->Get(String::NewFromUtf8(isolate, "_22"))->ToNumber()->Value();
-		float _23 = matrix->Get(String::NewFromUtf8(isolate, "_23"))->ToNumber()->Value();
-		float _30 = matrix->Get(String::NewFromUtf8(isolate, "_30"))->ToNumber()->Value();
-		float _31 = matrix->Get(String::NewFromUtf8(isolate, "_31"))->ToNumber()->Value();
-		float _32 = matrix->Get(String::NewFromUtf8(isolate, "_32"))->ToNumber()->Value();
-		float _33 = matrix->Get(String::NewFromUtf8(isolate, "_33"))->ToNumber()->Value();
-
+		Local<Float32Array> f32array = Local<Float32Array>::Cast(args[1]);
+		ArrayBuffer::Contents content;
+		if (f32array->Buffer()->IsExternal()) content = f32array->Buffer()->GetContents();
+		else content = f32array->Buffer()->Externalize();
+		float* from = (float*)content.Data();
 		Kore::mat4 m;
-		m.Set(0, 0, _00); m.Set(1, 0, _01); m.Set(2, 0, _02); m.Set(3, 0, _03);
-		m.Set(0, 1, _10); m.Set(1, 1, _11); m.Set(2, 1, _12); m.Set(3, 1, _13);
-		m.Set(0, 2, _20); m.Set(1, 2, _21); m.Set(2, 2, _22); m.Set(3, 2, _23);
-		m.Set(0, 3, _30); m.Set(1, 3, _31); m.Set(2, 3, _32); m.Set(3, 3, _33);
+		m.Set(0, 0, from[0]); m.Set(1, 0, from[1]); m.Set(2, 0, from[2]); m.Set(3, 0, from[3]);
+		m.Set(0, 1, from[4]); m.Set(1, 1, from[5]); m.Set(2, 1, from[6]); m.Set(3, 1, from[7]);
+		m.Set(0, 2, from[8]); m.Set(1, 2, from[9]); m.Set(2, 2, from[10]); m.Set(3, 2, from[11]);
+		m.Set(0, 3, from[12]); m.Set(1, 3, from[13]); m.Set(2, 3, from[14]); m.Set(3, 3, from[15]);
 
 		Kore::Graphics4::setMatrix(*location, m);
 	}
@@ -1260,21 +1240,15 @@ namespace {
 		Local<External> locationfield = Local<External>::Cast(args[0]->ToObject()->GetInternalField(0));
 		Kore::Graphics4::ConstantLocation* location = (Kore::Graphics4::ConstantLocation*)locationfield->Value();
 
-		Local<Object> matrix = args[1]->ToObject();
-		float _00 = matrix->Get(String::NewFromUtf8(isolate, "_00"))->ToNumber()->Value();
-		float _01 = matrix->Get(String::NewFromUtf8(isolate, "_01"))->ToNumber()->Value();
-		float _02 = matrix->Get(String::NewFromUtf8(isolate, "_02"))->ToNumber()->Value();
-		float _10 = matrix->Get(String::NewFromUtf8(isolate, "_10"))->ToNumber()->Value();
-		float _11 = matrix->Get(String::NewFromUtf8(isolate, "_11"))->ToNumber()->Value();
-		float _12 = matrix->Get(String::NewFromUtf8(isolate, "_12"))->ToNumber()->Value();
-		float _20 = matrix->Get(String::NewFromUtf8(isolate, "_20"))->ToNumber()->Value();
-		float _21 = matrix->Get(String::NewFromUtf8(isolate, "_21"))->ToNumber()->Value();
-		float _22 = matrix->Get(String::NewFromUtf8(isolate, "_22"))->ToNumber()->Value();
-
+		Local<Float32Array> f32array = Local<Float32Array>::Cast(args[1]);
+		ArrayBuffer::Contents content;
+		if (f32array->Buffer()->IsExternal()) content = f32array->Buffer()->GetContents();
+		else content = f32array->Buffer()->Externalize();
+		float* from = (float*)content.Data();
 		Kore::mat3 m;
-		m.Set(0, 0, _00); m.Set(1, 0, _01); m.Set(2, 0, _02);
-		m.Set(0, 1, _10); m.Set(1, 1, _11); m.Set(2, 1, _12);
-		m.Set(0, 2, _20); m.Set(1, 2, _21); m.Set(2, 2, _22);
+		m.Set(0, 0, from[0]); m.Set(1, 0, from[1]); m.Set(2, 0, from[2]);
+		m.Set(0, 1, from[3]); m.Set(1, 1, from[4]); m.Set(2, 1, from[5]);
+		m.Set(0, 2, from[6]); m.Set(1, 2, from[7]); m.Set(2, 2, from[8]);
 
 		Kore::Graphics4::setMatrix(*location, m);
 	}
@@ -1638,7 +1612,6 @@ namespace {
 
 	void krom_end(const FunctionCallbackInfo<Value>& args) {
 		HandleScope scope(args.GetIsolate());
-
 	}
 
 	void krom_file_save_bytes(const FunctionCallbackInfo<Value>& args) {
@@ -1752,29 +1725,16 @@ namespace {
 		Local<External> locationfield = Local<External>::Cast(args[0]->ToObject()->GetInternalField(0));
 		Kore::ComputeConstantLocation* location = (Kore::ComputeConstantLocation*)locationfield->Value();
 
-		Local<Object> matrix = args[1]->ToObject();
-		float _00 = matrix->Get(String::NewFromUtf8(isolate, "_00"))->ToNumber()->Value();
-		float _01 = matrix->Get(String::NewFromUtf8(isolate, "_01"))->ToNumber()->Value();
-		float _02 = matrix->Get(String::NewFromUtf8(isolate, "_02"))->ToNumber()->Value();
-		float _03 = matrix->Get(String::NewFromUtf8(isolate, "_03"))->ToNumber()->Value();
-		float _10 = matrix->Get(String::NewFromUtf8(isolate, "_10"))->ToNumber()->Value();
-		float _11 = matrix->Get(String::NewFromUtf8(isolate, "_11"))->ToNumber()->Value();
-		float _12 = matrix->Get(String::NewFromUtf8(isolate, "_12"))->ToNumber()->Value();
-		float _13 = matrix->Get(String::NewFromUtf8(isolate, "_13"))->ToNumber()->Value();
-		float _20 = matrix->Get(String::NewFromUtf8(isolate, "_20"))->ToNumber()->Value();
-		float _21 = matrix->Get(String::NewFromUtf8(isolate, "_21"))->ToNumber()->Value();
-		float _22 = matrix->Get(String::NewFromUtf8(isolate, "_22"))->ToNumber()->Value();
-		float _23 = matrix->Get(String::NewFromUtf8(isolate, "_23"))->ToNumber()->Value();
-		float _30 = matrix->Get(String::NewFromUtf8(isolate, "_30"))->ToNumber()->Value();
-		float _31 = matrix->Get(String::NewFromUtf8(isolate, "_31"))->ToNumber()->Value();
-		float _32 = matrix->Get(String::NewFromUtf8(isolate, "_32"))->ToNumber()->Value();
-		float _33 = matrix->Get(String::NewFromUtf8(isolate, "_33"))->ToNumber()->Value();
-
+		Local<Float32Array> f32array = Local<Float32Array>::Cast(args[1]);
+		ArrayBuffer::Contents content;
+		if (f32array->Buffer()->IsExternal()) content = f32array->Buffer()->GetContents();
+		else content = f32array->Buffer()->Externalize();
+		float* from = (float*)content.Data();
 		Kore::mat4 m;
-		m.Set(0, 0, _00); m.Set(1, 0, _01); m.Set(2, 0, _02); m.Set(3, 0, _03);
-		m.Set(0, 1, _10); m.Set(1, 1, _11); m.Set(2, 1, _12); m.Set(3, 1, _13);
-		m.Set(0, 2, _20); m.Set(1, 2, _21); m.Set(2, 2, _22); m.Set(3, 2, _23);
-		m.Set(0, 3, _30); m.Set(1, 3, _31); m.Set(2, 3, _32); m.Set(3, 3, _33);
+		m.Set(0, 0, from[0]); m.Set(1, 0, from[1]); m.Set(2, 0, from[2]); m.Set(3, 0, from[3]);
+		m.Set(0, 1, from[4]); m.Set(1, 1, from[5]); m.Set(2, 1, from[6]); m.Set(3, 1, from[7]);
+		m.Set(0, 2, from[8]); m.Set(1, 2, from[9]); m.Set(2, 2, from[10]); m.Set(3, 2, from[11]);
+		m.Set(0, 3, from[12]); m.Set(1, 3, from[13]); m.Set(2, 3, from[14]); m.Set(3, 3, from[15]);
 
 		Kore::Compute::setMatrix(*location, m);
 	}
@@ -1784,21 +1744,15 @@ namespace {
 		Local<External> locationfield = Local<External>::Cast(args[0]->ToObject()->GetInternalField(0));
 		Kore::ComputeConstantLocation* location = (Kore::ComputeConstantLocation*)locationfield->Value();
 
-		Local<Object> matrix = args[1]->ToObject();
-		float _00 = matrix->Get(String::NewFromUtf8(isolate, "_00"))->ToNumber()->Value();
-		float _01 = matrix->Get(String::NewFromUtf8(isolate, "_01"))->ToNumber()->Value();
-		float _02 = matrix->Get(String::NewFromUtf8(isolate, "_02"))->ToNumber()->Value();
-		float _10 = matrix->Get(String::NewFromUtf8(isolate, "_10"))->ToNumber()->Value();
-		float _11 = matrix->Get(String::NewFromUtf8(isolate, "_11"))->ToNumber()->Value();
-		float _12 = matrix->Get(String::NewFromUtf8(isolate, "_12"))->ToNumber()->Value();
-		float _20 = matrix->Get(String::NewFromUtf8(isolate, "_20"))->ToNumber()->Value();
-		float _21 = matrix->Get(String::NewFromUtf8(isolate, "_21"))->ToNumber()->Value();
-		float _22 = matrix->Get(String::NewFromUtf8(isolate, "_22"))->ToNumber()->Value();
-
+		Local<Float32Array> f32array = Local<Float32Array>::Cast(args[1]);
+		ArrayBuffer::Contents content;
+		if (f32array->Buffer()->IsExternal()) content = f32array->Buffer()->GetContents();
+		else content = f32array->Buffer()->Externalize();
+		float* from = (float*)content.Data();
 		Kore::mat3 m;
-		m.Set(0, 0, _00); m.Set(1, 0, _01); m.Set(2, 0, _02);
-		m.Set(0, 1, _10); m.Set(1, 1, _11); m.Set(2, 1, _12);
-		m.Set(0, 2, _20); m.Set(1, 2, _21); m.Set(2, 2, _22);
+		m.Set(0, 0, from[0]); m.Set(1, 0, from[1]); m.Set(2, 0, from[2]);
+		m.Set(0, 1, from[3]); m.Set(1, 1, from[4]); m.Set(2, 1, from[5]);
+		m.Set(0, 2, from[6]); m.Set(1, 2, from[7]); m.Set(2, 2, from[8]);
 
 		Kore::Compute::setMatrix(*location, m);
 	}
@@ -1810,14 +1764,14 @@ namespace {
 		if (args[1]->IsNull() || args[1]->IsUndefined()) return;
 		Local<Object> image = args[1]->ToObject();
 		Local<Value> tex = image->Get(String::NewFromUtf8(isolate, "texture_"));
-		Local<Value> rt = image->Get(String::NewFromUtf8(isolate, "renderTarget_"));
 		int access = args[2]->ToInt32()->Int32Value();
 		if (tex->IsObject()) {
 			Local<External> texfield = Local<External>::Cast(tex->ToObject()->GetInternalField(0));
 			Kore::Graphics4::Texture* texture = (Kore::Graphics4::Texture*)texfield->Value();
 			Kore::Compute::setTexture(*unit, texture, (Kore::Compute::Access)access);
 		}
-		else if (rt->IsObject()) {
+		else {
+			Local<Value> rt = image->Get(String::NewFromUtf8(isolate, "renderTarget_"));
 			Local<External> rtfield = Local<External>::Cast(rt->ToObject()->GetInternalField(0));
 			Kore::Graphics4::RenderTarget* renderTarget = (Kore::Graphics4::RenderTarget*)rtfield->Value();
 			Kore::Compute::setTexture(*unit, renderTarget, (Kore::Compute::Access)access);
@@ -1831,13 +1785,13 @@ namespace {
 		if (args[1]->IsNull() || args[1]->IsUndefined()) return;
 		Local<Object> image = args[1]->ToObject();
 		Local<Value> tex = image->Get(String::NewFromUtf8(isolate, "texture_"));
-		Local<Value> rt = image->Get(String::NewFromUtf8(isolate, "renderTarget_"));
 		if (tex->IsObject()) {
 			Local<External> texfield = Local<External>::Cast(tex->ToObject()->GetInternalField(0));
 			Kore::Graphics4::Texture* texture = (Kore::Graphics4::Texture*)texfield->Value();
 			Kore::Compute::setSampledTexture(*unit, texture);
 		}
-		else if (rt->IsObject()) {
+		else {
+			Local<Value> rt = image->Get(String::NewFromUtf8(isolate, "renderTarget_"));
 			Local<External> rtfield = Local<External>::Cast(rt->ToObject()->GetInternalField(0));
 			Kore::Graphics4::RenderTarget* renderTarget = (Kore::Graphics4::RenderTarget*)rtfield->Value();
 			Kore::Compute::setSampledTexture(*unit, renderTarget);
@@ -2002,11 +1956,13 @@ namespace {
 		krom->Set(String::NewFromUtf8(isolate, "isMouseLocked"), FunctionTemplate::New(isolate, krom_is_mouse_locked));
 		krom->Set(String::NewFromUtf8(isolate, "createIndexBuffer"), FunctionTemplate::New(isolate, krom_create_indexbuffer));
 		krom->Set(String::NewFromUtf8(isolate, "deleteIndexBuffer"), FunctionTemplate::New(isolate, krom_delete_indexbuffer));
-		krom->Set(String::NewFromUtf8(isolate, "setIndices"), FunctionTemplate::New(isolate, krom_set_indices));
+		krom->Set(String::NewFromUtf8(isolate, "lockIndexBuffer"), FunctionTemplate::New(isolate, krom_lock_index_buffer));
+		krom->Set(String::NewFromUtf8(isolate, "unlockIndexBuffer"), FunctionTemplate::New(isolate, krom_unlock_index_buffer));
 		krom->Set(String::NewFromUtf8(isolate, "setIndexBuffer"), FunctionTemplate::New(isolate, krom_set_indexbuffer));
 		krom->Set(String::NewFromUtf8(isolate, "createVertexBuffer"), FunctionTemplate::New(isolate, krom_create_vertexbuffer));
 		krom->Set(String::NewFromUtf8(isolate, "deleteVertexBuffer"), FunctionTemplate::New(isolate, krom_delete_vertexbuffer));
-		krom->Set(String::NewFromUtf8(isolate, "setVertices"), FunctionTemplate::New(isolate, krom_set_vertices));
+		krom->Set(String::NewFromUtf8(isolate, "lockVertexBuffer"), FunctionTemplate::New(isolate, krom_lock_vertex_buffer));
+		krom->Set(String::NewFromUtf8(isolate, "unlockVertexBuffer"), FunctionTemplate::New(isolate, krom_unlock_vertex_buffer));
 		krom->Set(String::NewFromUtf8(isolate, "setVertexBuffer"), FunctionTemplate::New(isolate, krom_set_vertexbuffer));
 		krom->Set(String::NewFromUtf8(isolate, "setVertexBuffers"), FunctionTemplate::New(isolate, krom_set_vertexbuffers));
 		krom->Set(String::NewFromUtf8(isolate, "drawIndexedVertices"), FunctionTemplate::New(isolate, krom_draw_indexed_vertices));
