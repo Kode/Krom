@@ -54,6 +54,8 @@ extern std::unique_ptr<v8_inspector::V8Inspector> v8inspector;
 const char* getExeDir();
 
 namespace {
+	int _argc;
+	char** _argv;
 	bool debugMode = false;
 	bool watch = false;
 	bool nosound = false;
@@ -175,13 +177,16 @@ namespace {
 	void sendLogMessageArgs(const char* format, va_list args) {
 		char message[4096];
 		vsnprintf(message, sizeof(message) - 2, format, args);
+		// Kore::log(Kore::Info, "%s", message);
+		printf("%s\n", message);
 
-		Kore::log(Kore::Info, "%s", message);
-		char json[4096];
-		strcpy(json, "{\"method\":\"Log.entryAdded\",\"params\":{\"entry\":{\"source\":\"javascript\",\"level\":\"log\",\"text\":\"");
-		strcat(json, message);
-		strcat(json, "\",\"timestamp\":0}}}");
-		sendMessage(json);
+		if (debugMode) {
+			char json[4096];
+			strcpy(json, "{\"method\":\"Log.entryAdded\",\"params\":{\"entry\":{\"source\":\"javascript\",\"level\":\"log\",\"text\":\"");
+			strcat(json, message);
+			strcat(json, "\",\"timestamp\":0}}}");
+			sendMessage(json);
+		}
 	}
 
 	void sendLogMessage(const char* format, ...) {
@@ -1663,6 +1668,17 @@ namespace {
 		args.GetReturnValue().Set(String::NewFromUtf8(isolate, Kore::System::savePath()));
 	}
 
+	void krom_get_arg_count(const FunctionCallbackInfo<Value>& args) {
+		HandleScope scope(args.GetIsolate());
+		args.GetReturnValue().Set(Int32::New(isolate, _argc));
+	}
+
+	void krom_get_arg(const FunctionCallbackInfo<Value>& args) {
+		HandleScope scope(args.GetIsolate());
+		int index = args[0]->ToInt32()->Value();
+		args.GetReturnValue().Set(String::NewFromUtf8(isolate, _argv[index]));
+	}
+
 	void krom_set_bool_compute(const FunctionCallbackInfo<Value>& args) {
 		HandleScope scope(args.GetIsolate());
 		Local<External> locationfield = Local<External>::Cast(args[0]->ToObject()->GetInternalField(0));
@@ -2067,6 +2083,8 @@ namespace {
 		krom->Set(String::NewFromUtf8(isolate, "fileSaveBytes"), FunctionTemplate::New(isolate, krom_file_save_bytes));
 		krom->Set(String::NewFromUtf8(isolate, "sysCommand"), FunctionTemplate::New(isolate, krom_sys_command));
 		krom->Set(String::NewFromUtf8(isolate, "savePath"), FunctionTemplate::New(isolate, krom_save_path));
+		krom->Set(String::NewFromUtf8(isolate, "getArgCount"), FunctionTemplate::New(isolate, krom_get_arg_count));
+		krom->Set(String::NewFromUtf8(isolate, "getArg"), FunctionTemplate::New(isolate, krom_get_arg));
 		krom->Set(String::NewFromUtf8(isolate, "setBoolCompute"), FunctionTemplate::New(isolate, krom_set_bool_compute));
 		krom->Set(String::NewFromUtf8(isolate, "setIntCompute"), FunctionTemplate::New(isolate, krom_set_int_compute));
 		krom->Set(String::NewFromUtf8(isolate, "setFloatCompute"), FunctionTemplate::New(isolate, krom_set_float_compute));
@@ -2808,6 +2826,8 @@ extern "C" void filechanged(char* path) {
 //__declspec(dllimport) extern "C" void __stdcall Sleep(unsigned long milliseconds);
 
 int kore(int argc, char** argv) {
+	_argc = argc;
+	_argv = argv;
 	std::string bindir(argv[0]);
 #ifdef KORE_WINDOWS
 	bindir = bindir.substr(0, bindir.find_last_of("\\"));
@@ -2817,6 +2837,7 @@ int kore(int argc, char** argv) {
 	assetsdir = argc > 1 ? argv[1] : bindir;
 	shadersdir = argc > 2 ? argv[2] : bindir;
 
+	bool readStdoutPath = false;
 	bool readPort = false;
 	int port = 0;
 	for (int i = 3; i < argc; ++i) {
@@ -2836,6 +2857,12 @@ int kore(int argc, char** argv) {
 		}
 		else if (strcmp(argv[i], "--nowindow") == 0) {
 			nowindow = true;
+		}
+		else if (readStdoutPath) {
+			freopen(argv[i], "w", stdout);
+		}
+		else if (strcmp(argv[i], "--stdout") == 0) {
+			readStdoutPath = true;
 		}
 	}
 
