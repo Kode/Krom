@@ -1472,20 +1472,21 @@ namespace {
 		rt->getPixels(b);
 	}
 
-	void krom_unlock_texture(const FunctionCallbackInfo<Value>& args) {
+	void krom_lock_texture(const FunctionCallbackInfo<Value>& args) {
 		HandleScope scope(args.GetIsolate());
-
 		Local<External> field = Local<External>::Cast(args[0]->ToObject()->GetInternalField(0));
 		Kore::Graphics4::Texture* texture = (Kore::Graphics4::Texture*)field->Value();
-
-		Local<ArrayBuffer> buffer = Local<ArrayBuffer>::Cast(args[1]);
-		ArrayBuffer::Contents content = buffer->Externalize();
-
-		Kore::u8* b = (Kore::u8*)content.Data();
 		Kore::u8* tex = texture->lock();
-		for (int32_t i = 0; i < ((texture->format == Kore::Graphics4::Image::RGBA32) ? (4 * texture->width * texture->height) : (texture->width * texture->height)); ++i) {
-			tex[i] = b[i];
-		}
+
+		int byteLength = (texture->format == Kore::Graphics4::Image::RGBA32) ? (4 * texture->width * texture->height * texture->depth) : (texture->width * texture->height * texture->depth);
+		Local<ArrayBuffer> abuffer = ArrayBuffer::New(isolate, tex, byteLength);
+		args.GetReturnValue().Set(abuffer);
+	}
+
+	void krom_unlock_texture(const FunctionCallbackInfo<Value>& args) {
+		HandleScope scope(args.GetIsolate());
+		Local<External> field = Local<External>::Cast(args[0]->ToObject()->GetInternalField(0));
+		Kore::Graphics4::Texture* texture = (Kore::Graphics4::Texture*)field->Value();
 		texture->unlock();
 	}
 
@@ -2023,6 +2024,7 @@ namespace {
 		krom->Set(String::NewFromUtf8(isolate, "createTextureFromBytes"), FunctionTemplate::New(isolate, krom_create_texture_from_bytes));
 		krom->Set(String::NewFromUtf8(isolate, "createTextureFromBytes3D"), FunctionTemplate::New(isolate, krom_create_texture_from_bytes_3d));
 		krom->Set(String::NewFromUtf8(isolate, "getRenderTargetPixels"), FunctionTemplate::New(isolate, krom_get_render_target_pixels));
+		krom->Set(String::NewFromUtf8(isolate, "lockTexture"), FunctionTemplate::New(isolate, krom_lock_texture));
 		krom->Set(String::NewFromUtf8(isolate, "unlockTexture"), FunctionTemplate::New(isolate, krom_unlock_texture));
 		krom->Set(String::NewFromUtf8(isolate, "clearTexture"), FunctionTemplate::New(isolate, krom_clear_texture));
 		krom->Set(String::NewFromUtf8(isolate, "generateTextureMipmaps"), FunctionTemplate::New(isolate, krom_generate_texture_mipmaps));
