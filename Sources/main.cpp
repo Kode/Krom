@@ -2808,7 +2808,7 @@ int kore(int argc, char** argv) {
 			readPort = true;
 		}
 		else if (strcmp(argv[i], "--watch") == 0) {
-			watch = true;
+			//**watch = true;
 		}
 		else if (strcmp(argv[i], "--nosound") == 0) {
 			nosound = true;
