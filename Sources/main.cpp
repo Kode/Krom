@@ -921,44 +921,25 @@ namespace {
 		HandleScope scope(args.GetIsolate());
 		String::Utf8Value utf8_value(args[0]);
 
-		Kore::Sound* sound = new Kore::Sound(*utf8_value);
-
 		Kore::log(Kore::Info, "Load Sound %s", *utf8_value);
 
+		Kore::Sound* sound = new Kore::Sound(*utf8_value);
 		Local<ArrayBuffer> buffer;
 		ArrayBuffer::Contents content;
+		buffer = ArrayBuffer::New(isolate, sound->size * 2 * sizeof(float));
+		content = buffer->Externalize();
+		float* to = (float*)content.Data();
 
-		if (sound->format.bitsPerSample == 8) { // TODO: test
-			buffer = ArrayBuffer::New(isolate, sound->size * sizeof(float));
-			content = buffer->Externalize();
-			float* to = (float*)content.Data();
-
-			for (int i = 0; i < sound->size; i += 2) {
-				to[i + 0] = (float)(sound->left[i / 2] / 255.0 * 2.0 - 1.0);
-				to[i + 1] = (float)(sound->right[i / 2] / 255.0 * 2.0 - 1.0);
-			}
-		}
-		else if (sound->format.bitsPerSample == 16) {
-			buffer = ArrayBuffer::New(isolate, (sound->size / 2) * sizeof(float));
-			content = buffer->Externalize();
-			float* to = (float*)content.Data();
-
-			Kore::s16* left  = (Kore::s16*)&sound->left[0];
-			Kore::s16* right = (Kore::s16*)&sound->right[0];
-			for (int i = 0; i < sound->size / 2; i += 2) {
-				to[i + 0] = left[i / 2] / 32767.0f;
-				to[i + 1] = right[i / 2] / 32767.0f;
-
-				/*if(i < 10) {
-					Kore::log(Kore::Info, "to[%i] = %f",i+0, to[i + 0]);
-					Kore::log(Kore::Info, "to[%i] = %f",i+1, to[i + 1]);
-				}*/
-			}
+		Kore::s16* left = (Kore::s16*)&sound->left[0];
+		Kore::s16* right = (Kore::s16*)&sound->right[0];
+		for (int i = 0; i < sound->size; i += 1) {
+			to[i * 2 + 0] = (float)(left [i] / 32767.0);
+			to[i * 2 + 1] = (float)(right[i] / 32767.0);
 		}
 
 		args.GetReturnValue().Set(buffer);
+		delete sound;
 	}
-
 
 	void write_audio_buffer(const FunctionCallbackInfo<Value>& args) {
 		HandleScope scope(args.GetIsolate());
