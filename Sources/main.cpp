@@ -1453,13 +1453,34 @@ namespace {
 		rt->getPixels(b);
 	}
 
+	int formatByteSize(Kore::Graphics4::Image::Format format) {
+		switch (format) {
+		case Kore::Graphics4::Image::RGBA128:
+			return 16;
+		case Kore::Graphics4::Image::RGBA64:
+			return 8;
+		case Kore::Graphics4::Image::RGB24:
+			return 4;
+		case Kore::Graphics4::Image::A32:
+			return 4;
+		case Kore::Graphics4::Image::A16:
+			return 2;
+		case Kore::Graphics4::Image::Grey8:
+			return 1;
+		case Kore::Graphics4::Image::BGRA32:
+		case Kore::Graphics4::Image::RGBA32:
+		default:
+			return 4;
+		}
+	}
+
 	void krom_lock_texture(const FunctionCallbackInfo<Value>& args) {
 		HandleScope scope(args.GetIsolate());
 		Local<External> field = Local<External>::Cast(args[0]->ToObject()->GetInternalField(0));
 		Kore::Graphics4::Texture* texture = (Kore::Graphics4::Texture*)field->Value();
 		Kore::u8* tex = texture->lock();
 
-		int byteLength = (texture->format == Kore::Graphics4::Image::RGBA32) ? (4 * texture->width * texture->height * texture->depth) : (texture->width * texture->height * texture->depth);
+		int byteLength = formatByteSize(texture->format) * texture->width * texture->height * texture->depth;
 		Local<ArrayBuffer> abuffer = ArrayBuffer::New(isolate, tex, byteLength);
 		args.GetReturnValue().Set(abuffer);
 	}
