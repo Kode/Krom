@@ -38,6 +38,10 @@
 #include <string>
 #include <vector>
 
+#ifdef KORE_WINDOWS
+#include <Windows.h> // AttachConsole
+#endif
+
 using namespace v8;
 
 void sendMessage(const char* message);
@@ -173,8 +177,7 @@ namespace {
 	void sendLogMessageArgs(const char* format, va_list args) {
 		char message[4096];
 		vsnprintf(message, sizeof(message) - 2, format, args);
-		// Kore::log(Kore::Info, "%s", message);
-		printf("%s\n", message);
+		Kore::log(Kore::Info, "%s", message);
 
 		if (debugMode) {
 			char json[4096];
@@ -925,8 +928,6 @@ namespace {
 	void krom_load_sound(const FunctionCallbackInfo<Value>& args) {
 		HandleScope scope(args.GetIsolate());
 		String::Utf8Value utf8_value(args[0]);
-
-		Kore::log(Kore::Info, "Load Sound %s", *utf8_value);
 
 		Kore::Sound* sound = new Kore::Sound(*utf8_value);
 		Local<ArrayBuffer> buffer;
@@ -2804,6 +2805,7 @@ int kore(int argc, char** argv) {
 	shadersdir = argc > 2 ? argv[2] : bindir;
 
 	bool readStdoutPath = false;
+	bool readConsolePid = false;
 	bool readPort = false;
 	int port = 0;
 	for (int i = 3; i < argc; ++i) {
@@ -2826,9 +2828,19 @@ int kore(int argc, char** argv) {
 		}
 		else if (readStdoutPath) {
 			freopen(argv[i], "w", stdout);
+			readStdoutPath = false;
 		}
 		else if (strcmp(argv[i], "--stdout") == 0) {
 			readStdoutPath = true;
+		}
+		else if (readConsolePid) {
+			#ifdef KORE_WINDOWS
+			AttachConsole(atoi(argv[i]));
+			#endif
+			readConsolePid = false;
+		}
+		else if (strcmp(argv[i], "--consolepid") == 0) {
+			readConsolePid = true;
 		}
 	}
 
