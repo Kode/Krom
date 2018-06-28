@@ -1,6 +1,6 @@
 const os = require('os');
 
-let project = new Project('Krom', __dirname);
+let project = new Project('Krom');
 
 const release = false;
 const build = release ? 'release' : 'debug';
@@ -48,3 +48,4 @@ if (platform === Platform.Linux) {
 project.setDebugDir('Deployment/' + build + '/' + system);
 
 resolve(project);
+
