@@ -119,29 +119,21 @@ namespace {
 		int samplesPerPixel = args[3]->ToInt32()->Value();
 		bool vSync = args[4]->ToBoolean()->Value();
 		int windowMode = args[5]->ToInt32()->Value();
-		bool resizable = args[6]->ToBoolean()->Value();
-		bool maximizable = args[7]->ToBoolean()->Value();
-		bool minimizable = args[8]->ToBoolean()->Value();
+		int windowFeatures = args[6]->ToInt32()->Value();
 
-		Kore::WindowOptions options;
-		options.title = *title;
-		options.width = width;
-		options.height = height;
-		options.x = -1;
-		options.y = -1;
-		options.targetDisplay = -1;
-		options.showWindow = !nowindow;
-		Kore::System::setShowWindowFlag(options.showWindow);
-		options.vSync = vSync;
-		options.mode = Kore::WindowMode(windowMode);
-		options.resizable = resizable;
-		options.maximizable = maximizable;
-		options.minimizable = minimizable;
-		options.rendererOptions.depthBufferBits = 16;
-		options.rendererOptions.stencilBufferBits = 8;
-		options.rendererOptions.textureFormat = 0;
-		options.rendererOptions.antialiasing = samplesPerPixel;
-		Kore::System::initWindow(options);
+		Kore::WindowOptions win;
+		win.title = *title;
+		win.width = width;
+		win.height = height;
+		win.x = -1;
+		win.y = -1;
+		win.visible = !nowindow;
+		win.mode = Kore::WindowMode(windowMode);
+		win.windowFeatures = windowFeatures;
+		Kore::FramebufferOptions frame;
+		frame.verticalSync = vSync;
+		frame.samplesPerPixel = samplesPerPixel;
+		Kore::System::init(*title, width, height, &win, &frame);
 
 		mutex.create();
 		if (!nosound) {
@@ -1259,8 +1251,7 @@ namespace {
 
 	void krom_screen_dpi(const FunctionCallbackInfo<Value>& args) {
 		HandleScope scope(args.GetIsolate());
-		//int windowId = args[0]->ToInt32()->Value();
-		args.GetReturnValue().Set(Int32::New(isolate, Kore::System::screenDpi()));
+		args.GetReturnValue().Set(Int32::New(isolate, Kore::Display::primary()->pixelsPerInch()));
 	}
 
 	void krom_system_id(const FunctionCallbackInfo<Value>& args) {
@@ -1281,31 +1272,31 @@ namespace {
 	void krom_display_width(const FunctionCallbackInfo<Value>& args) {
 		HandleScope scope(args.GetIsolate());
 		int index = args[0]->ToInt32()->Value();
-		args.GetReturnValue().Set(Int32::New(isolate, Kore::Display::width(index)));
+		args.GetReturnValue().Set(Int32::New(isolate, Kore::Display::get(index)->width()));
 	}
 
 	void krom_display_height(const FunctionCallbackInfo<Value>& args) {
 		HandleScope scope(args.GetIsolate());
 		int index = args[0]->ToInt32()->Value();
-		args.GetReturnValue().Set(Int32::New(isolate, Kore::Display::height(index)));
+		args.GetReturnValue().Set(Int32::New(isolate, Kore::Display::get(index)->height()));
 	}
 
 	void krom_display_x(const FunctionCallbackInfo<Value>& args) {
 		HandleScope scope(args.GetIsolate());
 		int index = args[0]->ToInt32()->Value();
-		args.GetReturnValue().Set(Int32::New(isolate, Kore::Display::x(index)));
+		args.GetReturnValue().Set(Int32::New(isolate, Kore::Display::get(index)->x()));
 	}
 
 	void krom_display_y(const FunctionCallbackInfo<Value>& args) {
 		HandleScope scope(args.GetIsolate());
 		int index = args[0]->ToInt32()->Value();
-		args.GetReturnValue().Set(Int32::New(isolate, Kore::Display::y(index)));
+		args.GetReturnValue().Set(Int32::New(isolate, Kore::Display::get(index)->y()));
 	}
 
 	void krom_display_is_primary(const FunctionCallbackInfo<Value>& args) {
 		HandleScope scope(args.GetIsolate());
 		int index = args[0]->ToInt32()->Value();
-		args.GetReturnValue().Set(Boolean::New(isolate, Kore::Display::isPrimary(index)));
+		args.GetReturnValue().Set(Boolean::New(isolate, Kore::Display::get(index) == Kore::Display::primary()));
 	}
 
 	void krom_write_storage(const FunctionCallbackInfo<Value>& args) {
@@ -2845,10 +2836,7 @@ int kore(int argc, char** argv) {
 	}
 
 	kromjs = assetsdir + "/krom.js";
-
 	Kore::setFilesLocation(&assetsdir[0u]);
-	Kore::System::setName("Krom");
-	Kore::System::setup();
 
 	Kore::FileReader reader;
 	reader.open("krom.js");
