@@ -120,6 +120,10 @@ void startDebugger(v8::Isolate* isolate, int port) {
 	v8inspector->contextCreated(v8_inspector::V8ContextInfo(globalContext.Get(isolate), 0, v8_inspector::StringView()));
 }
 
+void stopDebugger() {
+	v8inspector.reset();
+}
+
 bool tickDebugger() {
 	v8::Locker locker{ isolate };
 
