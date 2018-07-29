@@ -2130,6 +2130,17 @@ namespace {
 
 	void endV8() {
 		updateFunction.Reset();
+		dropFilesFunction.Reset();
+		keyboardDownFunction.Reset();
+		keyboardUpFunction.Reset();
+		keyboardPressFunction.Reset();
+		mouseDownFunction.Reset();
+		mouseUpFunction.Reset();
+		mouseMoveFunction.Reset();
+		mouseWheelFunction.Reset();
+		gamepadAxisFunction.Reset();
+		gamepadButtonFunction.Reset();
+		audioFunction.Reset();
 		globalContext.Reset();
 		isolate->Dispose();
 		V8::Dispose();
@@ -2871,8 +2882,13 @@ int kore(int argc, char** argv) {
 	startKrom(code);
 	Kore::System::start();
 
-	exit(0); // TODO
+	if (!nosound) {
+		Kore::Audio2::shutdown();
+	}
 
+	if (debugMode) {
+		stopDebugger();
+	}
 	endV8();
 
 	return 0;
