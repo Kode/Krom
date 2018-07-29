@@ -2839,7 +2839,10 @@ int kore(int argc, char** argv) {
 	Kore::setFilesLocation(&assetsdir[0u]);
 
 	Kore::FileReader reader;
-	reader.open("krom.js");
+	if (!reader.open("krom.js")) {
+		fprintf(stderr, "could not load krom.js. aborting.");
+		exit(1);
+	}
 	char* code = new char[reader.size() + 1];
 	memcpy(code, reader.readAll(), reader.size());
 	code[reader.size()] = 0;
