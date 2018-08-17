@@ -118,6 +118,9 @@ namespace {
 	void gamepad4Axis(int axis, float value);
 	void gamepad4Button(int button, float value);
 
+	const int tempStringSize = 1024 * 1024 - 1;
+	char tempString[tempStringSize + 1];
+
 	JsPropertyIdRef getId(const char* name) {
 		JsPropertyIdRef id;
 		JsErrorCode err = JsCreatePropertyId(name, strlen(name), &id);
@@ -511,123 +514,92 @@ namespace {
 		return str;
 	}
 
-	void krom_create_vertex_shader(const FunctionCallbackInfo<Value>& args) {
-		HandleScope scope(args.GetIsolate());
-		Local<ArrayBuffer> buffer = Local<ArrayBuffer>::Cast(args[0]);
-		ArrayBuffer::Contents content;
-		if (buffer->IsExternal()) content = buffer->GetContents();
-		else content = buffer->Externalize();
-		Kore::Graphics4::Shader* shader = new Kore::Graphics4::Shader(content.Data(), (int)content.ByteLength(), Kore::Graphics4::VertexShader);
+	JsValueRef CALLBACK krom_create_vertex_shader(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount, void *callbackState) {
+		Kore::u8* content;
+		unsigned bufferLength;
+		JsGetArrayBufferStorage(arguments[1], &content, &bufferLength);
+		Kore::Graphics4::Shader* shader = new Kore::Graphics4::Shader(content, (int)bufferLength, Kore::Graphics4::VertexShader);
 
-		Local<ObjectTemplate> templ = ObjectTemplate::New(isolate);
-		templ->SetInternalFieldCount(1);
-
-		Local<Object> obj = templ->NewInstance(isolate->GetCurrentContext()).ToLocalChecked();
-		obj->SetInternalField(0, External::New(isolate, shader));
-		obj->Set(String::NewFromUtf8(isolate, "name"), args[1]);
-		args.GetReturnValue().Set(obj);
+		JsValueRef value;
+		JsCreateExternalObject(shader, nullptr, &value);
+		JsSetProperty(value, getId("name"), arguments[2], false);
+		return value;
 	}
 
-	void krom_create_vertex_shader_from_source(const FunctionCallbackInfo<Value>& args) {
-		HandleScope scope(args.GetIsolate());
-		String::Utf8Value utf8_value(args[0]);
-		char* source = new char[strlen(*utf8_value) + 1];
-		strcpy(source, *utf8_value);
-		Kore::Graphics4::Shader* shader = new Kore::Graphics4::Shader(source, Kore::Graphics4::VertexShader);
+	JsValueRef CALLBACK krom_create_vertex_shader_from_source(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount, void *callbackState) {
+		size_t length;
+		JsCopyString(arguments[1], tempString, tempStringSize, &length);
+		tempString[length] = 0;
+		Kore::Graphics4::Shader* shader = new Kore::Graphics4::Shader(tempString, Kore::Graphics4::VertexShader);
 
-		Local<ObjectTemplate> templ = ObjectTemplate::New(isolate);
-		templ->SetInternalFieldCount(1);
-
-		Local<Object> obj = templ->NewInstance(isolate->GetCurrentContext()).ToLocalChecked();
-		obj->SetInternalField(0, External::New(isolate, shader));
-		Local<String> name = String::NewFromUtf8(isolate, "");
-		obj->Set(String::NewFromUtf8(isolate, "name"), name);
-		args.GetReturnValue().Set(obj);
+		JsValueRef value;
+		JsCreateExternalObject(shader, nullptr, &value);
+		JsValueRef string;
+		JsCreateString("", 0, &string);
+		JsSetProperty(value, getId("name"), string, false);
+		return value;
 	}
 
-	void krom_create_fragment_shader(const FunctionCallbackInfo<Value>& args) {
-		HandleScope scope(args.GetIsolate());
-		Local<ArrayBuffer> buffer = Local<ArrayBuffer>::Cast(args[0]);
-		ArrayBuffer::Contents content;
-		if (buffer->IsExternal()) content = buffer->GetContents();
-		else content = buffer->Externalize();
-		Kore::Graphics4::Shader* shader = new Kore::Graphics4::Shader(content.Data(), (int)content.ByteLength(), Kore::Graphics4::FragmentShader);
+	JsValueRef CALLBACK krom_create_fragment_shader(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount, void *callbackState) {
+		Kore::u8* content;
+		unsigned bufferLength;
+		JsGetArrayBufferStorage(arguments[1], &content, &bufferLength);
+		Kore::Graphics4::Shader* shader = new Kore::Graphics4::Shader(content, (int)bufferLength, Kore::Graphics4::FragmentShader);
 
-		Local<ObjectTemplate> templ = ObjectTemplate::New(isolate);
-		templ->SetInternalFieldCount(1);
-
-		Local<Object> obj = templ->NewInstance(isolate->GetCurrentContext()).ToLocalChecked();
-		obj->SetInternalField(0, External::New(isolate, shader));
-		obj->Set(String::NewFromUtf8(isolate, "name"), args[1]);
-		args.GetReturnValue().Set(obj);
+		JsValueRef value;
+		JsCreateExternalObject(shader, nullptr, &value);
+		JsSetProperty(value, getId("name"), arguments[2], false);
+		return value;
 	}
 
-	void krom_create_fragment_shader_from_source(const FunctionCallbackInfo<Value>& args) {
-		HandleScope scope(args.GetIsolate());
-		String::Utf8Value utf8_value(args[0]);
-		char* source = new char[strlen(*utf8_value) + 1];
-		strcpy(source, *utf8_value);
-		Kore::Graphics4::Shader* shader = new Kore::Graphics4::Shader(source, Kore::Graphics4::FragmentShader);
+	JsValueRef CALLBACK krom_create_fragment_shader_from_source(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount, void *callbackState) {
+		size_t length;
+		JsCopyString(arguments[1], tempString, tempStringSize, &length);
+		tempString[length] = 0;
+		Kore::Graphics4::Shader* shader = new Kore::Graphics4::Shader(tempString, Kore::Graphics4::FragmentShader);
 
-		Local<ObjectTemplate> templ = ObjectTemplate::New(isolate);
-		templ->SetInternalFieldCount(1);
-
-		Local<Object> obj = templ->NewInstance(isolate->GetCurrentContext()).ToLocalChecked();
-		obj->SetInternalField(0, External::New(isolate, shader));
-		Local<String> name = String::NewFromUtf8(isolate, "");
-		obj->Set(String::NewFromUtf8(isolate, "name"), name);
-		args.GetReturnValue().Set(obj);
+		JsValueRef value;
+		JsCreateExternalObject(shader, nullptr, &value);
+		JsValueRef string;
+		JsCreateString("", 0, &string);
+		JsSetProperty(value, getId("name"), string, false);
+		return value;
 	}
 
-	void krom_create_geometry_shader(const FunctionCallbackInfo<Value>& args) {
-		HandleScope scope(args.GetIsolate());
-		Local<ArrayBuffer> buffer = Local<ArrayBuffer>::Cast(args[0]);
-		ArrayBuffer::Contents content;
-		if (buffer->IsExternal()) content = buffer->GetContents();
-		else content = buffer->Externalize();
-		Kore::Graphics4::Shader* shader = new Kore::Graphics4::Shader(content.Data(), (int)content.ByteLength(), Kore::Graphics4::GeometryShader);
+	JsValueRef CALLBACK krom_create_geometry_shader(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount, void *callbackState) {
+		Kore::u8* content;
+		unsigned bufferLength;
+		JsGetArrayBufferStorage(arguments[1], &content, &bufferLength);
+		Kore::Graphics4::Shader* shader = new Kore::Graphics4::Shader(content, (int)bufferLength, Kore::Graphics4::GeometryShader);
 
-		Local<ObjectTemplate> templ = ObjectTemplate::New(isolate);
-		templ->SetInternalFieldCount(1);
-
-		Local<Object> obj = templ->NewInstance(isolate->GetCurrentContext()).ToLocalChecked();
-		obj->SetInternalField(0, External::New(isolate, shader));
-		obj->Set(String::NewFromUtf8(isolate, "name"), args[1]);
-		args.GetReturnValue().Set(obj);
+		JsValueRef value;
+		JsCreateExternalObject(shader, nullptr, &value);
+		JsSetProperty(value, getId("name"), arguments[2], false);
+		return value;
 	}
 
-	void krom_create_tessellation_control_shader(const FunctionCallbackInfo<Value>& args) {
-		HandleScope scope(args.GetIsolate());
-		Local<ArrayBuffer> buffer = Local<ArrayBuffer>::Cast(args[0]);
-		ArrayBuffer::Contents content;
-		if (buffer->IsExternal()) content = buffer->GetContents();
-		else content = buffer->Externalize();
-		Kore::Graphics4::Shader* shader = new Kore::Graphics4::Shader(content.Data(), (int)content.ByteLength(), Kore::Graphics4::TessellationControlShader);
+	JsValueRef CALLBACK krom_create_tessellation_control_shader(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount, void *callbackState) {
+		Kore::u8* content;
+		unsigned bufferLength;
+		JsGetArrayBufferStorage(arguments[1], &content, &bufferLength);
+		Kore::Graphics4::Shader* shader = new Kore::Graphics4::Shader(content, (int)bufferLength, Kore::Graphics4::TessellationControlShader);
 
-		Local<ObjectTemplate> templ = ObjectTemplate::New(isolate);
-		templ->SetInternalFieldCount(1);
-
-		Local<Object> obj = templ->NewInstance(isolate->GetCurrentContext()).ToLocalChecked();
-		obj->SetInternalField(0, External::New(isolate, shader));
-		obj->Set(String::NewFromUtf8(isolate, "name"), args[1]);
-		args.GetReturnValue().Set(obj);
+		JsValueRef value;
+		JsCreateExternalObject(shader, nullptr, &value);
+		JsSetProperty(value, getId("name"), arguments[2], false);
+		return value;
 	}
 
-	void krom_create_tessellation_evaluation_shader(const FunctionCallbackInfo<Value>& args) {
-		HandleScope scope(args.GetIsolate());
-		Local<ArrayBuffer> buffer = Local<ArrayBuffer>::Cast(args[0]);
-		ArrayBuffer::Contents content;
-		if (buffer->IsExternal()) content = buffer->GetContents();
-		else content = buffer->Externalize();
-		Kore::Graphics4::Shader* shader = new Kore::Graphics4::Shader(content.Data(), (int)content.ByteLength(), Kore::Graphics4::TessellationEvaluationShader);
+	JsValueRef CALLBACK krom_create_tessellation_evaluation_shader(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount, void *callbackState) {
+		Kore::u8* content;
+		unsigned bufferLength;
+		JsGetArrayBufferStorage(arguments[1], &content, &bufferLength);
+		Kore::Graphics4::Shader* shader = new Kore::Graphics4::Shader(content, (int)bufferLength, Kore::Graphics4::TessellationEvaluationShader);
 
-		Local<ObjectTemplate> templ = ObjectTemplate::New(isolate);
-		templ->SetInternalFieldCount(1);
-
-		Local<Object> obj = templ->NewInstance(isolate->GetCurrentContext()).ToLocalChecked();
-		obj->SetInternalField(0, External::New(isolate, shader));
-		obj->Set(String::NewFromUtf8(isolate, "name"), args[1]);
-		args.GetReturnValue().Set(obj);
+		JsValueRef value;
+		JsCreateExternalObject(shader, nullptr, &value);
+		JsSetProperty(value, getId("name"), arguments[2], false);
+		return value;
 	}
 
 	JsValueRef CALLBACK krom_delete_shader(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount, void *callbackState) {
@@ -945,16 +917,21 @@ namespace {
 		}
 	}
 
-	void krom_load_sound(const FunctionCallbackInfo<Value>& args) {
-		HandleScope scope(args.GetIsolate());
-		String::Utf8Value utf8_value(args[0]);
+	JsValueRef CALLBACK krom_load_sound(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount, void *callbackState) {
+		char filename[256];
+		size_t length;
+		JsCopyString(arguments[1], filename, 255, &length);
+		filename[length] = 0;
 
-		Kore::Sound* sound = new Kore::Sound(*utf8_value);
-		Local<ArrayBuffer> buffer;
-		ArrayBuffer::Contents content;
-		buffer = ArrayBuffer::New(isolate, sound->size * 2 * sizeof(float));
-		content = buffer->Externalize();
-		float* to = (float*)content.Data();
+		Kore::Sound* sound = new Kore::Sound(filename);
+
+		JsValueRef array;
+		JsCreateArrayBuffer(sound->size * 2 * sizeof(float), &array);
+
+		Kore::u8* tobytes;
+		unsigned bufferLength;
+		JsGetArrayBufferStorage(array, &tobytes, &bufferLength);
+		float* to = (float*)tobytes;
 
 		Kore::s16* left = (Kore::s16*)&sound->left[0];
 		Kore::s16* right = (Kore::s16*)&sound->right[0];
@@ -963,17 +940,20 @@ namespace {
 			to[i * 2 + 1] = (float)(right[i] / 32767.0);
 		}
 
-		args.GetReturnValue().Set(buffer);
 		delete sound;
+
+		return array;
 	}
 
-	void write_audio_buffer(const FunctionCallbackInfo<Value>& args) {
-		HandleScope scope(args.GetIsolate());
-		float value = (float)args[0]->ToNumber()->Value();
+	JsValueRef CALLBACK krom_load_sound(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount, void *callbackState) {
+		double value;
+		JsNumberToDouble(arguments[1], &value);
 
 		*(float*)&Kore::Audio2::buffer.data[Kore::Audio2::buffer.writeLocation] = value;
 		Kore::Audio2::buffer.writeLocation += 4;
 		if (Kore::Audio2::buffer.writeLocation >= Kore::Audio2::buffer.dataSize) Kore::Audio2::buffer.writeLocation = 0;
+
+		return JS_INVALID_REFERENCE;
 	}
 
 	JsValueRef CALLBACK krom_load_blob(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount, void *callbackState) {
@@ -1235,30 +1215,28 @@ namespace {
 		return JS_INVALID_REFERENCE;
 	}
 
-	void krom_set_floats(const FunctionCallbackInfo<Value>& args) {
-		HandleScope scope(args.GetIsolate());
-		Local<External> locationfield = Local<External>::Cast(args[0]->ToObject()->GetInternalField(0));
-		Kore::Graphics4::ConstantLocation* location = (Kore::Graphics4::ConstantLocation*)locationfield->Value();
+	JsValueRef CALLBACK krom_set_floats(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount, void *callbackState) {
+		Kore::Graphics4::ConstantLocation* location;
+		JsGetExternalData(arguments[1], (void**)&location);
 
-		Local<Float32Array> f32array = Local<Float32Array>::Cast(args[1]);
-		ArrayBuffer::Contents content;
-		if (f32array->Buffer()->IsExternal()) content = f32array->Buffer()->GetContents();
-		else content = f32array->Buffer()->Externalize();
-		float* from = (float*)content.Data();
+		Kore::u8* data;
+		unsigned bufferLength;
+		JsGetArrayBufferStorage(arguments[2], &data, &bufferLength);
 
-		Kore::Graphics4::setFloats(*location, from, int(content.ByteLength() / 4));
+		float* from = (float*)data;
+
+		Kore::Graphics4::setFloats(*location, from, int(bufferLength / 4));
 	}
 
-	void krom_set_matrix(const FunctionCallbackInfo<Value>& args) {
-		HandleScope scope(args.GetIsolate());
-		Local<External> locationfield = Local<External>::Cast(args[0]->ToObject()->GetInternalField(0));
-		Kore::Graphics4::ConstantLocation* location = (Kore::Graphics4::ConstantLocation*)locationfield->Value();
+	JsValueRef CALLBACK krom_set_matrix(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount, void *callbackState) {
+		Kore::Graphics4::ConstantLocation* location;
+		JsGetExternalData(arguments[1], (void**)&location);
 
-		Local<Float32Array> f32array = Local<Float32Array>::Cast(args[1]);
-		ArrayBuffer::Contents content;
-		if (f32array->Buffer()->IsExternal()) content = f32array->Buffer()->GetContents();
-		else content = f32array->Buffer()->Externalize();
-		float* from = (float*)content.Data();
+		Kore::u8* data;
+		unsigned bufferLength;
+		JsGetArrayBufferStorage(arguments[2], &data, &bufferLength);
+
+		float* from = (float*)data;
 		Kore::mat4 m;
 		m.Set(0, 0, from[0]); m.Set(1, 0, from[1]); m.Set(2, 0, from[2]); m.Set(3, 0, from[3]);
 		m.Set(0, 1, from[4]); m.Set(1, 1, from[5]); m.Set(2, 1, from[6]); m.Set(3, 1, from[7]);
@@ -1266,24 +1244,27 @@ namespace {
 		m.Set(0, 3, from[12]); m.Set(1, 3, from[13]); m.Set(2, 3, from[14]); m.Set(3, 3, from[15]);
 
 		Kore::Graphics4::setMatrix(*location, m);
+
+		return JS_INVALID_REFERENCE;
 	}
 
-	void krom_set_matrix3(const FunctionCallbackInfo<Value>& args) {
-		HandleScope scope(args.GetIsolate());
-		Local<External> locationfield = Local<External>::Cast(args[0]->ToObject()->GetInternalField(0));
-		Kore::Graphics4::ConstantLocation* location = (Kore::Graphics4::ConstantLocation*)locationfield->Value();
+	JsValueRef CALLBACK krom_set_matrix3(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount, void *callbackState) {
+		Kore::Graphics4::ConstantLocation* location;
+		JsGetExternalData(arguments[1], (void**)&location);
 
-		Local<Float32Array> f32array = Local<Float32Array>::Cast(args[1]);
-		ArrayBuffer::Contents content;
-		if (f32array->Buffer()->IsExternal()) content = f32array->Buffer()->GetContents();
-		else content = f32array->Buffer()->Externalize();
-		float* from = (float*)content.Data();
+		Kore::u8* data;
+		unsigned bufferLength;
+		JsGetArrayBufferStorage(arguments[2], &data, &bufferLength);
+
+		float* from = (float*)data;
 		Kore::mat3 m;
 		m.Set(0, 0, from[0]); m.Set(1, 0, from[1]); m.Set(2, 0, from[2]);
 		m.Set(0, 1, from[3]); m.Set(1, 1, from[4]); m.Set(2, 1, from[5]);
 		m.Set(0, 2, from[6]); m.Set(1, 2, from[7]); m.Set(2, 2, from[8]);
 
 		Kore::Graphics4::setMatrix(*location, m);
+
+		return JS_INVALID_REFERENCE;
 	}
 
 	JsValueRef CALLBACK krom_get_time(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount, void *callbackState) {
@@ -1766,7 +1747,7 @@ namespace {
 
 	JsValueRef CALLBACK krom_set_bool_compute(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount, void *callbackState) {
 		Kore::ComputeConstantLocation* location;
-		JsGetExternalData(arguments[0], (void**)&location);
+		JsGetExternalData(arguments[1], (void**)&location);
 		int value;
 		JsNumberToInt(arguments[2], &value);
 		Kore::Compute::setBool(*location, value != 0);
@@ -1775,7 +1756,7 @@ namespace {
 
 	JsValueRef CALLBACK krom_set_int_compute(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount, void *callbackState) {
 		Kore::ComputeConstantLocation* location;
-		JsGetExternalData(arguments[0], (void**)&location);
+		JsGetExternalData(arguments[1], (void**)&location);
 		int value;
 		JsNumberToInt(arguments[2], &value);
 		Kore::Compute::setInt(*location, value);
@@ -1784,7 +1765,7 @@ namespace {
 
 	JsValueRef CALLBACK krom_set_float_compute(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount, void *callbackState) {
 		Kore::ComputeConstantLocation* location;
-		JsGetExternalData(arguments[0], (void**)&location);
+		JsGetExternalData(arguments[1], (void**)&location);
 		double value;
 		JsNumberToDouble(arguments[2], &value);
 		Kore::Compute::setFloat(*location, value);
@@ -1793,7 +1774,7 @@ namespace {
 
 	JsValueRef CALLBACK krom_set_float2_compute(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount, void *callbackState) {
 		Kore::ComputeConstantLocation* location;
-		JsGetExternalData(arguments[0], (void**)&location);
+		JsGetExternalData(arguments[1], (void**)&location);
 		double value1, value2;
 		JsNumberToDouble(arguments[2], &value1);
 		JsNumberToDouble(arguments[3], &value2);
@@ -1803,7 +1784,7 @@ namespace {
 
 	JsValueRef CALLBACK krom_set_float3_compute(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount, void *callbackState) {
 		Kore::ComputeConstantLocation* location;
-		JsGetExternalData(arguments[0], (void**)&location);
+		JsGetExternalData(arguments[1], (void**)&location);
 		double value1, value2, value3;
 		JsNumberToDouble(arguments[2], &value1);
 		JsNumberToDouble(arguments[3], &value2);
@@ -1814,7 +1795,7 @@ namespace {
 
 	JsValueRef CALLBACK krom_set_float4_compute(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount, void *callbackState) {
 		Kore::ComputeConstantLocation* location;
-		JsGetExternalData(arguments[0], (void**)&location);
+		JsGetExternalData(arguments[1], (void**)&location);
 		double value1, value2, value3, value4;
 		JsNumberToDouble(arguments[2], &value1);
 		JsNumberToDouble(arguments[3], &value2);
@@ -1824,30 +1805,30 @@ namespace {
 		return JS_INVALID_REFERENCE;
 	}
 
-	void krom_set_floats_compute(const FunctionCallbackInfo<Value>& args) {
-		HandleScope scope(args.GetIsolate());
-		Local<External> locationfield = Local<External>::Cast(args[0]->ToObject()->GetInternalField(0));
-		Kore::ComputeConstantLocation* location = (Kore::ComputeConstantLocation*)locationfield->Value();
+	JsValueRef CALLBACK krom_set_floats_compute(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount, void *callbackState) {
+		Kore::ComputeConstantLocation* location;
+		JsGetExternalData(arguments[1], (void**)&location);
 
-		Local<Float32Array> f32array = Local<Float32Array>::Cast(args[1]);
-		ArrayBuffer::Contents content;
-		if (f32array->Buffer()->IsExternal()) content = f32array->Buffer()->GetContents();
-		else content = f32array->Buffer()->Externalize();
-		float* from = (float*)content.Data();
+		Kore::u8* data;
+		unsigned bufferLength;
+		JsGetArrayBufferStorage(arguments[2], &data, &bufferLength);
 
-		Kore::Compute::setFloats(*location, from, int(content.ByteLength() / 4));
+		float* from = (float*)data;
+
+		Kore::Compute::setFloats(*location, from, int(bufferLength / 4));
+
+		return JS_INVALID_REFERENCE;
 	}
 
-	void krom_set_matrix_compute(const FunctionCallbackInfo<Value>& args) {
-		HandleScope scope(args.GetIsolate());
-		Local<External> locationfield = Local<External>::Cast(args[0]->ToObject()->GetInternalField(0));
-		Kore::ComputeConstantLocation* location = (Kore::ComputeConstantLocation*)locationfield->Value();
+	JsValueRef CALLBACK krom_set_matrix_compute(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount, void *callbackState) {
+		Kore::ComputeConstantLocation* location;
+		JsGetExternalData(arguments[1], (void**)&location);
 
-		Local<Float32Array> f32array = Local<Float32Array>::Cast(args[1]);
-		ArrayBuffer::Contents content;
-		if (f32array->Buffer()->IsExternal()) content = f32array->Buffer()->GetContents();
-		else content = f32array->Buffer()->Externalize();
-		float* from = (float*)content.Data();
+		Kore::u8* data;
+		unsigned bufferLength;
+		JsGetArrayBufferStorage(arguments[2], &data, &bufferLength);
+
+		float* from = (float*)data;
 		Kore::mat4 m;
 		m.Set(0, 0, from[0]); m.Set(1, 0, from[1]); m.Set(2, 0, from[2]); m.Set(3, 0, from[3]);
 		m.Set(0, 1, from[4]); m.Set(1, 1, from[5]); m.Set(2, 1, from[6]); m.Set(3, 1, from[7]);
@@ -1855,24 +1836,27 @@ namespace {
 		m.Set(0, 3, from[12]); m.Set(1, 3, from[13]); m.Set(2, 3, from[14]); m.Set(3, 3, from[15]);
 
 		Kore::Compute::setMatrix(*location, m);
+
+		return JS_INVALID_REFERENCE;
 	}
 
-	void krom_set_matrix3_compute(const FunctionCallbackInfo<Value>& args) {
-		HandleScope scope(args.GetIsolate());
-		Local<External> locationfield = Local<External>::Cast(args[0]->ToObject()->GetInternalField(0));
-		Kore::ComputeConstantLocation* location = (Kore::ComputeConstantLocation*)locationfield->Value();
+	JsValueRef CALLBACK krom_set_matrix3_compute(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount, void *callbackState) {
+		Kore::ComputeConstantLocation* location;
+		JsGetExternalData(arguments[1], (void**)&location);
 
-		Local<Float32Array> f32array = Local<Float32Array>::Cast(args[1]);
-		ArrayBuffer::Contents content;
-		if (f32array->Buffer()->IsExternal()) content = f32array->Buffer()->GetContents();
-		else content = f32array->Buffer()->Externalize();
-		float* from = (float*)content.Data();
+		Kore::u8* data;
+		unsigned bufferLength;
+		JsGetArrayBufferStorage(arguments[2], &data, &bufferLength);
+
+		float* from = (float*)data;
 		Kore::mat3 m;
 		m.Set(0, 0, from[0]); m.Set(1, 0, from[1]); m.Set(2, 0, from[2]);
 		m.Set(0, 1, from[3]); m.Set(1, 1, from[4]); m.Set(2, 1, from[5]);
 		m.Set(0, 2, from[6]); m.Set(1, 2, from[7]); m.Set(2, 2, from[8]);
 
 		Kore::Compute::setMatrix(*location, m);
+
+		return JS_INVALID_REFERENCE;
 	}
 
 	void krom_set_texture_compute(const FunctionCallbackInfo<Value>& args) {
