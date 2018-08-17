@@ -1,8 +1,28 @@
+#include "pch.h"
+
+#include <ChakraCore.h>
+
+#include "Runtime.h"
+#include "Core/AtomLockGuids.h"
+#include "Core/ConfigParser.h"
+#include "Base/ThreadContextTlsEntry.h"
+#include "Base/ThreadBoundThreadContextManager.h"
+#ifdef DYNAMIC_PROFILE_STORAGE
+#include "Language/DynamicProfileStorage.h"
+#endif
+#include "JsrtContext.h"
+#include "TestHooks.h"
+#ifdef VTUNE_PROFILING
+#include "Base/VTuneChakraProfile.h"
+#endif
+#ifdef ENABLE_JS_ETW
+#include "Base/EtwTrace.h"
+#endif
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
-#include "pch.h"
 #include <Kore/IO/FileReader.h>
 #include <Kore/IO/FileWriter.h>
 #include <Kore/Graphics4/Graphics.h>
@@ -26,10 +46,6 @@
 
 #include "debug.h"
 
-#include "../V8/include/libplatform/libplatform.h"
-#include "../V8/include/v8.h"
-#include <v8-inspector.h>
-
 #include <stdio.h>
 #include <stdarg.h>
 #include <fstream>
@@ -42,18 +58,11 @@
 #include <Windows.h> // AttachConsole
 #endif
 
-using namespace v8;
-
 void sendMessage(const char* message);
 
 #ifdef KORE_MACOS
 const char* macgetresourcepath();
 #endif
-
-Global<Context> globalContext;
-Isolate* isolate;
-
-extern std::unique_ptr<v8_inspector::V8Inspector> v8inspector;
 
 const char* getExeDir();
 
@@ -65,22 +74,21 @@ namespace {
 	bool nosound = false;
 	bool nowindow = false;
 
-	Platform* plat;
-	Global<Function> updateFunction;
-	Global<Function> dropFilesFunction;
-	Global<Function> keyboardDownFunction;
-	Global<Function> keyboardUpFunction;
-	Global<Function> keyboardPressFunction;
-	Global<Function> mouseDownFunction;
-	Global<Function> mouseUpFunction;
-	Global<Function> mouseMoveFunction;
-	Global<Function> mouseWheelFunction;
-	Global<Function> penDownFunction;
-	Global<Function> penUpFunction;
-	Global<Function> penMoveFunction;
-	Global<Function> gamepadAxisFunction;
-	Global<Function> gamepadButtonFunction;
-	Global<Function> audioFunction;
+	JsValueRef updateFunction;
+	JsValueRef dropFilesFunction;
+	JsValueRef keyboardDownFunction;
+	JsValueRef keyboardUpFunction;
+	JsValueRef keyboardPressFunction;
+	JsValueRef mouseDownFunction;
+	JsValueRef mouseUpFunction;
+	JsValueRef mouseMoveFunction;
+	JsValueRef mouseWheelFunction;
+	JsValueRef penDownFunction;
+	JsValueRef penUpFunction;
+	JsValueRef penMoveFunction;
+	JsValueRef gamepadAxisFunction;
+	JsValueRef gamepadButtonFunction;
+	JsValueRef audioFunction;
 	std::map<std::string, bool> imageChanges;
 	std::map<std::string, bool> shaderChanges;
 	std::map<std::string, std::string> shaderFileNames;
@@ -110,19 +118,23 @@ namespace {
 	void gamepad4Axis(int axis, float value);
 	void gamepad4Button(int button, float value);
 
-	void krom_init(const v8::FunctionCallbackInfo<v8::Value>& args) {
-		HandleScope scope(args.GetIsolate());
-		Local<Value> arg = args[0];
-		String::Utf8Value title(arg);
-		int width = args[1]->ToInt32()->Value();
-		int height = args[2]->ToInt32()->Value();
-		int samplesPerPixel = args[3]->ToInt32()->Value();
-		bool vSync = args[4]->ToBoolean()->Value();
-		int windowMode = args[5]->ToInt32()->Value();
-		int windowFeatures = args[6]->ToInt32()->Value();
+	JsValueRef CALLBACK krom_init(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount, void *callbackState) {
+		char title[256];
+		size_t length;
+		JsCopyString(arguments[1], title, 255, &length);
+		title[length] = 0;
+		int width, height, samplesPerPixel;
+		JsNumberToInt(arguments[2], &width);
+		JsNumberToInt(arguments[3], &height);
+		JsNumberToInt(arguments[4], &samplesPerPixel);
+		bool vSync;
+		JsBooleanToBool(arguments[5], &vSync);
+		int windowMode, windowFeatures;
+		JsNumberToInt(arguments[6], &windowMode);
+		JsNumberToInt(arguments[7], &windowFeatures);
 
 		Kore::WindowOptions win;
-		win.title = *title;
+		win.title = title;
 		win.width = width;
 		win.height = height;
 		win.x = -1;
@@ -133,7 +145,7 @@ namespace {
 		Kore::FramebufferOptions frame;
 		frame.verticalSync = vSync;
 		frame.samplesPerPixel = samplesPerPixel;
-		Kore::System::init(*title, width, height, &win, &frame);
+		Kore::System::init(title, width, height, &win, &frame);
 
 		mutex.create();
 		if (!nosound) {
@@ -164,6 +176,8 @@ namespace {
 		Kore::Gamepad::get(2)->Button = gamepad3Button;
 		Kore::Gamepad::get(3)->Axis = gamepad4Axis;
 		Kore::Gamepad::get(3)->Button = gamepad4Button;
+
+		return JS_INVALID_REFERENCE;
 	}
 
 	void sendLogMessageArgs(const char* format, va_list args) {
@@ -187,160 +201,140 @@ namespace {
 		va_end(args);
 	}
 
-	void LogCallback(const v8::FunctionCallbackInfo<v8::Value>& args) {
-		if (args.Length() < 1) return;
-		HandleScope scope(args.GetIsolate());
-		Local<Value> arg = args[0];
-		String::Utf8Value value(arg);
-		sendLogMessage(*value);
+	JsValueRef CALLBACK LogCallback(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount, void *callbackState) {
+		if (argumentCount < 2) {
+			return JS_INVALID_REFERENCE;
+		}
+		char message[256];
+		size_t length;
+		JsCopyString(arguments[1], message, 255, &length);
+		message[length] = 0;
+		sendLogMessage(message);
 	}
 
-	void graphics_clear(const v8::FunctionCallbackInfo<v8::Value>& args) {
-		HandleScope scope(args.GetIsolate());
-		int flags = args[0]->ToInt32()->Value();
-		int color = args[1]->ToInt32()->Value();
-		float depth = (float)args[2]->ToNumber()->Value();
-		int stencil = args[3]->ToInt32()->Value();
+	JsValueRef CALLBACK graphics_clear(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount, void *callbackState) {
+		int flags, color, stencil;
+		JsNumberToInt(arguments[1], &flags);
+		JsNumberToInt(arguments[2], &color);
+		double depth;
+		JsNumberToDouble(arguments[3], &depth);
+		JsNumberToInt(arguments[4], &stencil);
 		Kore::Graphics4::clear(flags, color, depth, stencil);
 	}
 
-	void krom_set_callback(const FunctionCallbackInfo<Value>& args) {
-		HandleScope scope(args.GetIsolate());
-		Local<Value> arg = args[0];
-		Local<Function> func = Local<Function>::Cast(arg);
-		updateFunction.Reset(isolate, func);
+	JsValueRef CALLBACK krom_set_callback(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount, void *callbackState) {
+		updateFunction = arguments[1];
+		return JS_INVALID_REFERENCE;
 	}
 
-	void krom_set_drop_files_callback(const FunctionCallbackInfo<Value>& args) {
-		HandleScope scope(args.GetIsolate());
-		Local<Value> arg = args[0];
-		Local<Function> func = Local<Function>::Cast(arg);
-		dropFilesFunction.Reset(isolate, func);
+	JsValueRef CALLBACK krom_set_drop_files_callback(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount, void *callbackState) {
+		dropFilesFunction = arguments[1];
+		return JS_INVALID_REFERENCE;
 	}
 
-	void krom_set_keyboard_down_callback(const FunctionCallbackInfo<Value>& args) {
-		HandleScope scope(args.GetIsolate());
-		Local<Value> arg = args[0];
-		Local<Function> func = Local<Function>::Cast(arg);
-		keyboardDownFunction.Reset(isolate, func);
+	JsValueRef CALLBACK krom_set_keyboard_down_callback(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount, void *callbackState) {
+		keyboardDownFunction = arguments[1];
+		return JS_INVALID_REFERENCE;
 	}
 
-	void krom_set_keyboard_up_callback(const FunctionCallbackInfo<Value>& args) {
-		HandleScope scope(args.GetIsolate());
-		Local<Value> arg = args[0];
-		Local<Function> func = Local<Function>::Cast(arg);
-		keyboardUpFunction.Reset(isolate, func);
+	JsValueRef CALLBACK krom_set_keyboard_up_callback(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount, void *callbackState) {
+		keyboardUpFunction = arguments[1];
+		return JS_INVALID_REFERENCE;
 	}
 
-	void krom_set_keyboard_press_callback(const FunctionCallbackInfo<Value>& args) {
-		HandleScope scope(args.GetIsolate());
-		Local<Value> arg = args[0];
-		Local<Function> func = Local<Function>::Cast(arg);
-		keyboardPressFunction.Reset(isolate, func);
+	JsValueRef CALLBACK krom_set_keyboard_press_callback(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount, void *callbackState) {
+		keyboardPressFunction = arguments[1];
+		return JS_INVALID_REFERENCE;
 	}
 
-	void krom_set_mouse_down_callback(const FunctionCallbackInfo<Value>& args) {
-		HandleScope scope(args.GetIsolate());
-		Local<Value> arg = args[0];
-		Local<Function> func = Local<Function>::Cast(arg);
-		mouseDownFunction.Reset(isolate, func);
+	JsValueRef CALLBACK krom_set_mouse_down_callback(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount, void *callbackState) {
+		mouseDownFunction = arguments[1];
+		return JS_INVALID_REFERENCE;
 	}
 
-	void krom_set_mouse_up_callback(const FunctionCallbackInfo<Value>& args) {
-		HandleScope scope(args.GetIsolate());
-		Local<Value> arg = args[0];
-		Local<Function> func = Local<Function>::Cast(arg);
-		mouseUpFunction.Reset(isolate, func);
+	JsValueRef CALLBACK krom_set_mouse_up_callback(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount, void *callbackState) {
+		mouseUpFunction = arguments[1];
+		return JS_INVALID_REFERENCE;
 	}
 
-	void krom_set_mouse_move_callback(const FunctionCallbackInfo<Value>& args) {
-		HandleScope scope(args.GetIsolate());
-		Local<Value> arg = args[0];
-		Local<Function> func = Local<Function>::Cast(arg);
-		mouseMoveFunction.Reset(isolate, func);
+	JsValueRef CALLBACK krom_set_mouse_move_callback(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount, void *callbackState) {
+		mouseMoveFunction = arguments[1];
+		return JS_INVALID_REFERENCE;
 	}
 
-	void krom_set_mouse_wheel_callback(const FunctionCallbackInfo<Value>& args) {
-		HandleScope scope(args.GetIsolate());
-		Local<Value> arg = args[0];
-		Local<Function> func = Local<Function>::Cast(arg);
-		mouseWheelFunction.Reset(isolate, func);
+	JsValueRef CALLBACK krom_set_mouse_wheel_callback(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount, void *callbackState) {
+		mouseWheelFunction = arguments[1];
+		return JS_INVALID_REFERENCE;
 	}
 
-	void krom_set_pen_down_callback(const FunctionCallbackInfo<Value>& args) {
-		HandleScope scope(args.GetIsolate());
-		Local<Value> arg = args[0];
-		Local<Function> func = Local<Function>::Cast(arg);
-		penDownFunction.Reset(isolate, func);
+	JsValueRef CALLBACK krom_set_pen_down_callback(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount, void *callbackState) {
+		penDownFunction = arguments[1];
+		return JS_INVALID_REFERENCE;
 	}
 
-	void krom_set_pen_up_callback(const FunctionCallbackInfo<Value>& args) {
-		HandleScope scope(args.GetIsolate());
-		Local<Value> arg = args[0];
-		Local<Function> func = Local<Function>::Cast(arg);
-		penUpFunction.Reset(isolate, func);
+	JsValueRef CALLBACK krom_set_pen_up_callback(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount, void *callbackState) {
+		penUpFunction = arguments[1];
+		return JS_INVALID_REFERENCE;
 	}
 
-	void krom_set_pen_move_callback(const FunctionCallbackInfo<Value>& args) {
-		HandleScope scope(args.GetIsolate());
-		Local<Value> arg = args[0];
-		Local<Function> func = Local<Function>::Cast(arg);
-		penMoveFunction.Reset(isolate, func);
+	JsValueRef CALLBACK krom_set_pen_move_callback(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount, void *callbackState) {
+		penMoveFunction = arguments[1];
+		return JS_INVALID_REFERENCE;
 	}
 
-	void krom_set_gamepad_axis_callback(const FunctionCallbackInfo<Value>& args) {
-		HandleScope scope(args.GetIsolate());
-		Local<Value> arg = args[0];
-		Local<Function> func = Local<Function>::Cast(arg);
-		gamepadAxisFunction.Reset(isolate, func);
+	JsValueRef CALLBACK krom_set_gamepad_axis_callback(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount, void *callbackState) {
+		gamepadAxisFunction = arguments[1];
+		return JS_INVALID_REFERENCE;
 	}
 
-	void krom_set_gamepad_button_callback(const FunctionCallbackInfo<Value>& args) {
-		HandleScope scope(args.GetIsolate());
-		Local<Value> arg = args[0];
-		Local<Function> func = Local<Function>::Cast(arg);
-		gamepadButtonFunction.Reset(isolate, func);
+	JsValueRef CALLBACK krom_set_gamepad_button_callback(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount, void *callbackState) {
+		gamepadButtonFunction = arguments[1];
+		return JS_INVALID_REFERENCE;
 	}
 
-	void krom_lock_mouse(const FunctionCallbackInfo<Value>& args) {
-		HandleScope scope(args.GetIsolate());
+	JsValueRef CALLBACK krom_lock_mouse(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount, void *callbackState) {
 		Kore::Mouse::the()->lock(0);
+		return JS_INVALID_REFERENCE;
 	}
 
-	void krom_unlock_mouse(const FunctionCallbackInfo<Value>& args) {
-		HandleScope scope(args.GetIsolate());
+	JsValueRef CALLBACK krom_unlock_mouse(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount, void *callbackState) {
 		Kore::Mouse::the()->unlock(0);
+		return JS_INVALID_REFERENCE;
 	}
 
-	void krom_can_lock_mouse(const FunctionCallbackInfo<Value>& args) {
-		HandleScope scope(args.GetIsolate());
-		args.GetReturnValue().Set(Boolean::New(isolate, Kore::Mouse::the()->canLock(0)));
+	JsValueRef CALLBACK krom_can_lock_mouse(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount, void *callbackState) {
+		JsValueRef value;
+		JsBoolToBoolean(Kore::Mouse::the()->canLock(0), &value);
+		return value;
 	}
 
-	void krom_is_mouse_locked(const FunctionCallbackInfo<Value>& args) {
-		HandleScope scope(args.GetIsolate());
-		args.GetReturnValue().Set(Boolean::New(isolate, Kore::Mouse::the()->isLocked(0)));
+	JsValueRef CALLBACK krom_is_mouse_locked(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount, void *callbackState) {
+		JsValueRef value;
+		JsBoolToBoolean(Kore::Mouse::the()->isLocked(0), &value);
+		return value;
 	}
 
-	void krom_show_mouse(const FunctionCallbackInfo<Value>& args) {
-		HandleScope scope(args.GetIsolate());
-		Kore::Mouse::the()->show(args[0]->ToBoolean()->Value());
+	JsValueRef CALLBACK krom_show_mouse(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount, void *callbackState) {
+		bool value;
+		JsBooleanToBool(arguments[1], &value);
+		Kore::Mouse::the()->show(value);
+		return JS_INVALID_REFERENCE;
 	}
 
-	void krom_set_audio_callback(const FunctionCallbackInfo<Value>& args) {
-		HandleScope scope(args.GetIsolate());
-		Local<Value> arg = args[0];
-		Local<Function> func = Local<Function>::Cast(arg);
-		audioFunction.Reset(isolate, func);
+	JsValueRef CALLBACK krom_set_audio_callback(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount, void *callbackState) {
+		audioFunction = arguments[1];
+		return JS_INVALID_REFERENCE;
 	}
 
 	// TODO: krom_audio_lock
-	void audio_thread(const FunctionCallbackInfo<Value>& args) {
-		HandleScope scope(args.GetIsolate());
-		bool lock = args[0]->ToBoolean()->Value();
+	JsValueRef CALLBACK audio_thread(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount, void *callbackState) {
+		bool lock;
+		JsBooleanToBool(arguments[1], &lock);
 
 		if (lock) mutex.lock();    //v8::Locker::Locker(isolate);
 		else mutex.unlock();       //v8::Unlocker(args.GetIsolate());
+		
+		return JS_INVALID_REFERENCE;
 	}
 
 	void krom_create_indexbuffer(const FunctionCallbackInfo<Value>& args) {

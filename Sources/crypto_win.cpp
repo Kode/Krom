@@ -1,5 +1,7 @@
 #ifdef KORE_WINDOWS
 
+#if 0
+
 #include <stdio.h>
 #include <exception>
 #include <ios>
@@ -283,4 +285,6 @@ namespace {
 std::string sha1(const char* data, int length) {
 	return HashFileSHA1(data, length);
 }
+#endif
+
 #endif

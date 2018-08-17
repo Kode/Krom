@@ -1,10 +1,11 @@
 #include "pch.h"
 #include "debug.h"
 #include "debug_server.h"
+
+#if 0
 #include "../V8/include/v8-debug.h"
 #include "../V8/include/v8.h"
 #include <v8-inspector.h>
-#include "pch.h"
 #include <Kore/Threads/Thread.h>
 #include <Kore/Log.h>
 
@@ -135,3 +136,4 @@ bool tickDebugger() {
 	}
 	return started;
 }
+#endif
