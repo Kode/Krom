@@ -137,3 +137,11 @@ bool tickDebugger() {
 	return started;
 }
 #endif
+
+void startDebugger(int port) {
+
+}
+
+bool tickDebugger() {
+	return false;
+}
