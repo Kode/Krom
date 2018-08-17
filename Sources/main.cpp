@@ -1507,14 +1507,14 @@ namespace {
 		HandleScope scope(args.GetIsolate());
 		Local<External> field = Local<External>::Cast(args[0]->ToObject()->GetInternalField(0));
 		Kore::Graphics4::Texture* texture = (Kore::Graphics4::Texture*)field->Value();
-		texture->generateMipmaps(args[0]->ToInt32()->Value());
+		texture->generateMipmaps(args[1]->ToInt32()->Value());
 	}
 
 	void krom_generate_render_target_mipmaps(const FunctionCallbackInfo<Value>& args) {
 		HandleScope scope(args.GetIsolate());
 		Local<External> field = Local<External>::Cast(args[0]->ToObject()->GetInternalField(0));
 		Kore::Graphics4::RenderTarget* rt = (Kore::Graphics4::RenderTarget*)field->Value();
-		rt->generateMipmaps(args[0]->ToInt32()->Value());
+		rt->generateMipmaps(args[1]->ToInt32()->Value());
 	}
 
 	void krom_set_mipmaps(const FunctionCallbackInfo<Value>& args) {
