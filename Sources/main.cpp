@@ -60,6 +60,8 @@
 
 void sendMessage(const char* message);
 
+BOOL AttachProcess(HANDLE hmod);
+
 #ifdef KORE_MACOS
 const char* macgetresourcepath();
 #endif
@@ -230,6 +232,7 @@ namespace {
 		JsNumberToDouble(arguments[3], &depth);
 		JsNumberToInt(arguments[4], &stencil);
 		Kore::Graphics4::clear(flags, color, depth, stencil);
+		return JS_INVALID_REFERENCE;
 	}
 
 	JsValueRef CALLBACK krom_set_callback(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount, void *callbackState) {
@@ -725,196 +728,333 @@ namespace {
 		JsSetIndexedProperty(projobj, zero, pipelineObj);
 	}
 
-	JsValueRef CALLBACK krom_compile_pipeline(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount, void *callbackState) {
-		Local<Object> progobj = args[0]->ToObject();
+#define getPipeInt(name) JsValueRef name##Obj;\
+	int name;\
+	JsGetProperty(arguments[12], getId(#name), &name##Obj);\
+	JsNumberToInt(name##Obj, &name)
 
-		Local<External> progfield = Local<External>::Cast(progobj->GetInternalField(0));
-		Kore::Graphics4::PipelineState* pipeline = (Kore::Graphics4::PipelineState*)progfield->Value();
+#define getPipeBool(name) JsValueRef name##Obj;\
+	bool name;\
+	JsGetProperty(arguments[12], getId(#name), &name##Obj);\
+	JsBooleanToBool(name##Obj, &name)
+
+	JsValueRef CALLBACK krom_compile_pipeline(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount, void *callbackState) {
+		JsValueRef progobj = arguments[1];
+
+		JsValueRef zero;
+		JsIntToNumber(0, &zero);
+
+		JsValueRef pipelineObj;
+		JsGetIndexedProperty(progobj, zero, &pipelineObj);
+		Kore::Graphics4::PipelineState* pipeline;
+		JsGetExternalData(pipelineObj, (void**)&pipeline);
 
 		Kore::Graphics4::VertexStructure s0, s1, s2, s3;
 		Kore::Graphics4::VertexStructure* structures[4] = { &s0, &s1, &s2, &s3 };
 
-		int32_t size = args[5]->ToObject()->ToInt32()->Value();
-		for (int32_t i1 = 0; i1 < size; ++i1) {
-			Local<Object> jsstructure = args[i1 + 1]->ToObject();
-			int32_t length = jsstructure->Get(String::NewFromUtf8(isolate, "length"))->ToInt32()->Value();
-			for (int32_t i2 = 0; i2 < length; ++i2) {
-				Local<Object> element = jsstructure->Get(i2)->ToObject();
-				Local<Value> str = element->Get(String::NewFromUtf8(isolate, "name"));
-				String::Utf8Value utf8_value(str);
-				Local<Object> dataobj = element->Get(String::NewFromUtf8(isolate, "data"))->ToObject();
-				int32_t data = dataobj->Get(1)->ToInt32()->Value();
+		int size;
+		JsNumberToInt(arguments[6], &size);
+		for (int i1 = 0; i1 < size; ++i1) {
+			JsValueRef jsstructure = arguments[i1 + 2];
+			JsValueRef lengthObj;
+			JsGetProperty(jsstructure, getId("length"), &lengthObj);
+			int length;
+			JsNumberToInt(lengthObj, &length);
+			for (int i2 = 0; i2 < length; ++i2) {
+				JsValueRef index;
+				JsIntToNumber(i2, &index);
+				JsValueRef element;
+				JsGetIndexedProperty(jsstructure, index, &element);
+				JsValueRef str;
+				JsGetProperty(element, getId("name"), &str);
+				JsValueRef dataObj;
+				JsGetProperty(element, getId("data"), &dataObj);
+				int data;
+				JsNumberToInt(dataObj, &data);
 				char* name = new char[32]; // TODO
-				strcpy(name, *utf8_value);
+				size_t length;
+				JsCopyString(str, name, 31, &length);
+				name[length] = 0;
 				structures[i1]->add(name, convertVertexData(data));
 			}
 		}
 
-		progobj->SetInternalField(1, External::New(isolate, structures));
-		progobj->SetInternalField(2, External::New(isolate, &size));
+		JsValueRef one, two, three, four, five, six, seven;
+		JsIntToNumber(1, &one);
+		JsIntToNumber(2, &two);
+		JsIntToNumber(3, &three);
+		JsIntToNumber(4, &four);
+		JsIntToNumber(5, &five);
+		JsIntToNumber(6, &six);
+		JsIntToNumber(7, &seven);
 
-		Local<External> vsfield = Local<External>::Cast(args[6]->ToObject()->GetInternalField(0));
-		Kore::Graphics4::Shader* vertexShader = (Kore::Graphics4::Shader*)vsfield->Value();
-		progobj->SetInternalField(3, External::New(isolate, vertexShader));
-		progobj->Set(String::NewFromUtf8(isolate, "vsname"), args[6]->ToObject()->Get(String::NewFromUtf8(isolate, "name")));
+		JsValueRef structuresObj;
+		JsCreateExternalObject(structures, nullptr, &structuresObj);
+		JsSetIndexedProperty(progobj, one, structuresObj);
 
-		Local<External> fsfield = Local<External>::Cast(args[7]->ToObject()->GetInternalField(0));
-		Kore::Graphics4::Shader* fragmentShader = (Kore::Graphics4::Shader*)fsfield->Value();
-		progobj->SetInternalField(4, External::New(isolate, fragmentShader));
-		progobj->Set(String::NewFromUtf8(isolate, "fsname"), args[7]->ToObject()->Get(String::NewFromUtf8(isolate, "name")));
+		JsSetIndexedProperty(progobj, two, arguments[6]);
+
+		Kore::Graphics4::Shader* vertexShader;
+		JsGetExternalData(arguments[7], (void**)&vertexShader);
+		JsValueRef vsObj;
+		JsCreateExternalObject(vertexShader, nullptr, &vsObj);
+		JsSetIndexedProperty(progobj, three, vsObj);
+		JsValueRef vsname;
+		JsGetProperty(arguments[7], getId("name"), &vsname);
+		JsSetProperty(progobj, getId("vsname"), vsname, false);
+
+		Kore::Graphics4::Shader* fragmentShader;
+		JsGetExternalData(arguments[8], (void**)&fragmentShader);
+		JsValueRef fsObj;
+		JsCreateExternalObject(fragmentShader, nullptr, &fsObj);
+		JsSetIndexedProperty(progobj, four, fsObj);
+		JsValueRef fsname;
+		JsGetProperty(arguments[8], getId("name"), &fsname);
+		JsSetProperty(progobj, getId("fsname"), fsname, false);
 
 		pipeline->vertexShader = vertexShader;
 		pipeline->fragmentShader = fragmentShader;
 
-		if (!args[8]->IsNull() && !args[8]->IsUndefined()) {
-			Local<External> gsfield = Local<External>::Cast(args[8]->ToObject()->GetInternalField(0));
-			Kore::Graphics4::Shader* geometryShader = (Kore::Graphics4::Shader*)gsfield->Value();
-			progobj->SetInternalField(5, External::New(isolate, geometryShader));
-			progobj->Set(String::NewFromUtf8(isolate, "gsname"), args[8]->ToObject()->Get(String::NewFromUtf8(isolate, "name")));
+		JsValueType gsType;
+		JsGetValueType(arguments[9], &gsType);
+		if (gsType != JsNull && gsType != JsUndefined) {
+			Kore::Graphics4::Shader* geometryShader;
+			JsGetExternalData(arguments[9], (void**)&geometryShader);
+			JsValueRef gsObj;
+			JsCreateExternalObject(geometryShader, nullptr, &gsObj);
+			JsSetIndexedProperty(progobj, five, gsObj);
+			JsValueRef gsname;
+			JsGetProperty(arguments[9], getId("name"), &gsname);
+			JsSetProperty(progobj, getId("gsname"), gsname, false);
 			pipeline->geometryShader = geometryShader;
 		}
 
-		if (!args[9]->IsNull() && !args[9]->IsUndefined()) {
-			Local<External> tcsfield = Local<External>::Cast(args[9]->ToObject()->GetInternalField(0));
-			Kore::Graphics4::Shader* tessellationControlShader = (Kore::Graphics4::Shader*)tcsfield->Value();
-			progobj->SetInternalField(6, External::New(isolate, tessellationControlShader));
-			progobj->Set(String::NewFromUtf8(isolate, "tcsname"), args[9]->ToObject()->Get(String::NewFromUtf8(isolate, "name")));
+		JsValueType tcsType;
+		JsGetValueType(arguments[10], &tcsType);
+		if (tcsType != JsNull && tcsType != JsUndefined) {
+			Kore::Graphics4::Shader* tessellationControlShader;
+			JsGetExternalData(arguments[10], (void**)&tessellationControlShader);
+			JsValueRef tcsObj;
+			JsCreateExternalObject(tessellationControlShader, nullptr, &tcsObj);
+			JsSetIndexedProperty(progobj, six, tcsObj);
+			JsValueRef tcsname;
+			JsGetProperty(arguments[10], getId("name"), &tcsname);
+			JsSetProperty(progobj, getId("tcsname"), tcsname, false);
 			pipeline->tessellationControlShader = tessellationControlShader;
 		}
 
-		if (!args[10]->IsNull() && !args[10]->IsUndefined()) {
-			Local<External> tesfield = Local<External>::Cast(args[10]->ToObject()->GetInternalField(0));
-			Kore::Graphics4::Shader* tessellationEvaluationShader = (Kore::Graphics4::Shader*)tesfield->Value();
-			progobj->SetInternalField(7, External::New(isolate, tessellationEvaluationShader));
-			progobj->Set(String::NewFromUtf8(isolate, "tesname"), args[10]->ToObject()->Get(String::NewFromUtf8(isolate, "name")));
-			pipeline->tessellationEvaluationShader = tessellationEvaluationShader;
+		JsValueType tesType;
+		JsGetValueType(arguments[11], &tesType);
+		if (tesType != JsNull && tesType != JsUndefined) {
+			Kore::Graphics4::Shader* tessellationEvaluationShader;
+			JsGetExternalData(arguments[11], (void**)&tessellationEvaluationShader);
+			JsValueRef tesObj;
+			JsCreateExternalObject(tessellationEvaluationShader, nullptr, &tesObj);
+			JsSetIndexedProperty(progobj, seven, tesObj);
+			JsValueRef tesname;
+			JsGetProperty(arguments[11], getId("name"), &tesname);
+			JsSetProperty(progobj, getId("tesname"), tesname, false);
+			pipeline->tessellationControlShader = tessellationEvaluationShader;
 		}
-
+		
 		for (int i = 0; i < size; ++i) {
 			pipeline->inputLayout[i] = structures[i];
 		}
 		pipeline->inputLayout[size] = nullptr;
 
-		pipeline->cullMode = (Kore::Graphics4::CullMode)args[11]->ToObject()->Get(String::NewFromUtf8(isolate, "cullMode"))->Int32Value();
+		getPipeInt(cullMode);
+		pipeline->cullMode = (Kore::Graphics4::CullMode)cullMode;
+		getPipeBool(depthWrite);
+		pipeline->depthWrite = depthWrite;
+		getPipeInt(depthMode);
+		pipeline->depthMode = (Kore::Graphics4::ZCompareMode)depthMode;
 
-		pipeline->depthWrite = args[11]->ToObject()->Get(String::NewFromUtf8(isolate, "depthWrite"))->BooleanValue();
-		pipeline->depthMode = (Kore::Graphics4::ZCompareMode)args[11]->ToObject()->Get(String::NewFromUtf8(isolate, "depthMode"))->Int32Value();
+		getPipeInt(stencilMode);
+		pipeline->stencilMode = (Kore::Graphics4::ZCompareMode)stencilMode;
+		getPipeInt(stencilBothPass);
+		pipeline->stencilBothPass = (Kore::Graphics4::StencilAction)stencilBothPass;
+		getPipeInt(stencilDepthFail);
+		pipeline->stencilDepthFail = (Kore::Graphics4::StencilAction)stencilDepthFail;
+		getPipeInt(stencilFail);
+		pipeline->stencilFail = (Kore::Graphics4::StencilAction)stencilFail;
+		getPipeInt(stencilReferenceValue);
+		pipeline->stencilReferenceValue = stencilReferenceValue;
+		getPipeInt(stencilReadMask);
+		pipeline->stencilReadMask = stencilReadMask;
+		getPipeInt(stencilWriteMask);
+		pipeline->stencilWriteMask = stencilWriteMask;
 
-		pipeline->stencilMode = (Kore::Graphics4::ZCompareMode)args[11]->ToObject()->Get(String::NewFromUtf8(isolate, "stencilMode"))->Int32Value();
-		pipeline->stencilBothPass = (Kore::Graphics4::StencilAction)args[11]->ToObject()->Get(String::NewFromUtf8(isolate, "stencilBothPass"))->Int32Value();
-		pipeline->stencilDepthFail = (Kore::Graphics4::StencilAction)args[11]->ToObject()->Get(String::NewFromUtf8(isolate, "stencilDepthFail"))->Int32Value();
-		pipeline->stencilFail = (Kore::Graphics4::StencilAction)args[11]->ToObject()->Get(String::NewFromUtf8(isolate, "stencilFail"))->Int32Value();
-		pipeline->stencilReferenceValue = args[11]->ToObject()->Get(String::NewFromUtf8(isolate, "stencilReferenceValue"))->Int32Value();
-		pipeline->stencilReadMask = args[11]->ToObject()->Get(String::NewFromUtf8(isolate, "stencilReadMask"))->Int32Value();
-		pipeline->stencilWriteMask = args[11]->ToObject()->Get(String::NewFromUtf8(isolate, "stencilWriteMask"))->Int32Value();
+		getPipeInt(blendSource);
+		pipeline->blendSource = (Kore::Graphics4::BlendingOperation)blendSource;
+		getPipeInt(blendDestination);
+		pipeline->blendDestination = (Kore::Graphics4::BlendingOperation)blendDestination;
+		getPipeInt(alphaBlendSource);
+		pipeline->alphaBlendSource = (Kore::Graphics4::BlendingOperation)alphaBlendSource;
+		getPipeInt(alphaBlendDestination);
+		pipeline->alphaBlendDestination = (Kore::Graphics4::BlendingOperation)alphaBlendDestination;
 
-		pipeline->blendSource = (Kore::Graphics4::BlendingOperation)args[11]->ToObject()->Get(String::NewFromUtf8(isolate, "blendSource"))->Int32Value();
-		pipeline->blendDestination = (Kore::Graphics4::BlendingOperation)args[11]->ToObject()->Get(String::NewFromUtf8(isolate, "blendDestination"))->Int32Value();
-		pipeline->alphaBlendSource = (Kore::Graphics4::BlendingOperation)args[11]->ToObject()->Get(String::NewFromUtf8(isolate, "alphaBlendSource"))->Int32Value();
-		pipeline->alphaBlendDestination = (Kore::Graphics4::BlendingOperation)args[11]->ToObject()->Get(String::NewFromUtf8(isolate, "alphaBlendDestination"))->Int32Value();
+		getPipeBool(colorWriteMaskRed);
+		pipeline->colorWriteMaskRed = colorWriteMaskRed;
+		getPipeBool(colorWriteMaskGreen);
+		pipeline->colorWriteMaskGreen = colorWriteMaskGreen;
+		getPipeBool(colorWriteMaskBlue);
+		pipeline->colorWriteMaskBlue = colorWriteMaskBlue;
+		getPipeBool(colorWriteMaskAlpha);
+		pipeline->colorWriteMaskAlpha = colorWriteMaskAlpha;
 
-		pipeline->colorWriteMaskRed = args[11]->ToObject()->Get(String::NewFromUtf8(isolate, "colorWriteMaskRed"))->BooleanValue();
-		pipeline->colorWriteMaskGreen = args[11]->ToObject()->Get(String::NewFromUtf8(isolate, "colorWriteMaskGreen"))->BooleanValue();
-		pipeline->colorWriteMaskBlue = args[11]->ToObject()->Get(String::NewFromUtf8(isolate, "colorWriteMaskBlue"))->BooleanValue();
-		pipeline->colorWriteMaskAlpha = args[11]->ToObject()->Get(String::NewFromUtf8(isolate, "colorWriteMaskAlpha"))->BooleanValue();
-
-		pipeline->conservativeRasterization = args[11]->ToObject()->Get(String::NewFromUtf8(isolate, "conservativeRasterization"))->BooleanValue();
+		getPipeBool(conservativeRasterization);
+		pipeline->conservativeRasterization = conservativeRasterization;
 
 		pipeline->compile();
+
+		return JS_INVALID_REFERENCE;
 	}
 
 	std::string shadersdir;
 
-	void krom_set_pipeline(const FunctionCallbackInfo<Value>& args) {
-		HandleScope scope(args.GetIsolate());
-		Local<Object> progobj = args[0]->ToObject();
-		Local<External> progfield = Local<External>::Cast(progobj->GetInternalField(0));
-		Kore::Graphics4::PipelineState* pipeline = (Kore::Graphics4::PipelineState*)progfield->Value();
+	JsValueRef CALLBACK krom_set_pipeline(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount, void *callbackState) {
+		JsValueRef progobj = arguments[1];
+
+		JsValueRef zero;
+		JsIntToNumber(0, &zero);
+
+		JsValueRef pipelineObj;
+		JsGetIndexedProperty(progobj, zero, &pipelineObj);
+		Kore::Graphics4::PipelineState* pipeline;
+		JsGetExternalData(pipelineObj, (void**)&pipeline);
 
 		if (debugMode) {
-			Local<Value> vsnameobj = progobj->Get(String::NewFromUtf8(isolate, "vsname"));
-			String::Utf8Value vsname(vsnameobj);
+			char vsname[256];
+			JsValueRef vsnameObj;
+			JsGetProperty(progobj, getId("vsname"), &vsnameObj);
+			size_t vslength;
+			JsCopyString(vsnameObj, vsname, 255, &vslength);
+			vsname[vslength] = 0;
 
-			Local<Value> fsnameobj = progobj->Get(String::NewFromUtf8(isolate, "fsname"));
-			String::Utf8Value fsname(fsnameobj);
+			char fsname[256];
+			JsValueRef fsnameObj;
+			JsGetProperty(progobj, getId("fsname"), &fsnameObj);
+			size_t fslength;
+			JsCopyString(fsnameObj, fsname, 255, &fslength);
+			fsname[fslength] = 0;
 
 			bool shaderChanged = false;
 
-			if (shaderChanges[*vsname]) {
+			if (shaderChanges[vsname]) {
 				shaderChanged = true;
-				sendLogMessage("Reloading shader %s.", *vsname);
-				std::string filename = shaderFileNames[*vsname];
+				sendLogMessage("Reloading shader %s.", vsname);
+				std::string filename = shaderFileNames[vsname];
 				std::ifstream input((shadersdir + "/" + filename).c_str(), std::ios::binary);
 				std::vector<char> buffer((std::istreambuf_iterator<char>(input)), (std::istreambuf_iterator<char>()));
 				Kore::Graphics4::Shader* vertexShader = new Kore::Graphics4::Shader(buffer.data(), (int)buffer.size(), Kore::Graphics4::VertexShader);
-				progobj->SetInternalField(3, External::New(isolate, vertexShader));
-				shaderChanges[*vsname] = false;
+				JsValueRef three;
+				JsIntToNumber(3, &three);
+				JsValueRef vsObj;
+				JsCreateExternalObject(vertexShader, nullptr, &vsObj);
+				JsSetIndexedProperty(progobj, three, vsObj);
+				shaderChanges[vsname] = false;
 			}
 
-			if (shaderChanges[*fsname]) {
+			if (shaderChanges[fsname]) {
 				shaderChanged = true;
-				sendLogMessage("Reloading shader %s.", *fsname);
-				std::string filename = shaderFileNames[*fsname];
+				sendLogMessage("Reloading shader %s.", fsname);
+				std::string filename = shaderFileNames[fsname];
 				std::ifstream input((shadersdir + "/" + filename).c_str(), std::ios::binary);
 				std::vector<char> buffer((std::istreambuf_iterator<char>(input)), (std::istreambuf_iterator<char>()));
 				Kore::Graphics4::Shader* fragmentShader = new Kore::Graphics4::Shader(buffer.data(), (int)buffer.size(), Kore::Graphics4::FragmentShader);
-				progobj->SetInternalField(4, External::New(isolate, fragmentShader));
-				shaderChanges[*fsname] = false;
+				JsValueRef four;
+				JsIntToNumber(4, &four);
+				JsValueRef vsObj;
+				JsCreateExternalObject(fragmentShader, nullptr, &vsObj);
+				JsSetIndexedProperty(progobj, four, vsObj);
+				shaderChanges[vsname] = false;
 			}
 
-			Local<Value> gsnameobj = progobj->Get(String::NewFromUtf8(isolate, "gsname"));
-			if (!gsnameobj->IsNull() && !gsnameobj->IsUndefined()) {
-				String::Utf8Value gsname(gsnameobj);
-				if (shaderChanges[*gsname]) {
+			JsValueRef gsnameObj;
+			JsGetProperty(progobj, getId("gsname"), &gsnameObj);
+			JsValueType gsnameType;
+			JsGetValueType(gsnameObj, &gsnameType);
+			if (gsnameType != JsNull && gsnameType != JsUndefined) {
+				char gsname[256];
+				size_t gslength;
+				JsCopyString(gsnameObj, gsname, 255, &gslength);
+				gsname[gslength] = 0;
+				if (shaderChanges[gsname]) {
 					shaderChanged = true;
-					sendLogMessage("Reloading shader %s.", *gsname);
-					std::string filename = shaderFileNames[*gsname];
+					sendLogMessage("Reloading shader %s.", gsname);
+					std::string filename = shaderFileNames[gsname];
 					std::ifstream input((shadersdir + "/" + filename).c_str(), std::ios::binary);
 					std::vector<char> buffer((std::istreambuf_iterator<char>(input)), (std::istreambuf_iterator<char>()));
 					Kore::Graphics4::Shader* geometryShader = new Kore::Graphics4::Shader(buffer.data(), (int)buffer.size(), Kore::Graphics4::GeometryShader);
-					progobj->SetInternalField(5, External::New(isolate, geometryShader));
-					shaderChanges[*gsname] = false;
+					JsValueRef five;
+					JsIntToNumber(5, &five);
+					JsValueRef gsObj;
+					JsCreateExternalObject(geometryShader, nullptr, &gsObj);
+					JsSetIndexedProperty(progobj, five, gsObj);
+					shaderChanges[gsname] = false;
 				}
 			}
 
-			Local<Value> tcsnameobj = progobj->Get(String::NewFromUtf8(isolate, "tcsname"));
-			if (!tcsnameobj->IsNull() && !tcsnameobj->IsUndefined()) {
-				String::Utf8Value tcsname(tcsnameobj);
-				if (shaderChanges[*tcsname]) {
+			JsValueRef tcsnameObj;
+			JsGetProperty(progobj, getId("tcsname"), &tcsnameObj);
+			JsValueType tcsnameType;
+			JsGetValueType(tcsnameObj, &tcsnameType);
+			if (tcsnameType != JsNull && tcsnameType != JsUndefined) {
+				char tcsname[256];
+				size_t tcslength;
+				JsCopyString(tcsnameObj, tcsname, 255, &tcslength);
+				tcsname[tcslength] = 0;
+				if (shaderChanges[tcsname]) {
 					shaderChanged = true;
-					sendLogMessage("Reloading shader %s.", *tcsname);
-					std::string filename = shaderFileNames[*tcsname];
+					sendLogMessage("Reloading shader %s.", tcsname);
+					std::string filename = shaderFileNames[tcsname];
 					std::ifstream input((shadersdir + "/" + filename).c_str(), std::ios::binary);
 					std::vector<char> buffer((std::istreambuf_iterator<char>(input)), (std::istreambuf_iterator<char>()));
 					Kore::Graphics4::Shader* tessellationControlShader = new Kore::Graphics4::Shader(buffer.data(), (int)buffer.size(), Kore::Graphics4::TessellationControlShader);
-					progobj->SetInternalField(6, External::New(isolate, tessellationControlShader));
-					shaderChanges[*tcsname] = false;
+					JsValueRef six;
+					JsIntToNumber(6, &six);
+					JsValueRef tcsObj;
+					JsCreateExternalObject(tessellationControlShader, nullptr, &tcsObj);
+					JsSetIndexedProperty(progobj, six, tcsObj);
+					shaderChanges[tcsname] = false;
 				}
 			}
 
-			Local<Value> tesnameobj = progobj->Get(String::NewFromUtf8(isolate, "tesname"));
-			if (!tesnameobj->IsNull() && !tesnameobj->IsUndefined()) {
-				String::Utf8Value tesname(tesnameobj);
-				if (shaderChanges[*tesname]) {
+			JsValueRef tesnameObj;
+			JsGetProperty(progobj, getId("tesname"), &tesnameObj);
+			JsValueType tesnameType;
+			JsGetValueType(tesnameObj, &tesnameType);
+			if (tesnameType != JsNull && tesnameType != JsUndefined) {
+				char tesname[256];
+				size_t teslength;
+				JsCopyString(tcsnameObj, tesname, 255, &teslength);
+				tesname[teslength] = 0;
+				if (shaderChanges[tesname]) {
 					shaderChanged = true;
-					sendLogMessage("Reloading shader %s.", *tesname);
-					std::string filename = shaderFileNames[*tesname];
+					sendLogMessage("Reloading shader %s.", tesname);
+					std::string filename = shaderFileNames[tesname];
 					std::ifstream input((shadersdir + "/" + filename).c_str(), std::ios::binary);
 					std::vector<char> buffer((std::istreambuf_iterator<char>(input)), (std::istreambuf_iterator<char>()));
 					Kore::Graphics4::Shader* tessellationEvaluationShader = new Kore::Graphics4::Shader(buffer.data(), (int)buffer.size(), Kore::Graphics4::TessellationEvaluationShader);
-					progobj->SetInternalField(7, External::New(isolate, tessellationEvaluationShader));
-					shaderChanges[*tesname] = false;
+					JsValueRef seven;
+					JsIntToNumber(7, &seven);
+					JsValueRef tesObj;
+					JsCreateExternalObject(tessellationEvaluationShader, nullptr, &tesObj);
+					JsSetIndexedProperty(progobj, seven, tesObj);
+					shaderChanges[tesname] = false;
 				}
 			}
 
 			if (shaderChanged) {
 				recompilePipeline(progobj);
-				Local<External> progfield = Local<External>::Cast(progobj->GetInternalField(0));
-				pipeline = (Kore::Graphics4::PipelineState*)progfield->Value();
+				JsValueRef pipelineObj;
+				JsGetIndexedProperty(progobj, zero, &pipelineObj);
+				JsGetExternalData(pipelineObj, (void**)&pipeline);
 			}
 		}
 
 		Kore::Graphics4::setPipeline(pipeline);
+		return JS_INVALID_REFERENCE;
 	}
 
 	JsValueRef CALLBACK krom_load_image(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount, void *callbackState) {
@@ -944,7 +1084,7 @@ namespace {
 	JsValueRef CALLBACK krom_unload_image(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount, void *callbackState) {
 		JsValueType type;
 		JsGetValueType(arguments[1], &type);
-		if (type == JsNull || type == JsUndefined) return;
+		if (type == JsNull || type == JsUndefined) return JS_INVALID_REFERENCE;
 
 		JsValueRef tex, rt;
 		JsGetProperty(arguments[1], getId("texture_"), &tex);
@@ -995,7 +1135,7 @@ namespace {
 		return array;
 	}
 
-	JsValueRef CALLBACK krom_load_sound(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount, void *callbackState) {
+	JsValueRef CALLBACK write_audio_buffer(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount, void *callbackState) {
 		double value;
 		JsNumberToDouble(arguments[1], &value);
 
@@ -1065,40 +1205,48 @@ namespace {
 		return obj;
 	}
 
-	void krom_set_texture(const FunctionCallbackInfo<Value>& args) {
-		HandleScope scope(args.GetIsolate());
-		Local<External> unitfield = Local<External>::Cast(args[0]->ToObject()->GetInternalField(0));
-		Kore::Graphics4::TextureUnit* unit = (Kore::Graphics4::TextureUnit*)unitfield->Value();
+	JsValueRef CALLBACK krom_set_texture(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount, void *callbackState) {
+		Kore::Graphics4::TextureUnit* unit;
+		JsGetExternalData(arguments[1], (void**)&unit);
 
-		if (args[1]->IsNull() || args[1]->IsUndefined()) return;
+		JsValueType imageType;
+		JsGetValueType(arguments[2], &imageType);
+		if (imageType == JsNull || imageType == JsUndefined) return JS_INVALID_REFERENCE;
 
-		Local<Object> image = args[1]->ToObject();
-		Local<Value> tex = image->Get(String::NewFromUtf8(isolate, "texture_"));
-		if (tex->IsObject()) {
+		JsValueRef tex;
+		JsGetProperty(arguments[2], getId("texture_"), &tex);
+		JsValueType texType;
+		JsGetValueType(tex, &texType);
+		if (texType == JsObject) {
 			Kore::Graphics4::Texture* texture;
 			bool imageChanged = false;
 			if (debugMode) {
-				String::Utf8Value filename(tex->ToObject()->Get(String::NewFromUtf8(isolate, "filename")));
-				if (imageChanges[*filename]) {
-					imageChanges[*filename] = false;
-					sendLogMessage("Image %s changed.", *filename);
-					texture = new Kore::Graphics4::Texture(*filename);
-					tex->ToObject()->SetInternalField(0, External::New(isolate, texture));
+				JsValueRef filenameObj;
+				JsGetProperty(tex, getId("filename"), &filenameObj);
+				size_t length;
+				JsCopyString(filenameObj, tempString, tempStringSize, &length);
+				tempString[length] = 0;
+				if (imageChanges[tempString]) {
+					imageChanges[tempString] = false;
+					sendLogMessage("Image %s changed.", tempString);
+					texture = new Kore::Graphics4::Texture(tempString);
+					JsSetExternalData(tex, texture);
 					imageChanged = true;
 				}
 			}
 			if (!imageChanged) {
-				Local<External> texfield = Local<External>::Cast(tex->ToObject()->GetInternalField(0));
-				texture = (Kore::Graphics4::Texture*)texfield->Value();
+				JsGetExternalData(tex, (void**)&texture);
 			}
 			Kore::Graphics4::setTexture(*unit, texture);
 		}
 		else {
-			Local<Value> rt = image->Get(String::NewFromUtf8(isolate, "renderTarget_"));
-			Local<External> rtfield = Local<External>::Cast(rt->ToObject()->GetInternalField(0));
-			Kore::Graphics4::RenderTarget* renderTarget = (Kore::Graphics4::RenderTarget*)rtfield->Value();
+			JsValueRef rt;
+			JsGetProperty(arguments[2], getId("renderTarget_"), &rt);
+			Kore::Graphics4::RenderTarget* renderTarget;
+			JsGetExternalData(rt, (void**)&renderTarget);
 			renderTarget->useColorAsTexture(*unit);
 		}
+		return JS_INVALID_REFERENCE;
 	}
 
 	JsValueRef CALLBACK krom_set_texture_depth(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount, void *callbackState) {
@@ -1288,6 +1436,7 @@ namespace {
 		float* from = (float*)data;
 
 		Kore::Graphics4::setFloats(*location, from, int(bufferLength / 4));
+		return JS_INVALID_REFERENCE;
 	}
 
 	JsValueRef CALLBACK krom_set_matrix(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount, void *callbackState) {
@@ -1608,19 +1757,17 @@ namespace {
 		return value;
 	}
 
-	void krom_get_render_target_pixels(const FunctionCallbackInfo<Value>& args) {
-		HandleScope scope(args.GetIsolate());
+	JsValueRef CALLBACK krom_get_render_target_pixels(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount, void *callbackState) {
+		Kore::Graphics4::RenderTarget* rt;
+		JsGetExternalData(arguments[1], (void**)&rt);
 
-		Local<External> field = Local<External>::Cast(args[0]->ToObject()->GetInternalField(0));
-		Kore::Graphics4::RenderTarget* rt = (Kore::Graphics4::RenderTarget*)field->Value();
+		Kore::u8* content;
+		unsigned bufferLength;
+		JsGetArrayBufferStorage(arguments[2], &content, &bufferLength);
 
-		Local<ArrayBuffer> buffer = Local<ArrayBuffer>::Cast(args[1]);
-		ArrayBuffer::Contents content;
-		if (buffer->IsExternal()) content = buffer->GetContents();
-		else content = buffer->Externalize();
+		rt->getPixels(content);
 
-		Kore::u8* b = (Kore::u8*)content.Data();
-		rt->getPixels(b);
+		return JS_INVALID_REFERENCE;
 	}
 
 	int formatByteSize(Kore::Graphics4::Image::Format format) {
@@ -1695,28 +1842,33 @@ namespace {
 		return JS_INVALID_REFERENCE;
 	}
 
-	void krom_set_mipmaps(const FunctionCallbackInfo<Value>& args) {
-		HandleScope scope(args.GetIsolate());
-		Local<External> field = Local<External>::Cast(args[0]->ToObject()->GetInternalField(0));
-		Kore::Graphics4::Texture* texture = (Kore::Graphics4::Texture*)field->Value();
+	JsValueRef CALLBACK krom_set_mipmaps(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount, void *callbackState) {
+		Kore::Graphics4::Texture* texture;
+		JsGetExternalData(arguments[1], (void**)&texture);
 
-		Local<Object> jsarray = args[1]->ToObject();
-		int32_t length = jsarray->Get(String::NewFromUtf8(isolate, "length"))->ToInt32()->Value();
-		for (int32_t i = 0; i < length; ++i) {
-			Local<Object> mipmapobj = jsarray->Get(i)->ToObject()->Get(String::NewFromUtf8(isolate, "texture_"))->ToObject();
-			Local<External> mipmapfield = Local<External>::Cast(mipmapobj->GetInternalField(0));
-			Kore::Graphics4::Texture* mipmap = (Kore::Graphics4::Texture*)mipmapfield->Value();
+		JsValueRef lengthObj;
+		JsGetProperty(arguments[2], getId("length"), &lengthObj);
+		int length;
+		JsNumberToInt(lengthObj, &length);
+		for (int i = 0; i < length; ++i) {
+			JsValueRef index, element;
+			JsIntToNumber(i, &index);
+			JsGetIndexedProperty(arguments[2], index, &element);
+			JsValueRef obj;
+			JsGetProperty(element, getId("texture_"), &obj);
+			Kore::Graphics4::Texture* mipmap;
 			texture->setMipmap(mipmap, i + 1);
 		}
+		return JS_INVALID_REFERENCE;
 	}
 
-	void krom_set_depth_stencil_from(const FunctionCallbackInfo<Value>& args) {
-		HandleScope scope(args.GetIsolate());
-		Local<External> targetfield = Local<External>::Cast(args[0]->ToObject()->GetInternalField(0));
-		Kore::Graphics4::RenderTarget* renderTarget = (Kore::Graphics4::RenderTarget*)targetfield->Value();
-		Local<External> sourcefield = Local<External>::Cast(args[1]->ToObject()->GetInternalField(0));
-		Kore::Graphics4::RenderTarget* sourceTarget = (Kore::Graphics4::RenderTarget*)sourcefield->Value();
+	JsValueRef CALLBACK krom_set_depth_stencil_from(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount, void *callbackState) {
+		Kore::Graphics4::RenderTarget* renderTarget;
+		JsGetExternalData(arguments[1], (void**)&renderTarget);
+		Kore::Graphics4::RenderTarget* sourceTarget;
+		JsGetExternalData(arguments[2], (void**)&sourceTarget);
 		renderTarget->setDepthStencilFrom(sourceTarget);
+		return JS_INVALID_REFERENCE;
 	}
 
 	JsValueRef CALLBACK krom_viewport(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount, void *callbackState) {
@@ -1754,61 +1906,76 @@ namespace {
 		return value;
 	}
 
-	void krom_begin(const FunctionCallbackInfo<Value>& args) {
-		HandleScope scope(args.GetIsolate());
-		if (args[0]->IsNull() || args[0]->IsUndefined()) {
+	JsValueRef CALLBACK krom_begin(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount, void *callbackState) {
+		JsValueType type;
+		JsGetValueType(arguments[1], &type);
+		if (type == JsNull || type == JsUndefined) {
 			Kore::Graphics4::restoreRenderTarget();
+			return JS_INVALID_REFERENCE;
 		}
 		else {
-			Local<Object> obj = args[0]->ToObject()->Get(String::NewFromUtf8(isolate, "renderTarget_"))->ToObject();
-			Local<External> rtfield = Local<External>::Cast(obj->GetInternalField(0));
-			Kore::Graphics4::RenderTarget* renderTarget = (Kore::Graphics4::RenderTarget*)rtfield->Value();
+			JsValueRef rt;
+			JsGetProperty(arguments[1], getId("renderTarget_"), &rt);
+			Kore::Graphics4::RenderTarget* renderTarget;
+			JsGetExternalData(rt, (void**)&renderTarget);
 
-			if (args[1]->IsNull() || args[1]->IsUndefined()) {
+			JsValueType type2;
+			JsGetValueType(arguments[2], &type2);
+			if (type2 == JsNull || type2 == JsUndefined) {
 				Kore::Graphics4::setRenderTarget(renderTarget);
 			}
 			else {
 				Kore::Graphics4::RenderTarget* renderTargets[8] = { renderTarget, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr };
-				Local<Object> jsarray = args[1]->ToObject();
-				int32_t length = jsarray->Get(String::NewFromUtf8(isolate, "length"))->ToInt32()->Value();
+				JsValueRef lengthObj;
+				JsGetProperty(arguments[2], getId("length"), &lengthObj);
+				int length;
+				JsNumberToInt(lengthObj, &length);
 				if (length > 7) length = 7;
-				for (int32_t i = 0; i < length; ++i) {
-					Local<Object> artobj = jsarray->Get(i)->ToObject()->Get(String::NewFromUtf8(isolate, "renderTarget_"))->ToObject();
-					Local<External> artfield = Local<External>::Cast(artobj->GetInternalField(0));
-					Kore::Graphics4::RenderTarget* art = (Kore::Graphics4::RenderTarget*)artfield->Value();
+				for (int i = 0; i < length; ++i) {
+					JsValueRef index, element;
+					JsIntToNumber(i, &index);
+					JsGetIndexedProperty(arguments[2], index, &element);
+					JsValueRef obj;
+					JsGetProperty(element, getId("renderTarget_"), &obj);
+					Kore::Graphics4::RenderTarget* art;
+					JsGetExternalData(obj, (void**)&art);
 					renderTargets[i + 1] = art;
 				}
 				Kore::Graphics4::setRenderTargets(renderTargets, length + 1);
 			}
+			return JS_INVALID_REFERENCE;
 		}
 	}
 
-	void krom_begin_face(const FunctionCallbackInfo<Value>& args) {
-		HandleScope scope(args.GetIsolate());
-		Local<Object> obj = args[0]->ToObject()->Get(String::NewFromUtf8(isolate, "renderTarget_"))->ToObject();
-		Local<External> rtfield = Local<External>::Cast(obj->GetInternalField(0));
-		Kore::Graphics4::RenderTarget* renderTarget = (Kore::Graphics4::RenderTarget*)rtfield->Value();
-		int face = args[1]->ToInt32()->Int32Value();
+	JsValueRef CALLBACK krom_begin_face(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount, void *callbackState) {
+		JsValueRef rt;
+		JsGetProperty(arguments[1], getId("renderTarget_"), &rt);
+		Kore::Graphics4::RenderTarget* renderTarget;
+		JsGetExternalData(rt, (void**)&renderTarget);
+		int face;
+		JsNumberToInt(arguments[2], &face);
 		Kore::Graphics4::setRenderTargetFace(renderTarget, face);
+		return JS_INVALID_REFERENCE;
 	}
 
 	JsValueRef CALLBACK krom_end(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount, void *callbackState) {
 		return JS_INVALID_REFERENCE;
 	}
 
-	void krom_file_save_bytes(const FunctionCallbackInfo<Value>& args) {
-		HandleScope scope(args.GetIsolate());
-		String::Utf8Value utf8_path(args[0]);
+	JsValueRef CALLBACK krom_file_save_bytes(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount, void *callbackState) {
+		size_t length;
+		JsCopyString(arguments[1], tempString, tempStringSize, &length);
+		tempString[length] = 0;
 
-		Local<ArrayBuffer> buffer = Local<ArrayBuffer>::Cast(args[1]);
-		ArrayBuffer::Contents content;
-		if (buffer->IsExternal()) content = buffer->GetContents();
-		else content = buffer->Externalize();
+		Kore::u8* content;
+		unsigned bufferLength;
+		JsGetArrayBufferStorage(arguments[2], &content, &bufferLength);
 
-		FILE* file = fopen(*utf8_path, "wb");
-		if (file == nullptr) return;
-		fwrite(content.Data(), 1, (int)content.ByteLength(), file);
+		FILE* file = fopen(tempString, "wb");
+		if (file == nullptr) return JS_INVALID_REFERENCE;
+		fwrite(content, 1, (int)bufferLength, file);
 		fclose(file);
+		return JS_INVALID_REFERENCE;
 	}
 
 	JsValueRef CALLBACK krom_sys_command(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount, void *callbackState) {
@@ -1956,84 +2123,126 @@ namespace {
 		return JS_INVALID_REFERENCE;
 	}
 
-	void krom_set_texture_compute(const FunctionCallbackInfo<Value>& args) {
-		HandleScope scope(args.GetIsolate());
-		Local<External> unitfield = Local<External>::Cast(args[0]->ToObject()->GetInternalField(0));
-		Kore::ComputeTextureUnit* unit = (Kore::ComputeTextureUnit*)unitfield->Value();
-		if (args[1]->IsNull() || args[1]->IsUndefined()) return;
-		Local<Object> image = args[1]->ToObject();
-		Local<Value> tex = image->Get(String::NewFromUtf8(isolate, "texture_"));
-		int access = args[2]->ToInt32()->Int32Value();
-		if (tex->IsObject()) {
-			Local<External> texfield = Local<External>::Cast(tex->ToObject()->GetInternalField(0));
-			Kore::Graphics4::Texture* texture = (Kore::Graphics4::Texture*)texfield->Value();
+	JsValueRef CALLBACK krom_set_texture_compute(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount, void *callbackState) {
+		Kore::ComputeTextureUnit* unit;
+		JsGetExternalData(arguments[1], (void**)&unit);
+
+		JsValueType type;
+		JsGetValueType(arguments[2], &type);
+		if (type == JsNull || type == JsUndefined) return JS_INVALID_REFERENCE;
+
+		JsValueRef tex;
+		JsGetProperty(arguments[2], getId("texture_"), &tex);
+		JsValueType texType;
+		JsGetValueType(tex, &texType);
+
+		int access;
+		JsNumberToInt(arguments[3], &access);
+		if (texType == JsObject) {
+			Kore::Graphics4::Texture* texture;
+			JsGetExternalData(tex, (void**)&texture);
 			Kore::Compute::setTexture(*unit, texture, (Kore::Compute::Access)access);
 		}
 		else {
-			Local<Value> rt = image->Get(String::NewFromUtf8(isolate, "renderTarget_"));
-			Local<External> rtfield = Local<External>::Cast(rt->ToObject()->GetInternalField(0));
-			Kore::Graphics4::RenderTarget* renderTarget = (Kore::Graphics4::RenderTarget*)rtfield->Value();
+			JsValueRef rt;
+			JsGetProperty(arguments[2], getId("renderTarget_"), &rt);
+			Kore::Graphics4::RenderTarget* renderTarget;
+			JsGetExternalData(rt, (void**)&renderTarget);
 			Kore::Compute::setTexture(*unit, renderTarget, (Kore::Compute::Access)access);
 		}
+		return JS_INVALID_REFERENCE;
 	}
 
-	void krom_set_sampled_texture_compute(const FunctionCallbackInfo<Value>& args) {
-		HandleScope scope(args.GetIsolate());
-		Local<External> unitfield = Local<External>::Cast(args[0]->ToObject()->GetInternalField(0));
-		Kore::ComputeTextureUnit* unit = (Kore::ComputeTextureUnit*)unitfield->Value();
-		if (args[1]->IsNull() || args[1]->IsUndefined()) return;
-		Local<Object> image = args[1]->ToObject();
-		Local<Value> tex = image->Get(String::NewFromUtf8(isolate, "texture_"));
-		if (tex->IsObject()) {
-			Local<External> texfield = Local<External>::Cast(tex->ToObject()->GetInternalField(0));
-			Kore::Graphics4::Texture* texture = (Kore::Graphics4::Texture*)texfield->Value();
+	JsValueRef CALLBACK krom_set_sampled_texture_compute(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount, void *callbackState) {
+		Kore::ComputeTextureUnit* unit;
+		JsGetExternalData(arguments[1], (void**)&unit);
+
+		JsValueType type;
+		JsGetValueType(arguments[2], &type);
+		if (type == JsNull || type == JsUndefined) return JS_INVALID_REFERENCE;
+
+		JsValueRef tex;
+		JsGetProperty(arguments[2], getId("texture_"), &tex);
+		JsValueType texType;
+		JsGetValueType(tex, &texType);
+
+		int access;
+		JsNumberToInt(arguments[3], &access);
+		if (texType == JsObject) {
+			Kore::Graphics4::Texture* texture;
+			JsGetExternalData(tex, (void**)&texture);
 			Kore::Compute::setSampledTexture(*unit, texture);
 		}
 		else {
-			Local<Value> rt = image->Get(String::NewFromUtf8(isolate, "renderTarget_"));
-			Local<External> rtfield = Local<External>::Cast(rt->ToObject()->GetInternalField(0));
-			Kore::Graphics4::RenderTarget* renderTarget = (Kore::Graphics4::RenderTarget*)rtfield->Value();
+			JsValueRef rt;
+			JsGetProperty(arguments[2], getId("renderTarget_"), &rt);
+			Kore::Graphics4::RenderTarget* renderTarget;
+			JsGetExternalData(rt, (void**)&renderTarget);
 			Kore::Compute::setSampledTexture(*unit, renderTarget);
 		}
+		return JS_INVALID_REFERENCE;
 	}
 
-	void krom_set_sampled_depth_texture_compute(const FunctionCallbackInfo<Value>& args) {
-		HandleScope scope(args.GetIsolate());
-		Local<External> unitfield = Local<External>::Cast(args[0]->ToObject()->GetInternalField(0));
-		Kore::ComputeTextureUnit* unit = (Kore::ComputeTextureUnit*)unitfield->Value();
+	JsValueRef CALLBACK krom_set_sampled_depth_texture_compute(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount, void *callbackState) {
+		Kore::ComputeTextureUnit* unit;
+		JsGetExternalData(arguments[1], (void**)&unit);
 
-		if (args[1]->IsNull() || args[1]->IsUndefined()) return;
+		JsValueType type;
+		JsGetValueType(arguments[2], &type);
+		if (type == JsNull || type == JsUndefined) return JS_INVALID_REFERENCE;
 
-		Local<Object> image = args[1]->ToObject();
-		Local<Value> rt = image->Get(String::NewFromUtf8(isolate, "renderTarget_"));
-		if (rt->IsObject()) {
-			Local<External> rtfield = Local<External>::Cast(rt->ToObject()->GetInternalField(0));
-			Kore::Graphics4::RenderTarget* renderTarget = (Kore::Graphics4::RenderTarget*)rtfield->Value();
+		JsValueRef rt;
+		JsGetProperty(arguments[2], getId("renderTarget_"), &rt);
+		JsValueType rtType;
+		JsGetValueType(arguments[2], &rtType);
+		if (rtType == JsObject) {
+			Kore::Graphics4::RenderTarget* renderTarget;
+			JsGetExternalData(rt, (void**)&renderTarget);
 			Kore::Compute::setSampledDepthTexture(*unit, renderTarget);
 		}
+		return JS_INVALID_REFERENCE;
 	}
 
-	void krom_set_texture_parameters_compute(const FunctionCallbackInfo<Value>& args) {
-		HandleScope scope(args.GetIsolate());
-		Local<External> unitfield = Local<External>::Cast(args[0]->ToObject()->GetInternalField(0));
-		Kore::ComputeTextureUnit* unit = (Kore::ComputeTextureUnit*)unitfield->Value();
-		Kore::Compute::setTextureAddressing(*unit, Kore::Graphics4::U, convertTextureAddressing(args[1]->ToInt32()->Int32Value()));
-		Kore::Compute::setTextureAddressing(*unit, Kore::Graphics4::V, convertTextureAddressing(args[2]->ToInt32()->Int32Value()));
-		Kore::Compute::setTextureMinificationFilter(*unit, convertTextureFilter(args[3]->ToInt32()->Int32Value()));
-		Kore::Compute::setTextureMagnificationFilter(*unit, convertTextureFilter(args[4]->ToInt32()->Int32Value()));
-		Kore::Compute::setTextureMipmapFilter(*unit, convertMipmapFilter(args[5]->ToInt32()->Int32Value()));
+	JsValueRef CALLBACK krom_set_texture_parameters_compute(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount, void *callbackState) {
+		Kore::ComputeTextureUnit* unit;
+		JsGetExternalData(arguments[1], (void**)&unit);
+
+		int u, v, min, max, mip;
+		JsNumberToInt(arguments[2], &u);
+		JsNumberToInt(arguments[3], &v);
+		JsNumberToInt(arguments[4], &min);
+		JsNumberToInt(arguments[5], &max);
+		JsNumberToInt(arguments[6], &mip);
+
+		Kore::Compute::setTextureAddressing(*unit, Kore::Graphics4::U, convertTextureAddressing(u));
+		Kore::Compute::setTextureAddressing(*unit, Kore::Graphics4::V, convertTextureAddressing(v));
+		Kore::Compute::setTextureMinificationFilter(*unit, convertTextureFilter(min));
+		Kore::Compute::setTextureMagnificationFilter(*unit, convertTextureFilter(max));
+		Kore::Compute::setTextureMipmapFilter(*unit, convertMipmapFilter(mip));
+
+		return JS_INVALID_REFERENCE;
 	}
 
-	void krom_set_texture_3d_parameters_compute(const FunctionCallbackInfo<Value>& args) {
-		HandleScope scope(args.GetIsolate());
-		Local<External> unitfield = Local<External>::Cast(args[0]->ToObject()->GetInternalField(0));
-		Kore::ComputeTextureUnit* unit = (Kore::ComputeTextureUnit*)unitfield->Value();
-		Kore::Compute::setTexture3DAddressing(*unit, Kore::Graphics4::U, convertTextureAddressing(args[1]->ToInt32()->Int32Value()));
-		Kore::Compute::setTexture3DAddressing(*unit, Kore::Graphics4::V, convertTextureAddressing(args[2]->ToInt32()->Int32Value()));
-		Kore::Compute::setTexture3DAddressing(*unit, Kore::Graphics4::W, convertTextureAddressing(args[3]->ToInt32()->Int32Value()));
-		Kore::Compute::setTexture3DMinificationFilter(*unit, convertTextureFilter(args[4]->ToInt32()->Int32Value()));
-		Kore::Compute::setTexture3DMagnificationFilter(*unit, convertTextureFilter(args[5]->ToInt32()->Int32Value()));
-		Kore::Compute::setTexture3DMipmapFilter(*unit, convertMipmapFilter(args[6]->ToInt32()->Int32Value()));
+	JsValueRef CALLBACK krom_set_texture_3d_parameters_compute(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount, void *callbackState) {
+		Kore::ComputeTextureUnit* unit;
+		JsGetExternalData(arguments[1], (void**)&unit);
+
+		int u, v, w, min, max, mip;
+		JsNumberToInt(arguments[2], &u);
+		JsNumberToInt(arguments[3], &v);
+		JsNumberToInt(arguments[4], &w);
+		JsNumberToInt(arguments[5], &min);
+		JsNumberToInt(arguments[6], &max);
+		JsNumberToInt(arguments[7], &mip);
+
+		Kore::Compute::setTexture3DAddressing(*unit, Kore::Graphics4::U, convertTextureAddressing(u));
+		Kore::Compute::setTexture3DAddressing(*unit, Kore::Graphics4::V, convertTextureAddressing(v));
+		Kore::Compute::setTexture3DAddressing(*unit, Kore::Graphics4::W, convertTextureAddressing(w));
+		Kore::Compute::setTexture3DMinificationFilter(*unit, convertTextureFilter(min));
+		Kore::Compute::setTexture3DMagnificationFilter(*unit, convertTextureFilter(max));
+		Kore::Compute::setTexture3DMipmapFilter(*unit, convertMipmapFilter(mip));
+
+		return JS_INVALID_REFERENCE;
 	}
 
 	JsValueRef CALLBACK krom_set_shader_compute(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount, void *callbackState) {
@@ -2250,27 +2459,28 @@ namespace {
 		JsSetProperty(global, getId("Krom"), krom, false);
 	}
 
+	JsRuntimeHandle runtime;
+
 	bool startKrom(char* scriptfile) {
-		v8::Locker locker{isolate};
+		unsigned currentSourceContext = 0;
 
-		Isolate::Scope isolate_scope(isolate);
-		HandleScope handle_scope(isolate);
-		Local<Context> context = Local<Context>::New(isolate, globalContext);
-		Context::Scope context_scope(context);
+		AttachProcess(GetModuleHandle(nullptr));
 
-		Local<String> source = String::NewFromUtf8(isolate, scriptfile, NewStringType::kNormal).ToLocalChecked();
-		Local<String> filename = String::NewFromUtf8(isolate, "krom.js", NewStringType::kNormal).ToLocalChecked();
+		JsCreateRuntime(JsRuntimeAttributeNone, nullptr, &runtime);
 
-		TryCatch try_catch(isolate);
+		JsContextRef context;
+		JsCreateContext(runtime, &context);
 
-		Local<Script> compiled_script = Script::Compile(source, filename);
+		JsSetCurrentContext(context);
 
-		Local<Value> result;
-		if (!compiled_script->Run(context).ToLocal(&result)) {
-			v8::String::Utf8Value stack_trace(try_catch.StackTrace());
-			sendLogMessage("Trace: %s", *stack_trace);
-			return false;
-		}
+		JsValueRef script;
+		JsCreateString(scriptfile, strlen(scriptfile), &script); //TODO: Use JavascriptExternalArrayBuffer
+
+		JsValueRef source;
+		JsCreateString("krom.js", strlen("krom.js"), &source);
+
+		JsValueRef result;
+		JsRun(script, currentSourceContext++, source, JsParseScriptAttributeNone, &result);
 
 		return true;
 	}
@@ -2287,28 +2497,15 @@ namespace {
 			codechanged = false;
 		}
 
-		v8::Locker locker{isolate};
-
-		Isolate::Scope isolate_scope(isolate);
-		v8::MicrotasksScope microtasks_scope(isolate, v8::MicrotasksScope::kRunMicrotasks);
-		HandleScope handle_scope(isolate);
-		Local<Context> context = Local<Context>::New(isolate, globalContext);
-		Context::Scope context_scope(context);
-
-		TryCatch try_catch(isolate);
-		Local<v8::Function> func = Local<v8::Function>::New(isolate, updateFunction);
-		Local<Value> result;
-
-		//**if (debugMode) v8inspector->willExecuteScript(context, func->ScriptId());
-		if (!func->Call(context, context->Global(), 0, NULL).ToLocal(&result)) {
-			v8::String::Utf8Value stack_trace(try_catch.StackTrace());
-			sendLogMessage("Trace: %s", *stack_trace);
-		}
-		//**if (debugMode) v8inspector->didExecuteScript(context);
+		JsValueRef undef;
+		JsGetUndefinedValue(&undef);
+		JsValueRef result;
+		JsCallFunction(updateFunction, &undef, 1, &result);
 	}
 
 	void endV8() {
-		
+		JsSetCurrentContext(JS_INVALID_REFERENCE);
+		JsDisposeRuntime(runtime);
 	}
 
 	void initAudioBuffer() {
@@ -2928,8 +3125,8 @@ namespace {
 				}
 			}
 		}
-		sendLogMessage("%i new types found.", types);
-	}*/
+		sendLogMessage("%i new types found.", types);*/
+	}
 }
 
 extern "C" void watchDirectories(char* path1, char* path2);

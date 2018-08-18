@@ -2,6 +2,8 @@
 #include "debug.h"
 #include "debug_server.h"
 
+bool messageLoopPaused = false;
+
 #if 0
 #include "../V8/include/v8-debug.h"
 #include "../V8/include/v8.h"
@@ -35,8 +37,6 @@ V8_BASE_EXPORT bool SignedMulOverflow64(int64_t lhs, int64_t rhs, int64_t* val);
 #endif
 
 std::unique_ptr<v8_inspector::V8Inspector> v8inspector;
-
-bool messageLoopPaused = false;
 
 namespace {
 	class InspectorClient : public v8_inspector::V8InspectorClient {

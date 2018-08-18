@@ -31,7 +31,7 @@ void signalSemaphore(v8::base::Semaphore* semaphore);
 
 void(*receiveMessageCallback)(char*) = nullptr;
 
-std::string sha1(const char* data, int length);
+//**std::string sha1(const char* data, int length);
 
 namespace {
 	int PORT = 0;
@@ -103,7 +103,7 @@ Content-Type: text/json\r\n\
 			size_t start = buffer.find(search, 0);
 			size_t end = buffer.find_first_of('\r', start);
 			std::string key = buffer.substr(start + search.length(), end - start - search.length()) + "258EAFA5-E914-47DA-95CA-C5AB0DC85B11";
-			std::string sha = sha1(key.c_str(), key.length());
+			std::string sha = key; //**sha1(key.c_str(), key.length());
 			while (sha[sha.length() - 1] == '\n' || sha[sha.length() - 1] == '\r') {
 				sha = sha.substr(0, sha.length() - 1);
 			}
