@@ -2,18 +2,6 @@
 	path = Kore
 	url = https://github.com/Kode/Kore.git
 	branch = master
-[submodule "V8"]
-	path = V8
-	url = https://github.com/Kode/v8_bin.git
-	branch = master
-[submodule "Deployment/debug"]
-	path = Deployment/debug
-	url = https://github.com/Kode/Krom_debug_bin.git
-	branch = master
-[submodule "Deployment/release"]
-	path = Deployment/release
-	url = https://github.com/Kode/Krom_bin.git
-	branch = master
 [submodule "Chakra"]
 	path = Chakra
 	url = https://github.com/Kode/ChakraCore.git
