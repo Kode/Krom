@@ -46,6 +46,7 @@
 
 #include "debug.h"
 
+#include <assert.h>
 #include <stdio.h>
 #include <stdarg.h>
 #include <fstream>
@@ -224,6 +225,7 @@ namespace {
 		JsCopyString(arguments[1], message, 255, &length);
 		message[length] = 0;
 		sendLogMessage(message);
+		return JS_INVALID_REFERENCE;
 	}
 
 	JsValueRef CALLBACK graphics_clear(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount, void *callbackState) {
@@ -1877,6 +1879,7 @@ namespace {
 			JsValueRef obj;
 			JsGetProperty(element, getId("texture_"), &obj);
 			Kore::Graphics4::Texture* mipmap;
+			JsGetExternalData(obj, (void**)&mipmap);
 			texture->setMipmap(mipmap, i + 1);
 		}
 		return JS_INVALID_REFERENCE;
