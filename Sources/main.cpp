@@ -427,6 +427,9 @@ namespace {
 		int length;
 		JsNumberToInt(lengthObj, &length);
 
+		JsValueRef one;
+		JsIntToNumber(1, &one);
+
 		Kore::Graphics4::VertexStructure structure;
 		for (int i = 0; i < length; ++i) {
 			JsValueRef index, element;
@@ -434,14 +437,16 @@ namespace {
 			JsGetIndexedProperty(arguments[2], index, &element);
 			JsValueRef str;
 			JsGetProperty(element, getId("name"), &str);
-			char name[256];
+			char* name = new char[256]; // TODO
 			size_t strLength;
 			JsCopyString(str, name, 255, &strLength);
 			name[strLength] = 0;
 			JsValueRef dataObj;
 			JsGetProperty(element, getId("data"), &dataObj);
+			JsValueRef dataObj2;
+			JsGetIndexedProperty(dataObj, one, &dataObj2); // Haxe enums contain arrays
 			int data;
-			JsNumberToInt(dataObj, &data);
+			JsNumberToInt(dataObj2, &data);
 			structure.add(name, convertVertexData(data));
 		}
 
@@ -744,6 +749,9 @@ namespace {
 		JsValueRef zero;
 		JsIntToNumber(0, &zero);
 
+		JsValueRef one;
+		JsIntToNumber(1, &one);
+
 		JsValueRef pipelineObj;
 		JsGetIndexedProperty(progobj, zero, &pipelineObj);
 		Kore::Graphics4::PipelineState* pipeline;
@@ -769,18 +777,19 @@ namespace {
 				JsGetProperty(element, getId("name"), &str);
 				JsValueRef dataObj;
 				JsGetProperty(element, getId("data"), &dataObj);
+				JsValueRef dataObj2;
+				JsGetIndexedProperty(dataObj, one, &dataObj2); // Haxe enums contain arrays
 				int data;
-				JsNumberToInt(dataObj, &data);
-				char* name = new char[32]; // TODO
+				JsNumberToInt(dataObj2, &data);
+				char* name = new char[256]; // TODO
 				size_t length;
-				JsCopyString(str, name, 31, &length);
+				JsCopyString(str, name, 255, &length);
 				name[length] = 0;
 				structures[i1]->add(name, convertVertexData(data));
 			}
 		}
 
-		JsValueRef one, two, three, four, five, six, seven;
-		JsIntToNumber(1, &one);
+		JsValueRef two, three, four, five, six, seven;
 		JsIntToNumber(2, &two);
 		JsIntToNumber(3, &three);
 		JsIntToNumber(4, &four);
@@ -2318,7 +2327,7 @@ namespace {
 	JsCreatePropertyId(#name, strlen(#name), &name##Id);\
 	JsSetProperty(krom, name##Id, name##Func, false)
 
-	void startV8(const char* bindir) {
+	void bindFunctions() {
 		JsValueRef krom;
 		JsCreateObject(&krom);
 
@@ -2472,6 +2481,8 @@ namespace {
 		JsCreateContext(runtime, &context);
 
 		JsSetCurrentContext(context);
+
+		bindFunctions();
 
 		JsValueRef script;
 		JsCreateString(scriptfile, strlen(scriptfile), &script); //TODO: Use JavascriptExternalArrayBuffer
@@ -3221,7 +3232,6 @@ int kore(int argc, char** argv) {
 	#else
 	char dirsep = '/';
 	#endif
-	startV8((bindir + dirsep).c_str());
 
 	if (watch) {
 		parseCode();
