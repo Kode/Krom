@@ -2536,6 +2536,25 @@ namespace {
 		JsGetUndefinedValue(&undef);
 		JsValueRef result;
 		JsCallFunction(updateFunction, &undef, 1, &result);
+
+		bool except;
+		JsHasException(&except);
+		if (except) {
+			JsValueRef meta;
+			JsGetAndClearExceptionWithMetadata(&meta);
+			JsValueRef lineObj;
+			JsGetProperty(meta, getId("line"), &lineObj);
+			int line;
+			JsNumberToInt(lineObj, &line);
+			JsValueRef sourceObj;
+			JsGetProperty(meta, getId("source"), &sourceObj);
+			char source[1024];
+			size_t length;
+			JsCopyString(sourceObj, source, 1023, &length);
+			source[length] = 0;
+
+			Kore::log(Kore::Error, "Exception at line %i: %s\n", line, source);
+		}
 	}
 
 	void endV8() {
