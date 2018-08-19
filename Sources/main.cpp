@@ -123,6 +123,8 @@ namespace {
 	const int tempStringSize = 1024 * 1024 - 1;
 	char tempString[tempStringSize + 1];
 
+	JsPropertyIdRef buffer_id;
+
 	JsPropertyIdRef getId(const char* name) {
 		JsPropertyIdRef id;
 		JsErrorCode err = JsCreatePropertyId(name, strlen(name), &id);
@@ -1438,9 +1440,12 @@ namespace {
 		Kore::Graphics4::ConstantLocation* location;
 		JsGetExternalData(arguments[1], (void**)&location);
 
+		JsValueRef buffer;
+		JsGetProperty(arguments[2], buffer_id, &buffer);
+
 		Kore::u8* data;
 		unsigned bufferLength;
-		JsGetArrayBufferStorage(arguments[2], &data, &bufferLength);
+		JsGetArrayBufferStorage(buffer, &data, &bufferLength);
 
 		float* from = (float*)data;
 
@@ -1452,9 +1457,12 @@ namespace {
 		Kore::Graphics4::ConstantLocation* location;
 		JsGetExternalData(arguments[1], (void**)&location);
 
+		JsValueRef buffer;
+		JsGetProperty(arguments[2], buffer_id, &buffer);
+
 		Kore::u8* data;
 		unsigned bufferLength;
-		JsGetArrayBufferStorage(arguments[2], &data, &bufferLength);
+		JsGetArrayBufferStorage(buffer, &data, &bufferLength);
 
 		float* from = (float*)data;
 		Kore::mat4 m;
@@ -1472,9 +1480,12 @@ namespace {
 		Kore::Graphics4::ConstantLocation* location;
 		JsGetExternalData(arguments[1], (void**)&location);
 
+		JsValueRef buffer;
+		JsGetProperty(arguments[2], buffer_id, &buffer);
+
 		Kore::u8* data;
 		unsigned bufferLength;
-		JsGetArrayBufferStorage(arguments[2], &data, &bufferLength);
+		JsGetArrayBufferStorage(buffer, &data, &bufferLength);
 
 		float* from = (float*)data;
 		Kore::mat3 m;
@@ -2082,9 +2093,12 @@ namespace {
 		Kore::ComputeConstantLocation* location;
 		JsGetExternalData(arguments[1], (void**)&location);
 
+		JsValueRef buffer;
+		JsGetProperty(arguments[2], buffer_id, &buffer);
+
 		Kore::u8* data;
 		unsigned bufferLength;
-		JsGetArrayBufferStorage(arguments[2], &data, &bufferLength);
+		JsGetArrayBufferStorage(buffer, &data, &bufferLength);
 
 		float* from = (float*)data;
 
@@ -2097,9 +2111,12 @@ namespace {
 		Kore::ComputeConstantLocation* location;
 		JsGetExternalData(arguments[1], (void**)&location);
 
+		JsValueRef buffer;
+		JsGetProperty(arguments[2], buffer_id, &buffer);
+
 		Kore::u8* data;
 		unsigned bufferLength;
-		JsGetArrayBufferStorage(arguments[2], &data, &bufferLength);
+		JsGetArrayBufferStorage(buffer, &data, &bufferLength);
 
 		float* from = (float*)data;
 		Kore::mat4 m;
@@ -2117,9 +2134,12 @@ namespace {
 		Kore::ComputeConstantLocation* location;
 		JsGetExternalData(arguments[1], (void**)&location);
 
+		JsValueRef buffer;
+		JsGetProperty(arguments[2], buffer_id, &buffer);
+
 		Kore::u8* data;
 		unsigned bufferLength;
-		JsGetArrayBufferStorage(arguments[2], &data, &bufferLength);
+		JsGetArrayBufferStorage(buffer, &data, &bufferLength);
 
 		float* from = (float*)data;
 		Kore::mat3 m;
@@ -2327,7 +2347,11 @@ namespace {
 	JsCreatePropertyId(#name, strlen(#name), &name##Id);\
 	JsSetProperty(krom, name##Id, name##Func, false)
 
+#define createId(name) JsCreatePropertyId(#name, strlen(#name), &name##_id)
+
 	void bindFunctions() {
+		createId(buffer);
+
 		JsValueRef krom;
 		JsCreateObject(&krom);
 
