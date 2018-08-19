@@ -2642,136 +2642,66 @@ namespace {
 	}
 
 	void keyDown(Kore::KeyCode code) {
-		/**v8::Locker locker{isolate};
-
-		Isolate::Scope isolate_scope(isolate);
-		HandleScope handle_scope(isolate);
-		v8::Local<v8::Context> context = v8::Local<v8::Context>::New(isolate, globalContext);
-		Context::Scope context_scope(context);
-
-		TryCatch try_catch(isolate);
-		v8::Local<v8::Function> func = v8::Local<v8::Function>::New(isolate, keyboardDownFunction);
-		Local<Value> result;
-		const int argc = 1;
-		Local<Value> argv[argc] = {Int32::New(isolate, (int)code)};
-		if (!func->Call(context, context->Global(), argc, argv).ToLocal(&result)) {
-			v8::String::Utf8Value stack_trace(try_catch.StackTrace());
-			sendLogMessage("Trace: %s", *stack_trace);
-		}*/
+		JsValueRef args[2];
+		JsGetUndefinedValue(&args[0]);
+		JsIntToNumber((int)code, &args[1]);
+		JsValueRef result;
+		JsCallFunction(keyboardDownFunction, args, 2, &result);
 	}
 
 	void keyUp(Kore::KeyCode code) {
-		/**v8::Locker locker{isolate};
-
-		Isolate::Scope isolate_scope(isolate);
-		HandleScope handle_scope(isolate);
-		v8::Local<v8::Context> context = v8::Local<v8::Context>::New(isolate, globalContext);
-		Context::Scope context_scope(context);
-
-		TryCatch try_catch(isolate);
-		v8::Local<v8::Function> func = v8::Local<v8::Function>::New(isolate, keyboardUpFunction);
-		Local<Value> result;
-		const int argc = 1;
-		Local<Value> argv[argc] = {Int32::New(isolate, (int)code)};
-		if (!func->Call(context, context->Global(), argc, argv).ToLocal(&result)) {
-			v8::String::Utf8Value stack_trace(try_catch.StackTrace());
-			sendLogMessage("Trace: %s", *stack_trace);
-		}*/
+		JsValueRef args[2];
+		JsGetUndefinedValue(&args[0]);
+		JsIntToNumber((int)code, &args[1]);
+		JsValueRef result;
+		JsCallFunction(keyboardUpFunction, args, 2, &result);
 	}
 
     void keyPress(wchar_t character) {
-       /** v8::Locker locker{isolate};
-
-        Isolate::Scope isolate_scope(isolate);
-        HandleScope handle_scope(isolate);
-        v8::Local<v8::Context> context = v8::Local<v8::Context>::New(isolate, globalContext);
-        Context::Scope context_scope(context);
-
-        TryCatch try_catch(isolate);
-        v8::Local<v8::Function> func = v8::Local<v8::Function>::New(isolate, keyboardPressFunction);
-        Local<Value> result;
-        const int argc = 1;
-        Local<Value> argv[argc] = {Int32::New(isolate, (int)character)};
-        if (!func->Call(context, context->Global(), argc, argv).ToLocal(&result)) {
-            v8::String::Utf8Value stack_trace(try_catch.StackTrace());
-            sendLogMessage("Trace: %s", *stack_trace);
-        }*/
+		JsValueRef args[2];
+		JsGetUndefinedValue(&args[0]);
+		JsIntToNumber((int)character, &args[1]);
+		JsValueRef result;
+		JsCallFunction(keyboardPressFunction, args, 2, &result);
     }
 
 	void mouseMove(int window, int x, int y, int mx, int my) {
-		/**v8::Locker locker{isolate};
-
-		Isolate::Scope isolate_scope(isolate);
-		HandleScope handle_scope(isolate);
-		v8::Local<v8::Context> context = v8::Local<v8::Context>::New(isolate, globalContext);
-		Context::Scope context_scope(context);
-
-		TryCatch try_catch(isolate);
-		v8::Local<v8::Function> func = v8::Local<v8::Function>::New(isolate, mouseMoveFunction);
-		Local<Value> result;
-		const int argc = 4;
-		Local<Value> argv[argc] = {Int32::New(isolate, x), Int32::New(isolate, y), Int32::New(isolate, mx), Int32::New(isolate, my)};
-		if (!func->Call(context, context->Global(), argc, argv).ToLocal(&result)) {
-			v8::String::Utf8Value stack_trace(try_catch.StackTrace());
-			sendLogMessage("Trace: %s", *stack_trace);
-		}*/
+		JsValueRef args[5];
+		JsGetUndefinedValue(&args[0]);
+		JsIntToNumber(x, &args[1]);
+		JsIntToNumber(y, &args[2]);
+		JsIntToNumber(mx, &args[3]);
+		JsIntToNumber(my, &args[4]);
+		JsValueRef result;
+		JsCallFunction(mouseMoveFunction, args, 5, &result);
 	}
 
 	void mouseDown(int window, int button, int x, int y) {
-		/**v8::Locker locker{isolate};
-
-		Isolate::Scope isolate_scope(isolate);
-		HandleScope handle_scope(isolate);
-		v8::Local<v8::Context> context = v8::Local<v8::Context>::New(isolate, globalContext);
-		Context::Scope context_scope(context);
-
-		TryCatch try_catch(isolate);
-		v8::Local<v8::Function> func = v8::Local<v8::Function>::New(isolate, mouseDownFunction);
-		Local<Value> result;
-		const int argc = 3;
-		Local<Value> argv[argc] = {Int32::New(isolate, button), Int32::New(isolate, x), Int32::New(isolate, y)};
-		if (!func->Call(context, context->Global(), argc, argv).ToLocal(&result)) {
-			v8::String::Utf8Value stack_trace(try_catch.StackTrace());
-			sendLogMessage("Trace: %s", *stack_trace);
-		}*/
+		JsValueRef args[4];
+		JsGetUndefinedValue(&args[0]);
+		JsIntToNumber(button, &args[1]);
+		JsIntToNumber(x, &args[2]);
+		JsIntToNumber(y, &args[3]);
+		JsValueRef result;
+		JsCallFunction(mouseDownFunction, args, 4, &result);
 	}
 
 	void mouseUp(int window, int button, int x, int y) {
-		/**v8::Locker locker{isolate};
-
-		Isolate::Scope isolate_scope(isolate);
-		HandleScope handle_scope(isolate);
-		v8::Local<v8::Context> context = v8::Local<v8::Context>::New(isolate, globalContext);
-		Context::Scope context_scope(context);
-
-		TryCatch try_catch(isolate);
-		v8::Local<v8::Function> func = v8::Local<v8::Function>::New(isolate, mouseUpFunction);
-		Local<Value> result;
-		const int argc = 3;
-		Local<Value> argv[argc] = {Int32::New(isolate, button), Int32::New(isolate, x), Int32::New(isolate, y)};
-		if (!func->Call(context, context->Global(), argc, argv).ToLocal(&result)) {
-			v8::String::Utf8Value stack_trace(try_catch.StackTrace());
-			sendLogMessage("Trace: %s", *stack_trace);
-		}*/
+		JsValueRef args[4];
+		JsGetUndefinedValue(&args[0]);
+		JsIntToNumber(button, &args[1]);
+		JsIntToNumber(x, &args[2]);
+		JsIntToNumber(y, &args[3]);
+		JsValueRef result;
+		JsCallFunction(mouseUpFunction, args, 4, &result);
 	}
 
 	void mouseWheel(int window, int delta) {
-		/**v8::Locker locker{isolate};
-
-		Isolate::Scope isolate_scope(isolate);
-		HandleScope handle_scope(isolate);
-		v8::Local<v8::Context> context = v8::Local<v8::Context>::New(isolate, globalContext);
-		Context::Scope context_scope(context);
-
-		TryCatch try_catch(isolate);
-		v8::Local<v8::Function> func = v8::Local<v8::Function>::New(isolate, mouseWheelFunction);
-		Local<Value> result;
-		const int argc = 1;
-		Local<Value> argv[argc] = {Int32::New(isolate, delta)};
-		if (!func->Call(context, context->Global(), argc, argv).ToLocal(&result)) {
-			v8::String::Utf8Value stack_trace(try_catch.StackTrace());
-			sendLogMessage("Trace: %s", *stack_trace);
-		}*/
+		JsValueRef args[2];
+		JsGetUndefinedValue(&args[0]);
+		JsIntToNumber(delta, &args[1]);
+		JsValueRef result;
+		JsCallFunction(mouseWheelFunction, args, 2, &result);
 	}
 
 	void penDown(int window, int x, int y, float pressure) {
