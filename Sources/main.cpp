@@ -2533,18 +2533,20 @@ namespace {
 	void parseCode();
 
 	void runJS() {
-		Message message = receiveMessage();
-		if (message.size > 0) {
-			if (message.data[0] == DEBUGGER_MESSAGE_BREAKPOINT) {
-				int line = message.data[1];
-				JsValueRef breakpoint;
-				JsDiagSetBreakpoint(scriptId(), line, 0, &breakpoint);
-			}
-			else if (message.data[0] == DEBUGGER_MESSAGE_PAUSE) {
-				JsDiagRequestAsyncBreak(runtime);
-			}
-			else if (message.data[0] == DEBUGGER_MESSAGE_STACKTRACE) {
-				sendStackTrace();
+		if (debugMode) {
+			Message message = receiveMessage();
+			if (message.size > 0) {
+				if (message.data[0] == DEBUGGER_MESSAGE_BREAKPOINT) {
+					int line = message.data[1];
+					JsValueRef breakpoint;
+					JsDiagSetBreakpoint(scriptId(), line, 0, &breakpoint);
+				}
+				else if (message.data[0] == DEBUGGER_MESSAGE_PAUSE) {
+					JsDiagRequestAsyncBreak(runtime);
+				}
+				else if (message.data[0] == DEBUGGER_MESSAGE_STACKTRACE) {
+					sendStackTrace();
+				}
 			}
 		}
 
