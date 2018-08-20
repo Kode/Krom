@@ -2527,9 +2527,7 @@ namespace {
 
 	void parseCode();
 
-	void runV8() {
-		if (messageLoopPaused) return;
-
+	void runJS() {
 		if (codechanged) {
 			parseCode();
 			codechanged = false;
@@ -2560,7 +2558,7 @@ namespace {
 		}
 	}
 
-	void endV8() {
+	void endKrom() {
 		JsSetCurrentContext(JS_INVALID_REFERENCE);
 		JsDisposeRuntime(runtime);
 	}
@@ -2602,14 +2600,9 @@ namespace {
 		Kore::Graphics4::begin();
 
 		//mutex.Lock();
-		runV8();
+		runJS();
 		//mutex.Unlock();
 
-		if (debugMode) {
-			do {
-				tickDebugger();
-			} while (messageLoopPaused);
-		}
 		Kore::Graphics4::end();
 		Kore::Graphics4::swapBuffers();
 	}
@@ -3219,18 +3212,17 @@ int kore(int argc, char** argv) {
 		watchDirectories(argv[1], argv[2]);
 	}
 
+	startKrom(code);
+
 	if (debugMode) {
-		startDebugger(port);
-		while (!tickDebugger()) {}
-		//Sleep(1000);
+		startDebugger(runtime, port);
 	}
 
-	startKrom(code);
 	Kore::System::start();
 
 	exit(0); // TODO
 
-	endV8();
+	endKrom();
 
 	return 0;
 }

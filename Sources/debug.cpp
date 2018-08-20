@@ -2,8 +2,6 @@
 #include "debug.h"
 #include "debug_server.h"
 
-bool messageLoopPaused = false;
-
 #if 0
 #include "../V8/include/v8-debug.h"
 #include "../V8/include/v8.h"
@@ -138,10 +136,132 @@ bool tickDebugger() {
 }
 #endif
 
-void startDebugger(int port) {
+#include <ChakraCore.h>
+#include <ChakraDebug.h>
 
+#include <winsock2.h>
+#include <ws2tcpip.h>
+
+#include <Kore/Log.h>
+
+namespace {
+	void CHAKRA_CALLBACK debugCallback(JsDiagDebugEvent debugEvent, JsValueRef eventData, void* callbackState) {
+		Kore::log(Kore::Info, "Debug callback: %i\n", debugEvent);
+	}
 }
 
-bool tickDebugger() {
-	return false;
+void startDebugger(JsRuntimeHandle runtimeHandle, int port) {
+	JsDiagStartDebugging(runtimeHandle, debugCallback, nullptr);
+
+	WSADATA wsaData;
+	int iResult;
+
+	iResult = WSAStartup(MAKEWORD(2, 2), &wsaData);
+	if (iResult != 0) {
+		Kore::log(Kore::Error, "WSAStartup failed: %d\n", iResult);
+		return;
+	}
+
+#define DEFAULT_PORT "9191"
+
+	struct addrinfo *result = NULL, *ptr = NULL, hints;
+
+	ZeroMemory(&hints, sizeof(hints));
+	hints.ai_family = AF_INET;
+	hints.ai_socktype = SOCK_STREAM;
+	hints.ai_protocol = IPPROTO_TCP;
+	hints.ai_flags = AI_PASSIVE;
+
+	iResult = getaddrinfo(NULL, DEFAULT_PORT, &hints, &result);
+	if (iResult != 0) {
+		Kore::log(Kore::Error, "getaddrinfo failed: %d\n", iResult);
+		WSACleanup();
+		return;
+	}
+
+	SOCKET ListenSocket = INVALID_SOCKET;
+
+	ListenSocket = socket(result->ai_family, result->ai_socktype, result->ai_protocol);
+
+	if (ListenSocket == INVALID_SOCKET) {
+		Kore::log(Kore::Error, "Error at socket(): %ld\n", WSAGetLastError());
+		freeaddrinfo(result);
+		WSACleanup();
+		return;
+	}
+
+	iResult = bind(ListenSocket, result->ai_addr, (int)result->ai_addrlen);
+	if (iResult == SOCKET_ERROR) {
+		Kore::log(Kore::Error, "bind failed with error: %d\n", WSAGetLastError());
+		freeaddrinfo(result);
+		closesocket(ListenSocket);
+		WSACleanup();
+		return;
+	}
+
+	freeaddrinfo(result);
+
+	if (listen(ListenSocket, SOMAXCONN) == SOCKET_ERROR) {
+		Kore::log(Kore::Error, "Listen failed with error: %ld\n", WSAGetLastError());
+		closesocket(ListenSocket);
+		WSACleanup();
+		return;
+	}
+
+	SOCKET ClientSocket;
+
+	ClientSocket = INVALID_SOCKET;
+
+	ClientSocket = accept(ListenSocket, NULL, NULL);
+	if (ClientSocket == INVALID_SOCKET) {
+		Kore::log(Kore::Error, "accept failed: %d\n", WSAGetLastError());
+		closesocket(ListenSocket);
+		WSACleanup();
+		return;
+	}
+
+#define DEFAULT_BUFLEN 512
+
+	char recvbuf[DEFAULT_BUFLEN];
+	int iSendResult;
+	int recvbuflen = DEFAULT_BUFLEN;
+
+	// Receive until the peer shuts down the connection
+	do {
+
+		iResult = recv(ClientSocket, recvbuf, recvbuflen, 0);
+		if (iResult > 0) {
+			Kore::log(Kore::Info, "Bytes received: %d\n", iResult);
+
+			// Echo the buffer back to the sender
+			iSendResult = send(ClientSocket, recvbuf, iResult, 0);
+			if (iSendResult == SOCKET_ERROR) {
+				Kore::log(Kore::Error, "send failed: %d\n", WSAGetLastError());
+				closesocket(ClientSocket);
+				WSACleanup();
+				return;
+			}
+			Kore::log(Kore::Info, "Bytes sent: %d\n", iSendResult);
+		}
+		else if (iResult == 0)
+			Kore::log(Kore::Info, "Connection closing...\n");
+		else {
+			Kore::log(Kore::Info, "recv failed: %d\n", WSAGetLastError());
+			closesocket(ClientSocket);
+			WSACleanup();
+			return;
+		}
+
+	} while (iResult > 0);
+
+	iResult = shutdown(ClientSocket, SD_SEND);
+	if (iResult == SOCKET_ERROR) {
+		Kore::log(Kore::Error, "shutdown failed: %d\n", WSAGetLastError());
+		closesocket(ClientSocket);
+		WSACleanup();
+		return;
+	}
+
+	closesocket(ClientSocket);
+	WSACleanup();
 }

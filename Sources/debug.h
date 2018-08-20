@@ -2,7 +2,6 @@
 
 #include "semaphore.h"
 
-void startDebugger(int port);
-bool tickDebugger();
+typedef void *JsRuntimeHandle;
 
-extern bool messageLoopPaused;
+void startDebugger(JsRuntimeHandle runtimeHandle, int port);
