@@ -3108,12 +3108,18 @@ int kore(int argc, char** argv) {
 #endif
 	assetsdir = argc > 1 ? argv[1] : bindir;
 	shadersdir = argc > 2 ? argv[2] : bindir;
+	
+	int optionIndex = 3;
+	if (shadersdir.rfind("--", 0) == 0) {
+		shadersdir = bindir;
+		optionIndex = 2;
+	}
 
 	bool readStdoutPath = false;
 	bool readConsolePid = false;
 	bool readPort = false;
 	int port = 0;
-	for (int i = 3; i < argc; ++i) {
+	for (int i = optionIndex; i < argc; ++i) {
 		if (readPort) {
 			port = atoi(argv[i]);
 			readPort = false;
@@ -3123,7 +3129,7 @@ int kore(int argc, char** argv) {
 			readPort = true;
 		}
 		else if (strcmp(argv[i], "--watch") == 0) {
-			//**watch = true;
+			watch = true;
 		}
 		else if (strcmp(argv[i], "--nosound") == 0) {
 			nosound = true;
@@ -3172,7 +3178,8 @@ int kore(int argc, char** argv) {
 	Kore::threadsInit();
 
 	if (watch) {
-		watchDirectories(argv[1], argv[2]);
+		std::string path1(assetsdir), path2(shadersdir);
+		watchDirectories(&path1[0], &path2[0]);
 	}
 
 	startKrom(code);
