@@ -11,6 +11,4 @@ enum IdeMessageType {
 };
 
 void startDebugger(JsRuntimeHandle runtimeHandle, int port);
-void sendStackTrace();
 int scriptId();
-extern bool paused;

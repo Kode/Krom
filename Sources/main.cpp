@@ -2545,13 +2545,9 @@ namespace {
 					JsDiagRequestAsyncBreak(runtime);
 				}
 				else if (message.data[0] == DEBUGGER_MESSAGE_STACKTRACE) {
-					sendStackTrace();
+					Kore::log(Kore::Warning, "Ignore stack trace request.");
 				}
 			}
-		}
-
-		if (paused) {
-			return;
 		}
 
 		if (codechanged) {
@@ -2618,7 +2614,6 @@ namespace {
 	}
 
 	void dropFiles(wchar_t* filePath) {
-		if (paused) return;
 		JsValueRef args[2];
 		JsGetUndefinedValue(&args[0]);
 		size_t len = wcslen(filePath);
@@ -2637,7 +2632,6 @@ namespace {
 	}
 
 	void keyDown(Kore::KeyCode code) {
-		if (paused) return;
 		JsValueRef args[2];
 		JsGetUndefinedValue(&args[0]);
 		JsIntToNumber((int)code, &args[1]);
@@ -2646,7 +2640,6 @@ namespace {
 	}
 
 	void keyUp(Kore::KeyCode code) {
-		if (paused) return;
 		JsValueRef args[2];
 		JsGetUndefinedValue(&args[0]);
 		JsIntToNumber((int)code, &args[1]);
@@ -2655,7 +2648,6 @@ namespace {
 	}
 
     void keyPress(wchar_t character) {
-		if (paused) return;
 		JsValueRef args[2];
 		JsGetUndefinedValue(&args[0]);
 		JsIntToNumber((int)character, &args[1]);
@@ -2664,7 +2656,6 @@ namespace {
     }
 
 	void mouseMove(int window, int x, int y, int mx, int my) {
-		if (paused) return;
 		JsValueRef args[5];
 		JsGetUndefinedValue(&args[0]);
 		JsIntToNumber(x, &args[1]);
@@ -2676,7 +2667,6 @@ namespace {
 	}
 
 	void mouseDown(int window, int button, int x, int y) {
-		if (paused) return;
 		JsValueRef args[4];
 		JsGetUndefinedValue(&args[0]);
 		JsIntToNumber(button, &args[1]);
@@ -2687,7 +2677,6 @@ namespace {
 	}
 
 	void mouseUp(int window, int button, int x, int y) {
-		if (paused) return;
 		JsValueRef args[4];
 		JsGetUndefinedValue(&args[0]);
 		JsIntToNumber(button, &args[1]);
@@ -2698,7 +2687,6 @@ namespace {
 	}
 
 	void mouseWheel(int window, int delta) {
-		if (paused) return;
 		JsValueRef args[2];
 		JsGetUndefinedValue(&args[0]);
 		JsIntToNumber(delta, &args[1]);
@@ -2707,7 +2695,6 @@ namespace {
 	}
 
 	void penDown(int window, int x, int y, float pressure) {
-		if (paused) return;
 		JsValueRef args[4];
 		JsGetUndefinedValue(&args[0]);
 		JsIntToNumber(x, &args[1]);
@@ -2718,7 +2705,6 @@ namespace {
 	}
 
 	void penUp(int window, int x, int y, float pressure) {
-		if (paused) return;
 		JsValueRef args[4];
 		JsGetUndefinedValue(&args[0]);
 		JsIntToNumber(x, &args[1]);
@@ -2729,7 +2715,6 @@ namespace {
 	}
 
 	void penMove(int window, int x, int y, float pressure) {
-		if (paused) return;
 		JsValueRef args[4];
 		JsGetUndefinedValue(&args[0]);
 		JsIntToNumber(x, &args[1]);
@@ -2740,7 +2725,6 @@ namespace {
 	}
 
 	void gamepadAxis(int gamepad, int axis, float value) {
-		if (paused) return;
 		JsValueRef args[4];
 		JsGetUndefinedValue(&args[0]);
 		JsIntToNumber(gamepad, &args[1]);
@@ -2751,7 +2735,6 @@ namespace {
 	}
 
 	void gamepadButton(int gamepad, int button, float value) {
-		if (paused) return;
 		JsValueRef args[4];
 		JsGetUndefinedValue(&args[0]);
 		JsIntToNumber(gamepad, &args[1]);
