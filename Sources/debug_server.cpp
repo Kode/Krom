@@ -27,14 +27,14 @@
 #include <unistd.h>
 #endif
 
-void(*receiveMessageCallback)(char*) = nullptr;
+#include <ChakraCore.h>
+#include <ChakraDebug.h>
 
 namespace {
 	int PORT = 0;
-	const int RCVBUFSIZE = 4096;
 
 	Kore::Mutex mutex;
-	std::vector<std::string> queuedMessages;
+	std::vector<Message> queuedMessages;
 	volatile int step = 0;
 
 #ifdef KORE_WINDOWS
@@ -53,41 +53,23 @@ namespace {
 	}
 	
 #ifdef KORE_WINDOWS
-	static void echo(SOCKET client_socket)
+	void echo(SOCKET client_socket)
 #else
-	static void echo(int client_socket)
+	void echo(int client_socket)
 #endif
 	{
+		::client_socket = client_socket;
 		for (;;) {
-			::client_socket = client_socket;
-			char echo_buffer[RCVBUFSIZE];
-			int recv_size;
-			time_t zeit;
-
-			if ((recv_size = recv(client_socket, echo_buffer, RCVBUFSIZE, 0)) < 0) error_exit("recv() error");
-
-			echo_buffer[recv_size] = 0;
-			Kore::log(Kore::Info, "%s", echo_buffer);
+			Message message;
+			if ((message.size = recv(client_socket, (char*)message.data, RCVBUFSIZE, 0)) < 0) {
+				error_exit("recv() error");
+			}
+			
+			mutex.lock();
+			queuedMessages.push_back(message);
+			mutex.unlock();
 		}
 	}
-
-	std::string encodeMessage(std::string message) {
-		std::string encoded;
-		encoded += (unsigned char)0x81;
-		if (message.length() <= 125) {
-			encoded += (unsigned char)message.length();
-		}
-		else {
-			encoded += (unsigned char)126;
-			unsigned short payload = (unsigned short)message.length();
-			unsigned char* payloadparts = (unsigned char*)&payload;
-			encoded += payloadparts[1];
-			encoded += payloadparts[0];
-		}
-		encoded += message;
-		return encoded;
-	}
-
 
 	void startServerInThread(void*) {
 #ifdef KORE_WINDOWS
@@ -131,21 +113,24 @@ namespace {
 #endif
 		}
 	}
+
+	int lastMessage[1024 * 1024];
 }
 
-void sendMessage(const char* message) {
-	std::string encoded = encodeMessage(message);
-	send(client_socket, encoded.c_str(), encoded.length(), 0);
+void sendMessage(int* data, int size) {
+	send(client_socket, (char*)data, size * 4, 0);
 }
 
-std::string receiveMessage() {
+Message receiveMessage() {
 	mutex.lock();
 	if (queuedMessages.size() < 1) {
 		mutex.unlock();
-		return "";
+		Message message;
+		message.size = 0;
+		return message;
 	}
 	else {
-		std::string message = queuedMessages[0];
+		Message message = queuedMessages[0];
 		queuedMessages.erase(queuedMessages.begin());
 		mutex.unlock();
 		return message;

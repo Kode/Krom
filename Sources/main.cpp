@@ -45,6 +45,7 @@
 #include <Kore/Threads/Mutex.h>
 
 #include "debug.h"
+#include "debug_server.h"
 
 #include <assert.h>
 #include <stdio.h>
@@ -58,8 +59,6 @@
 #ifdef KORE_WINDOWS
 #include <Windows.h> // AttachConsole
 #endif
-
-void sendMessage(const char* message);
 
 BOOL AttachProcess(HANDLE hmod);
 
@@ -205,7 +204,7 @@ namespace {
 			strcpy(json, "{\"method\":\"Log.entryAdded\",\"params\":{\"entry\":{\"source\":\"javascript\",\"level\":\"log\",\"text\":\"");
 			strcat(json, message);
 			strcat(json, "\",\"timestamp\":0}}}");
-			sendMessage(json);
+			//sendMessage(json);
 		}
 	}
 
@@ -2496,13 +2495,16 @@ namespace {
 	}
 
 	JsRuntimeHandle runtime;
+	JsSourceContext cookie = 1234;
 
 	bool startKrom(char* scriptfile) {
-		unsigned currentSourceContext = 0;
-
 		AttachProcess(GetModuleHandle(nullptr));
 
+#ifdef NDEBUG
 		JsCreateRuntime(JsRuntimeAttributeNone, nullptr, &runtime);
+#else
+		JsCreateRuntime(JsRuntimeAttributeAllowScriptInterrupt, nullptr, &runtime);
+#endif
 
 		JsContextRef context;
 		JsCreateContext(runtime, &context);
@@ -2518,7 +2520,7 @@ namespace {
 		JsCreateString("krom.js", strlen("krom.js"), &source);
 
 		JsValueRef result;
-		JsRun(script, currentSourceContext++, source, JsParseScriptAttributeNone, &result);
+		JsRun(script, cookie, source, JsParseScriptAttributeNone, &result);
 
 		return true;
 	}
@@ -2528,6 +2530,25 @@ namespace {
 	void parseCode();
 
 	void runJS() {
+		Message message = receiveMessage();
+		if (message.size > 0) {
+			if (message.data[0] == DEBUGGER_MESSAGE_BREAKPOINT) {
+				int line = message.data[1];
+				JsValueRef breakpoint;
+				JsDiagSetBreakpoint(scriptId(), line, 0, &breakpoint);
+			}
+			else if (message.data[0] == DEBUGGER_MESSAGE_PAUSE) {
+				JsDiagRequestAsyncBreak(runtime);
+			}
+			else if (message.data[0] == DEBUGGER_MESSAGE_STACKTRACE) {
+				sendStackTrace();
+			}
+		}
+
+		if (paused) {
+			return;
+		}
+
 		if (codechanged) {
 			parseCode();
 			codechanged = false;
@@ -2638,6 +2659,7 @@ namespace {
 	}
 
 	void keyDown(Kore::KeyCode code) {
+		if (paused) return;
 		JsValueRef args[2];
 		JsGetUndefinedValue(&args[0]);
 		JsIntToNumber((int)code, &args[1]);
@@ -2646,6 +2668,7 @@ namespace {
 	}
 
 	void keyUp(Kore::KeyCode code) {
+		if (paused) return;
 		JsValueRef args[2];
 		JsGetUndefinedValue(&args[0]);
 		JsIntToNumber((int)code, &args[1]);
@@ -2654,6 +2677,7 @@ namespace {
 	}
 
     void keyPress(wchar_t character) {
+		if (paused) return;
 		JsValueRef args[2];
 		JsGetUndefinedValue(&args[0]);
 		JsIntToNumber((int)character, &args[1]);
@@ -2662,6 +2686,7 @@ namespace {
     }
 
 	void mouseMove(int window, int x, int y, int mx, int my) {
+		if (paused) return;
 		JsValueRef args[5];
 		JsGetUndefinedValue(&args[0]);
 		JsIntToNumber(x, &args[1]);
@@ -2673,6 +2698,7 @@ namespace {
 	}
 
 	void mouseDown(int window, int button, int x, int y) {
+		if (paused) return;
 		JsValueRef args[4];
 		JsGetUndefinedValue(&args[0]);
 		JsIntToNumber(button, &args[1]);
@@ -2683,6 +2709,7 @@ namespace {
 	}
 
 	void mouseUp(int window, int button, int x, int y) {
+		if (paused) return;
 		JsValueRef args[4];
 		JsGetUndefinedValue(&args[0]);
 		JsIntToNumber(button, &args[1]);
@@ -2693,6 +2720,7 @@ namespace {
 	}
 
 	void mouseWheel(int window, int delta) {
+		if (paused) return;
 		JsValueRef args[2];
 		JsGetUndefinedValue(&args[0]);
 		JsIntToNumber(delta, &args[1]);
