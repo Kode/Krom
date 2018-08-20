@@ -1,5 +1,3 @@
-const os = require('os');
-
 let project = new Project('Krom');
 
 project.cpp11 = true;
