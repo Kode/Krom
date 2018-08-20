@@ -100,7 +100,7 @@ namespace {
 
 	void update();
 	void initAudioBuffer();
-	void mix(int samples);
+	void updateAudio(int samples);
 	void dropFiles(wchar_t* filePath);
 	void keyDown(Kore::KeyCode code);
 	void keyUp(Kore::KeyCode code);
@@ -123,6 +123,8 @@ namespace {
 
 	const int tempStringSize = 1024 * 1024 - 1;
 	char tempString[tempStringSize + 1];
+	char tempStringVS[tempStringSize + 1];
+	char tempStringFS[tempStringSize + 1];
 
 	JsPropertyIdRef buffer_id;
 
@@ -164,7 +166,7 @@ namespace {
 
 		mutex.create();
 		if (!nosound) {
-			Kore::Audio2::audioCallback = mix;
+			Kore::Audio2::audioCallback = updateAudio;
 			Kore::Audio2::init();
 			initAudioBuffer();
 		}
@@ -503,11 +505,12 @@ namespace {
 		int length;
 		JsNumberToInt(lengthObj, &length);
 		for (int i = 0; i < length; ++i) {
-			JsValueRef index, obj;
+			JsValueRef index, obj, bufObj;
 			JsIntToNumber(i, &index);
 			JsGetIndexedProperty(arguments[1], index, &obj);
+			JsGetProperty(obj, getId("buffer"), &bufObj);
 			Kore::Graphics4::VertexBuffer* buffer;
-			JsGetExternalData(obj, (void**)&buffer);
+			JsGetExternalData(bufObj, (void**)&buffer);
 			vertexBuffers[i] = buffer;
 		}
 		Kore::Graphics4::setVertexBuffers(vertexBuffers, length);
@@ -554,9 +557,9 @@ namespace {
 
 	JsValueRef CALLBACK krom_create_vertex_shader_from_source(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount, void *callbackState) {
 		size_t length;
-		JsCopyString(arguments[1], tempString, tempStringSize, &length);
-		tempString[length] = 0;
-		Kore::Graphics4::Shader* shader = new Kore::Graphics4::Shader(tempString, Kore::Graphics4::VertexShader);
+		JsCopyString(arguments[1], tempStringVS, tempStringSize, &length);
+		tempStringVS[length] = 0;
+		Kore::Graphics4::Shader* shader = new Kore::Graphics4::Shader(tempStringVS, Kore::Graphics4::VertexShader);
 
 		JsValueRef value;
 		JsCreateExternalObject(shader, nullptr, &value);
@@ -580,9 +583,9 @@ namespace {
 
 	JsValueRef CALLBACK krom_create_fragment_shader_from_source(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount, void *callbackState) {
 		size_t length;
-		JsCopyString(arguments[1], tempString, tempStringSize, &length);
-		tempString[length] = 0;
-		Kore::Graphics4::Shader* shader = new Kore::Graphics4::Shader(tempString, Kore::Graphics4::FragmentShader);
+		JsCopyString(arguments[1], tempStringFS, tempStringSize, &length);
+		tempStringFS[length] = 0;
+		Kore::Graphics4::Shader* shader = new Kore::Graphics4::Shader(tempStringFS, Kore::Graphics4::FragmentShader);
 
 		JsValueRef value;
 		JsCreateExternalObject(shader, nullptr, &value);
@@ -2570,28 +2573,12 @@ namespace {
 	}
 
 	void updateAudio(int samples) {
-		/**v8::Locker locker{isolate};
-
-		Isolate::Scope isolate_scope(isolate);
-		v8::MicrotasksScope microtasks_scope(isolate, v8::MicrotasksScope::kRunMicrotasks);
-		HandleScope handle_scope(isolate);
-		Local<Context> context = Local<Context>::New(isolate, globalContext);
-		Context::Scope context_scope(context);
-
-		TryCatch try_catch(isolate);
-		Local<v8::Function> func = Local<v8::Function>::New(isolate, audioFunction);
-		Local<Value> result;
-		const int argc = 1;
-		Local<Value> argv[argc] = {Int32::New(isolate, samples)};
-		if (!func->Call(context, context->Global(), argc, argv).ToLocal(&result)) {
-			v8::String::Utf8Value stack_trace(try_catch.StackTrace());
-			sendLogMessage("Trace: %s", *stack_trace);
-		}*/
-	}
-
-	void mix(int samples) {
 		//mutex.Lock();
-		updateAudio(samples);
+		JsValueRef args[2];
+		JsGetUndefinedValue(&args[0]);
+		JsIntToNumber(samples, &args[1]);
+		JsValueRef result;
+		JsCallFunction(audioFunction, args, 2, &result);
 		//mutex.Unlock();
 	}
 
@@ -2608,33 +2595,21 @@ namespace {
 	}
 
 	void dropFiles(wchar_t* filePath) {
-		/**v8::Locker locker{isolate};
-
-		Isolate::Scope isolate_scope(isolate);
-		HandleScope handle_scope(isolate);
-		v8::Local<v8::Context> context = v8::Local<v8::Context>::New(isolate, globalContext);
-		Context::Scope context_scope(context);
-
-		TryCatch try_catch(isolate);
-		v8::Local<v8::Function> func = v8::Local<v8::Function>::New(isolate, dropFilesFunction);
-		Local<Value> result;
-		const int argc = 1;
-		Local<Value> argv[argc];
+		JsValueRef args[2];
+		JsGetUndefinedValue(&args[0]);
+		size_t len = wcslen(filePath);
 		if (sizeof(wchar_t) == 2) {
-			argv[0] = {String::NewFromTwoByte(isolate, (const uint16_t*)filePath)};
+			JsCreateStringUtf16((const uint16_t*)filePath, len, &args[1]);
 		}
 		else {
-			size_t len = wcslen(filePath);
 			uint16_t* str = new uint16_t[len + 1];
 			for (int i = 0; i < len; i++) str[i] = filePath[i];
 			str[len] = 0;
-			argv[0] = {String::NewFromTwoByte(isolate, str)};
+			JsCreateStringUtf16(str, len, &args[1]);
 			delete str;
 		}
-		if (!func->Call(context, context->Global(), argc, argv).ToLocal(&result)) {
-			v8::String::Utf8Value stack_trace(try_catch.StackTrace());
-			sendLogMessage("Trace: %s", *stack_trace);
-		}*/
+		JsValueRef result;
+		JsCallFunction(dropFilesFunction, args, 2, &result);
 	}
 
 	void keyDown(Kore::KeyCode code) {
@@ -2701,98 +2676,53 @@ namespace {
 	}
 
 	void penDown(int window, int x, int y, float pressure) {
-		/**v8::Locker locker{isolate};
-
-		Isolate::Scope isolate_scope(isolate);
-		HandleScope handle_scope(isolate);
-		v8::Local<v8::Context> context = v8::Local<v8::Context>::New(isolate, globalContext);
-		Context::Scope context_scope(context);
-
-		TryCatch try_catch(isolate);
-		v8::Local<v8::Function> func = v8::Local<v8::Function>::New(isolate, penDownFunction);
-		Local<Value> result;
-		const int argc = 3;
-		Local<Value> argv[argc] = {Int32::New(isolate, x), Int32::New(isolate, y), Number::New(isolate, pressure)};
-		if (!func->Call(context, context->Global(), argc, argv).ToLocal(&result)) {
-			v8::String::Utf8Value stack_trace(try_catch.StackTrace());
-			sendLogMessage("Trace: %s", *stack_trace);
-		}*/
+		JsValueRef args[4];
+		JsGetUndefinedValue(&args[0]);
+		JsIntToNumber(x, &args[1]);
+		JsIntToNumber(y, &args[2]);
+		JsDoubleToNumber(pressure, &args[3]);
+		JsValueRef result;
+		JsCallFunction(penDownFunction, args, 4, &result);
 	}
 
 	void penUp(int window, int x, int y, float pressure) {
-		/**v8::Locker locker{isolate};
-
-		Isolate::Scope isolate_scope(isolate);
-		HandleScope handle_scope(isolate);
-		v8::Local<v8::Context> context = v8::Local<v8::Context>::New(isolate, globalContext);
-		Context::Scope context_scope(context);
-
-		TryCatch try_catch(isolate);
-		v8::Local<v8::Function> func = v8::Local<v8::Function>::New(isolate, penUpFunction);
-		Local<Value> result;
-		const int argc = 3;
-		Local<Value> argv[argc] = {Int32::New(isolate, x), Int32::New(isolate, y), Number::New(isolate, pressure)};
-		if (!func->Call(context, context->Global(), argc, argv).ToLocal(&result)) {
-			v8::String::Utf8Value stack_trace(try_catch.StackTrace());
-			sendLogMessage("Trace: %s", *stack_trace);
-		}*/
+		JsValueRef args[4];
+		JsGetUndefinedValue(&args[0]);
+		JsIntToNumber(x, &args[1]);
+		JsIntToNumber(y, &args[2]);
+		JsDoubleToNumber(pressure, &args[3]);
+		JsValueRef result;
+		JsCallFunction(penUpFunction, args, 4, &result);
 	}
 
 	void penMove(int window, int x, int y, float pressure) {
-		/**v8::Locker locker{isolate};
-
-		Isolate::Scope isolate_scope(isolate);
-		HandleScope handle_scope(isolate);
-		v8::Local<v8::Context> context = v8::Local<v8::Context>::New(isolate, globalContext);
-		Context::Scope context_scope(context);
-
-		TryCatch try_catch(isolate);
-		v8::Local<v8::Function> func = v8::Local<v8::Function>::New(isolate, penMoveFunction);
-		Local<Value> result;
-		const int argc = 3;
-		Local<Value> argv[argc] = {Int32::New(isolate, x), Int32::New(isolate, y), Number::New(isolate, pressure)};
-		if (!func->Call(context, context->Global(), argc, argv).ToLocal(&result)) {
-			v8::String::Utf8Value stack_trace(try_catch.StackTrace());
-			sendLogMessage("Trace: %s", *stack_trace);
-		}*/
+		JsValueRef args[4];
+		JsGetUndefinedValue(&args[0]);
+		JsIntToNumber(x, &args[1]);
+		JsIntToNumber(y, &args[2]);
+		JsDoubleToNumber(pressure, &args[3]);
+		JsValueRef result;
+		JsCallFunction(penMoveFunction, args, 4, &result);
 	}
 
 	void gamepadAxis(int gamepad, int axis, float value) {
-		/**v8::Locker locker{isolate};
-
-		Isolate::Scope isolate_scope(isolate);
-		HandleScope handle_scope(isolate);
-		v8::Local<v8::Context> context = v8::Local<v8::Context>::New(isolate, globalContext);
-		Context::Scope context_scope(context);
-
-		TryCatch try_catch(isolate);
-		v8::Local<v8::Function> func = v8::Local<v8::Function>::New(isolate, gamepadAxisFunction);
-		Local<Value> result;
-		const int argc = 3;
-		Local<Value> argv[argc] = {Int32::New(isolate, gamepad), Int32::New(isolate, axis), Number::New(isolate, value)};
-		if (!func->Call(context, context->Global(), argc, argv).ToLocal(&result)) {
-			v8::String::Utf8Value stack_trace(try_catch.StackTrace());
-			sendLogMessage("Trace: %s", *stack_trace);
-		}*/
+		JsValueRef args[4];
+		JsGetUndefinedValue(&args[0]);
+		JsIntToNumber(gamepad, &args[1]);
+		JsIntToNumber(axis, &args[2]);
+		JsDoubleToNumber(value, &args[3]);
+		JsValueRef result;
+		JsCallFunction(gamepadAxisFunction, args, 4, &result);
 	}
 
 	void gamepadButton(int gamepad, int button, float value) {
-		/**v8::Locker locker{isolate};
-
-		Isolate::Scope isolate_scope(isolate);
-		HandleScope handle_scope(isolate);
-		v8::Local<v8::Context> context = v8::Local<v8::Context>::New(isolate, globalContext);
-		Context::Scope context_scope(context);
-
-		TryCatch try_catch(isolate);
-		v8::Local<v8::Function> func = v8::Local<v8::Function>::New(isolate, gamepadButtonFunction);
-		Local<Value> result;
-		const int argc = 3;
-		Local<Value> argv[argc] = {Int32::New(isolate, gamepad), Int32::New(isolate, button), Number::New(isolate, value)};
-		if (!func->Call(context, context->Global(), argc, argv).ToLocal(&result)) {
-			v8::String::Utf8Value stack_trace(try_catch.StackTrace());
-			sendLogMessage("Trace: %s", *stack_trace);
-		}*/
+		JsValueRef args[4];
+		JsGetUndefinedValue(&args[0]);
+		JsIntToNumber(gamepad, &args[1]);
+		JsIntToNumber(button, &args[2]);
+		JsDoubleToNumber(value, &args[3]);
+		JsValueRef result;
+		JsCallFunction(gamepadButtonFunction, args, 4, &result);
 	}
 
 	void gamepad1Axis(int axis, float value) {
