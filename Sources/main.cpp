@@ -2704,6 +2704,7 @@ namespace {
 	}
 
 	void penDown(int window, int x, int y, float pressure) {
+		if (paused) return;
 		JsValueRef args[4];
 		JsGetUndefinedValue(&args[0]);
 		JsIntToNumber(x, &args[1]);
@@ -2714,6 +2715,7 @@ namespace {
 	}
 
 	void penUp(int window, int x, int y, float pressure) {
+		if (paused) return;
 		JsValueRef args[4];
 		JsGetUndefinedValue(&args[0]);
 		JsIntToNumber(x, &args[1]);
@@ -2724,6 +2726,7 @@ namespace {
 	}
 
 	void penMove(int window, int x, int y, float pressure) {
+		if (paused) return;
 		JsValueRef args[4];
 		JsGetUndefinedValue(&args[0]);
 		JsIntToNumber(x, &args[1]);
@@ -2734,6 +2737,7 @@ namespace {
 	}
 
 	void gamepadAxis(int gamepad, int axis, float value) {
+		if (paused) return;
 		JsValueRef args[4];
 		JsGetUndefinedValue(&args[0]);
 		JsIntToNumber(gamepad, &args[1]);
@@ -2744,6 +2748,7 @@ namespace {
 	}
 
 	void gamepadButton(int gamepad, int button, float value) {
+		if (paused) return;
 		JsValueRef args[4];
 		JsGetUndefinedValue(&args[0]);
 		JsIntToNumber(gamepad, &args[1]);
