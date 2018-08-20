@@ -2597,11 +2597,11 @@ namespace {
 
 	void updateAudio(int samples) {
 		//mutex.Lock();
-		JsValueRef args[2];
+		/*JsValueRef args[2];
 		JsGetUndefinedValue(&args[0]);
 		JsIntToNumber(samples, &args[1]);
 		JsValueRef result;
-		JsCallFunction(audioFunction, args, 2, &result);
+		JsCallFunction(audioFunction, args, 2, &result);*/
 		//mutex.Unlock();
 	}
 
@@ -2618,6 +2618,7 @@ namespace {
 	}
 
 	void dropFiles(wchar_t* filePath) {
+		if (paused) return;
 		JsValueRef args[2];
 		JsGetUndefinedValue(&args[0]);
 		size_t len = wcslen(filePath);
