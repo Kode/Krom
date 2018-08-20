@@ -140,7 +140,7 @@ void startDebugger(JsRuntimeHandle runtimeHandle, int port) {
 		::scripts.push_back(script);
 	}
 
-	startServer(9191);
+	startServer(port);
 }
 
 void sendStackTrace() {
