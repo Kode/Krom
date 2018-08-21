@@ -98,6 +98,51 @@ namespace {
 		std::vector<int> message;
 		message.push_back(IDE_MESSAGE_VARIABLES);
 		message.push_back(responseId);
+		message.push_back(length);
+
+		for (int i = 0; i < length; ++i) {
+			JsValueRef index;
+			JsIntToNumber(i, &index);
+			JsValueRef value;
+			JsGetIndexedProperty(locals, index, &value);
+			JsValueRef nameObj, typeObj, valueObj;
+			JsGetProperty(value, getId("name"), &nameObj);
+			JsGetProperty(value, getId("type"), &typeObj);
+			JsGetProperty(value, getId("value"), &valueObj);
+			
+			char name[256];
+			size_t length;
+			JsCopyString(nameObj, name, 255, &length);
+			name[length] = 0;
+			message.push_back(length);
+			for (size_t i2 = 0; i2 < length; ++i2) {
+				message.push_back(name[i2]);
+			}
+
+			char type[256];
+			JsCopyString(typeObj, type, 255, &length);
+			type[length] = 0;
+			message.push_back(length);
+			for (size_t i2 = 0; i2 < length; ++i2) {
+				message.push_back(type[i2]);
+			}
+
+			char varValue[256];
+			if (strcmp(type, "object") == 0) {
+				strcpy(varValue, "(object)");
+				length = strlen(varValue);
+			}
+			else {
+				JsCopyString(valueObj, varValue, 255, &length);
+				varValue[length] = 0;
+			}
+			message.push_back(length);
+			for (size_t i2 = 0; i2 < length; ++i2) {
+				message.push_back(varValue[i2]);
+			}
+		}
+
+		sendMessage(message.data(), message.size());
 	}
 
 	void CHAKRA_CALLBACK debugCallback(JsDiagDebugEvent debugEvent, JsValueRef eventData, void* callbackState) {
@@ -136,6 +181,8 @@ namespace {
 					case DEBUGGER_MESSAGE_STEP_OUT:
 						JsDiagSetStepType(JsDiagStepTypeStepOut);
 						return;
+					case DEBUGGER_MESSAGE_VARIABLES:
+						sendVariables(message.data[1]);
 					}
 				}
 				Sleep(100);
