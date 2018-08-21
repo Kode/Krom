@@ -29,7 +29,7 @@ namespace {
 		return id;
 	}
 	
-	void sendStackTrace() {
+	void sendStackTrace(int responseId) {
 		StackTrace trace;
 		
 		JsValueRef stackTrace;
@@ -67,6 +67,7 @@ namespace {
 
 		std::vector<int> message;
 		message.push_back(IDE_MESSAGE_STACKTRACE);
+		message.push_back(responseId);
 		message.push_back(trace.trace.size());
 		for (size_t i = 0; i < trace.trace.size(); ++i) {
 			message.push_back(trace.trace[i].index);
@@ -84,7 +85,7 @@ namespace {
 		sendMessage(message.data(), message.size());
 	}
 
-	void sendVariables() {
+	void sendVariables(int responseId) {
 		JsValueRef properties;
 		JsDiagGetStackProperties(0, &properties);
 		JsValueRef locals;
@@ -96,6 +97,7 @@ namespace {
 
 		std::vector<int> message;
 		message.push_back(IDE_MESSAGE_VARIABLES);
+		message.push_back(responseId);
 	}
 
 	void CHAKRA_CALLBACK debugCallback(JsDiagDebugEvent debugEvent, JsValueRef eventData, void* callbackState) {
@@ -120,7 +122,7 @@ namespace {
 						Kore::log(Kore::Warning, "Ignore pause request.");
 						break;
 					case DEBUGGER_MESSAGE_STACKTRACE:
-						sendStackTrace();
+						sendStackTrace(message.data[1]);
 						break;
 					case DEBUGGER_MESSAGE_CONTINUE:
 						JsDiagSetStepType(JsDiagStepTypeContinue);
