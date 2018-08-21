@@ -99,7 +99,8 @@ namespace {
 	}
 
 	void CHAKRA_CALLBACK debugCallback(JsDiagDebugEvent debugEvent, JsValueRef eventData, void* callbackState) {
-		if (debugEvent == JsDiagDebugEventBreakpoint || debugEvent == JsDiagDebugEventAsyncBreak) {
+		if (debugEvent == JsDiagDebugEventBreakpoint || debugEvent == JsDiagDebugEventAsyncBreak || debugEvent == JsDiagDebugEventStepComplete
+			|| debugEvent == JsDiagDebugEventDebuggerStatement || debugEvent == JsDiagDebugEventRuntimeException) {
 			Kore::log(Kore::Info, "Debug callback: %i\n", debugEvent);
 
 			int message = IDE_MESSAGE_BREAK;
@@ -108,23 +109,38 @@ namespace {
 			for (;;) {
 				Message message = receiveMessage();
 				if (message.size > 0) {
-					if (message.data[0] == DEBUGGER_MESSAGE_BREAKPOINT) {
+					switch (message.data[0]) {
+					case DEBUGGER_MESSAGE_BREAKPOINT: {
 						int line = message.data[1];
 						JsValueRef breakpoint;
 						JsDiagSetBreakpoint(scriptId(), line, 0, &breakpoint);
-					}
-					else if (message.data[0] == DEBUGGER_MESSAGE_PAUSE) {
-						Kore::log(Kore::Warning, "Ignore pause request.");
-					}
-					else if (message.data[0] == DEBUGGER_MESSAGE_STACKTRACE) {
-						sendStackTrace();
-					}
-					else if (message.data[0] == DEBUGGER_MESSAGE_CONTINUE) {
 						break;
+					}
+					case DEBUGGER_MESSAGE_PAUSE:
+						Kore::log(Kore::Warning, "Ignore pause request.");
+						break;
+					case DEBUGGER_MESSAGE_STACKTRACE:
+						sendStackTrace();
+						break;
+					case DEBUGGER_MESSAGE_CONTINUE:
+						JsDiagSetStepType(JsDiagStepTypeContinue);
+						return;
+					case DEBUGGER_MESSAGE_STEP_OVER:
+						JsDiagSetStepType(JsDiagStepTypeStepOver);
+						return;
+					case DEBUGGER_MESSAGE_STEP_IN:
+						JsDiagSetStepType(JsDiagStepTypeStepIn);
+						return;
+					case DEBUGGER_MESSAGE_STEP_OUT:
+						JsDiagSetStepType(JsDiagStepTypeStepOut);
+						return;
 					}
 				}
 				Sleep(100);
 			}
+		}
+		else if (debugEvent == JsDiagDebugEventCompileError) {
+			Kore::log(Kore::Error, "Script compile error.");
 		}
 	}
 
