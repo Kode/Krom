@@ -641,24 +641,12 @@ namespace {
 		Kore::Graphics4::PipelineState* pipeline = new Kore::Graphics4::PipelineState;
 		JsValueRef pipelineObj;
 		JsCreateExternalObject(pipeline, nullptr, &pipelineObj);
-
-		JsValueRef obj;
-		JsCreateObject(&obj);
-
-		JsValueRef zero;
-		JsIntToNumber(0, &zero);
-
-		JsSetIndexedProperty(obj, zero, pipelineObj);
-
-		return obj;
+		return pipelineObj;
 	}
 
-	JsValueRef CALLBACK krom_delete_pipeline(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount, void *callbackState) {
-		JsValueRef pipelineObj, zero;
-		JsIntToNumber(0, &zero);
-		JsGetIndexedProperty(arguments[1], zero, &pipelineObj);
+	JsValueRef CALLBACK krom_delete_pipeline(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount, void *callbackState) {		
 		Kore::Graphics4::PipelineState* pipeline;
-		JsGetExternalData(pipelineObj, (void**)&pipeline);
+		JsGetExternalData(arguments[1], (void**)&pipeline);
 		delete pipeline;
 		return JS_INVALID_REFERENCE;
 	}
@@ -752,16 +740,11 @@ namespace {
 	JsValueRef CALLBACK krom_compile_pipeline(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount, void *callbackState) {
 		JsValueRef progobj = arguments[1];
 
-		JsValueRef zero;
-		JsIntToNumber(0, &zero);
-
 		JsValueRef one;
 		JsIntToNumber(1, &one);
 
-		JsValueRef pipelineObj;
-		JsGetIndexedProperty(progobj, zero, &pipelineObj);
 		Kore::Graphics4::PipelineState* pipeline;
-		JsGetExternalData(pipelineObj, (void**)&pipeline);
+		JsGetExternalData(progobj, (void**)&pipeline);
 
 		Kore::Graphics4::VertexStructure s0, s1, s2, s3;
 		Kore::Graphics4::VertexStructure* structures[4] = { &s0, &s1, &s2, &s3 };
@@ -929,14 +912,8 @@ namespace {
 
 	JsValueRef CALLBACK krom_set_pipeline(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount, void *callbackState) {
 		JsValueRef progobj = arguments[1];
-
-		JsValueRef zero;
-		JsIntToNumber(0, &zero);
-
-		JsValueRef pipelineObj;
-		JsGetIndexedProperty(progobj, zero, &pipelineObj);
 		Kore::Graphics4::PipelineState* pipeline;
-		JsGetExternalData(pipelineObj, (void**)&pipeline);
+		JsGetExternalData(progobj, (void**)&pipeline);
 
 		if (debugMode) {
 			char vsname[256];
@@ -1062,9 +1039,7 @@ namespace {
 
 			if (shaderChanged) {
 				recompilePipeline(progobj);
-				JsValueRef pipelineObj;
-				JsGetIndexedProperty(progobj, zero, &pipelineObj);
-				JsGetExternalData(pipelineObj, (void**)&pipeline);
+				JsGetExternalData(progobj, (void**)&pipeline);
 			}
 		}
 
@@ -1185,11 +1160,8 @@ namespace {
 	}
 
 	JsValueRef CALLBACK krom_get_constant_location(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount, void *callbackState) {
-		JsValueRef zero, pipelineObj;
-		JsIntToNumber(0, &zero);
-		JsGetIndexedProperty(arguments[1], zero, &pipelineObj);
 		Kore::Graphics4::PipelineState* pipeline;
-		JsGetExternalData(pipelineObj, (void**)&pipeline);
+		JsGetExternalData(arguments[1], (void**)&pipeline);
 
 		char name[256];
 		size_t length;
@@ -1203,11 +1175,8 @@ namespace {
 	}
 
 	JsValueRef CALLBACK krom_get_texture_unit(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount, void *callbackState) {
-		JsValueRef zero, pipelineObj;
-		JsIntToNumber(0, &zero);
-		JsGetIndexedProperty(arguments[1], zero, &pipelineObj);
 		Kore::Graphics4::PipelineState* pipeline;
-		JsGetExternalData(pipelineObj, (void**)&pipeline);
+		JsGetExternalData(arguments[1], (void**)&pipeline);
 
 		char name[256];
 		size_t length;
@@ -1224,43 +1193,38 @@ namespace {
 		Kore::Graphics4::TextureUnit* unit;
 		JsGetExternalData(arguments[1], (void**)&unit);
 
-		JsValueType imageType;
-		JsGetValueType(arguments[2], &imageType);
-		if (imageType == JsNull || imageType == JsUndefined) return JS_INVALID_REFERENCE;
+		Kore::Graphics4::Texture* texture;
+		bool imageChanged = false;
+		if (debugMode) {
+			JsValueRef filenameObj;
+			JsGetProperty(arguments[2], getId("filename"), &filenameObj);
+			size_t length;
+			JsCopyString(filenameObj, tempString, tempStringSize, &length);
+			tempString[length] = 0;
+			if (imageChanges[tempString]) {
+				imageChanges[tempString] = false;
+				sendLogMessage("Image %s changed.", tempString);
+				texture = new Kore::Graphics4::Texture(tempString);
+				JsSetExternalData(arguments[2], texture);
+				imageChanged = true;
+			}
+		}
+		if (!imageChanged) {
+			JsGetExternalData(arguments[2], (void**)&texture);
+		}
+		Kore::Graphics4::setTexture(*unit, texture);
 
-		JsValueRef tex;
-		JsGetProperty(arguments[2], getId("texture_"), &tex);
-		JsValueType texType;
-		JsGetValueType(tex, &texType);
-		if (texType == JsObject) {
-			Kore::Graphics4::Texture* texture;
-			bool imageChanged = false;
-			if (debugMode) {
-				JsValueRef filenameObj;
-				JsGetProperty(tex, getId("filename"), &filenameObj);
-				size_t length;
-				JsCopyString(filenameObj, tempString, tempStringSize, &length);
-				tempString[length] = 0;
-				if (imageChanges[tempString]) {
-					imageChanges[tempString] = false;
-					sendLogMessage("Image %s changed.", tempString);
-					texture = new Kore::Graphics4::Texture(tempString);
-					JsSetExternalData(tex, texture);
-					imageChanged = true;
-				}
-			}
-			if (!imageChanged) {
-				JsGetExternalData(tex, (void**)&texture);
-			}
-			Kore::Graphics4::setTexture(*unit, texture);
-		}
-		else {
-			JsValueRef rt;
-			JsGetProperty(arguments[2], getId("renderTarget_"), &rt);
-			Kore::Graphics4::RenderTarget* renderTarget;
-			JsGetExternalData(rt, (void**)&renderTarget);
-			renderTarget->useColorAsTexture(*unit);
-		}
+		return JS_INVALID_REFERENCE;
+	}
+
+	JsValueRef CALLBACK krom_set_render_target(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount, void *callbackState) {
+		Kore::Graphics4::TextureUnit* unit;
+		JsGetExternalData(arguments[1], (void**)&unit);
+
+		Kore::Graphics4::RenderTarget* renderTarget;
+		JsGetExternalData(arguments[2], (void**)&renderTarget);
+		renderTarget->useColorAsTexture(*unit);
+
 		return JS_INVALID_REFERENCE;
 	}
 
@@ -1268,20 +1232,9 @@ namespace {
 		Kore::Graphics4::TextureUnit* unit;
 		JsGetExternalData(arguments[1], (void**)&unit);
 
-		JsValueType imageType;
-		JsGetValueType(arguments[2], &imageType);
-		if (imageType == JsNull || imageType == JsUndefined) return JS_INVALID_REFERENCE;
-
-		JsValueRef rt;
-		JsGetProperty(arguments[2], getId("renderTarget_"), &rt);
-		JsValueType rtType;
-		JsGetValueType(rt, &rtType);
-
-		if (rtType == JsObject) {
-			Kore::Graphics4::RenderTarget* renderTarget;
-			JsGetExternalData(rt, (void**)&renderTarget);
-			renderTarget->useDepthAsTexture(*unit);
-		}
+		Kore::Graphics4::RenderTarget* renderTarget;
+		JsGetExternalData(arguments[2], (void**)&renderTarget);
+		renderTarget->useDepthAsTexture(*unit);
 
 		return JS_INVALID_REFERENCE;
 	}
@@ -1290,20 +1243,9 @@ namespace {
 		Kore::Graphics4::TextureUnit* unit;
 		JsGetExternalData(arguments[1], (void**)&unit);
 
-		JsValueType imageType;
-		JsGetValueType(arguments[2], &imageType);
-		if (imageType == JsNull || imageType == JsUndefined) return JS_INVALID_REFERENCE;
-
-		JsValueRef tex;
-		JsGetProperty(arguments[2], getId("texture_"), &tex);
-		JsValueType texType;
-		JsGetValueType(tex, &texType);
-
-		if (texType == JsObject) {
-			Kore::Graphics4::Texture* texture;
-			JsGetExternalData(tex, (void**)&texture);
-			Kore::Graphics4::setImageTexture(*unit, texture);
-		}
+		Kore::Graphics4::Texture* texture;
+		JsGetExternalData(arguments[2], (void**)&texture);
+		Kore::Graphics4::setImageTexture(*unit, texture);
 
 		return JS_INVALID_REFERENCE;
 	}
@@ -1444,12 +1386,9 @@ namespace {
 		Kore::Graphics4::ConstantLocation* location;
 		JsGetExternalData(arguments[1], (void**)&location);
 
-		JsValueRef buffer;
-		JsGetProperty(arguments[2], buffer_id, &buffer);
-
 		Kore::u8* data;
 		unsigned bufferLength;
-		JsGetArrayBufferStorage(buffer, &data, &bufferLength);
+		JsGetArrayBufferStorage(arguments[2], &data, &bufferLength);
 
 		float* from = (float*)data;
 
@@ -1461,12 +1400,9 @@ namespace {
 		Kore::Graphics4::ConstantLocation* location;
 		JsGetExternalData(arguments[1], (void**)&location);
 
-		JsValueRef buffer;
-		JsGetProperty(arguments[2], buffer_id, &buffer);
-
 		Kore::u8* data;
 		unsigned bufferLength;
-		JsGetArrayBufferStorage(buffer, &data, &bufferLength);
+		JsGetArrayBufferStorage(arguments[2], &data, &bufferLength);
 
 		float* from = (float*)data;
 		Kore::mat4 m;
@@ -1484,12 +1420,9 @@ namespace {
 		Kore::Graphics4::ConstantLocation* location;
 		JsGetExternalData(arguments[1], (void**)&location);
 
-		JsValueRef buffer;
-		JsGetProperty(arguments[2], buffer_id, &buffer);
-
 		Kore::u8* data;
 		unsigned bufferLength;
-		JsGetArrayBufferStorage(buffer, &data, &bufferLength);
+		JsGetArrayBufferStorage(arguments[2], &data, &bufferLength);
 
 		float* from = (float*)data;
 		Kore::mat3 m;
@@ -2098,12 +2031,9 @@ namespace {
 		Kore::ComputeConstantLocation* location;
 		JsGetExternalData(arguments[1], (void**)&location);
 
-		JsValueRef buffer;
-		JsGetProperty(arguments[2], buffer_id, &buffer);
-
 		Kore::u8* data;
 		unsigned bufferLength;
-		JsGetArrayBufferStorage(buffer, &data, &bufferLength);
+		JsGetArrayBufferStorage(arguments[2], &data, &bufferLength);
 
 		float* from = (float*)data;
 
@@ -2116,12 +2046,9 @@ namespace {
 		Kore::ComputeConstantLocation* location;
 		JsGetExternalData(arguments[1], (void**)&location);
 
-		JsValueRef buffer;
-		JsGetProperty(arguments[2], buffer_id, &buffer);
-
 		Kore::u8* data;
 		unsigned bufferLength;
-		JsGetArrayBufferStorage(buffer, &data, &bufferLength);
+		JsGetArrayBufferStorage(arguments[2], &data, &bufferLength);
 
 		float* from = (float*)data;
 		Kore::mat4 m;
@@ -2139,12 +2066,9 @@ namespace {
 		Kore::ComputeConstantLocation* location;
 		JsGetExternalData(arguments[1], (void**)&location);
 
-		JsValueRef buffer;
-		JsGetProperty(arguments[2], buffer_id, &buffer);
-
 		Kore::u8* data;
 		unsigned bufferLength;
-		JsGetArrayBufferStorage(buffer, &data, &bufferLength);
+		JsGetArrayBufferStorage(arguments[2], &data, &bufferLength);
 
 		float* from = (float*)data;
 		Kore::mat3 m;
@@ -2161,29 +2085,29 @@ namespace {
 		Kore::ComputeTextureUnit* unit;
 		JsGetExternalData(arguments[1], (void**)&unit);
 
-		JsValueType type;
-		JsGetValueType(arguments[2], &type);
-		if (type == JsNull || type == JsUndefined) return JS_INVALID_REFERENCE;
-
-		JsValueRef tex;
-		JsGetProperty(arguments[2], getId("texture_"), &tex);
-		JsValueType texType;
-		JsGetValueType(tex, &texType);
+		Kore::Graphics4::Texture* texture;
+		JsGetExternalData(arguments[2], (void**)&texture);
 
 		int access;
 		JsNumberToInt(arguments[3], &access);
-		if (texType == JsObject) {
-			Kore::Graphics4::Texture* texture;
-			JsGetExternalData(tex, (void**)&texture);
-			Kore::Compute::setTexture(*unit, texture, (Kore::Compute::Access)access);
-		}
-		else {
-			JsValueRef rt;
-			JsGetProperty(arguments[2], getId("renderTarget_"), &rt);
-			Kore::Graphics4::RenderTarget* renderTarget;
-			JsGetExternalData(rt, (void**)&renderTarget);
-			Kore::Compute::setTexture(*unit, renderTarget, (Kore::Compute::Access)access);
-		}
+
+		Kore::Compute::setTexture(*unit, texture, (Kore::Compute::Access)access);
+
+		return JS_INVALID_REFERENCE;
+	}
+
+	JsValueRef CALLBACK krom_set_render_target_compute(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount, void *callbackState) {
+		Kore::ComputeTextureUnit* unit;
+		JsGetExternalData(arguments[1], (void**)&unit);
+
+		Kore::Graphics4::RenderTarget* renderTarget;
+		JsGetExternalData(arguments[2], (void**)&renderTarget);
+
+		int access;
+		JsNumberToInt(arguments[3], &access);
+
+		Kore::Compute::setTexture(*unit, renderTarget, (Kore::Compute::Access)access);
+
 		return JS_INVALID_REFERENCE;
 	}
 
@@ -2191,29 +2115,21 @@ namespace {
 		Kore::ComputeTextureUnit* unit;
 		JsGetExternalData(arguments[1], (void**)&unit);
 
-		JsValueType type;
-		JsGetValueType(arguments[2], &type);
-		if (type == JsNull || type == JsUndefined) return JS_INVALID_REFERENCE;
+		Kore::Graphics4::Texture* texture;
+		JsGetExternalData(arguments[2], (void**)&texture);
+		Kore::Compute::setSampledTexture(*unit, texture);
 
-		JsValueRef tex;
-		JsGetProperty(arguments[2], getId("texture_"), &tex);
-		JsValueType texType;
-		JsGetValueType(tex, &texType);
+		return JS_INVALID_REFERENCE;
+	}
 
-		int access;
-		JsNumberToInt(arguments[3], &access);
-		if (texType == JsObject) {
-			Kore::Graphics4::Texture* texture;
-			JsGetExternalData(tex, (void**)&texture);
-			Kore::Compute::setSampledTexture(*unit, texture);
-		}
-		else {
-			JsValueRef rt;
-			JsGetProperty(arguments[2], getId("renderTarget_"), &rt);
-			Kore::Graphics4::RenderTarget* renderTarget;
-			JsGetExternalData(rt, (void**)&renderTarget);
-			Kore::Compute::setSampledTexture(*unit, renderTarget);
-		}
+	JsValueRef CALLBACK krom_set_sampled_render_target_compute(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount, void *callbackState) {
+		Kore::ComputeTextureUnit* unit;
+		JsGetExternalData(arguments[1], (void**)&unit);
+
+		Kore::Graphics4::RenderTarget* renderTarget;
+		JsGetExternalData(arguments[2], (void**)&renderTarget);
+		Kore::Compute::setSampledTexture(*unit, renderTarget);
+
 		return JS_INVALID_REFERENCE;
 	}
 
@@ -2221,19 +2137,10 @@ namespace {
 		Kore::ComputeTextureUnit* unit;
 		JsGetExternalData(arguments[1], (void**)&unit);
 
-		JsValueType type;
-		JsGetValueType(arguments[2], &type);
-		if (type == JsNull || type == JsUndefined) return JS_INVALID_REFERENCE;
-
-		JsValueRef rt;
-		JsGetProperty(arguments[2], getId("renderTarget_"), &rt);
-		JsValueType rtType;
-		JsGetValueType(arguments[2], &rtType);
-		if (rtType == JsObject) {
-			Kore::Graphics4::RenderTarget* renderTarget;
-			JsGetExternalData(rt, (void**)&renderTarget);
-			Kore::Compute::setSampledDepthTexture(*unit, renderTarget);
-		}
+		Kore::Graphics4::RenderTarget* renderTarget;
+		JsGetExternalData(arguments[2], (void**)&renderTarget);
+		Kore::Compute::setSampledDepthTexture(*unit, renderTarget);
+		
 		return JS_INVALID_REFERENCE;
 	}
 
@@ -2417,6 +2324,7 @@ namespace {
 		addFunction(getConstantLocation, krom_get_constant_location);
 		addFunction(getTextureUnit, krom_get_texture_unit);
 		addFunction(setTexture, krom_set_texture);
+		addFunction(setRenderTarget, krom_set_render_target);
 		addFunction(setTextureDepth, krom_set_texture_depth);
 		addFunction(setImageTexture, krom_set_image_texture);
 		addFunction(setTextureParameters, krom_set_texture_parameters);
@@ -2480,7 +2388,9 @@ namespace {
 		addFunction(setMatrixCompute, krom_set_matrix_compute);
 		addFunction(setMatrix3Compute, krom_set_matrix3_compute);
 		addFunction(setTextureCompute, krom_set_texture_compute);
+		addFunction(setRenderTargetCompute, krom_set_render_target_compute);
 		addFunction(setSampledTextureCompute, krom_set_sampled_texture_compute);
+		addFunction(setSampledRenderTargetCompute, krom_set_sampled_render_target_compute);
 		addFunction(setSampledDepthTextureCompute, krom_set_sampled_depth_texture_compute);
 		addFunction(setTextureParametersCompute, krom_set_texture_parameters_compute);
 		addFunction(setTexture3DParametersCompute, krom_set_texture_3d_parameters_compute);
@@ -2504,7 +2414,7 @@ namespace {
 		AttachProcess(GetModuleHandle(nullptr));
 
 #ifdef NDEBUG
-		JsCreateRuntime(JsRuntimeAttributeNone, nullptr, &runtime);
+		JsCreateRuntime(JsRuntimeAttributeEnableIdleProcessing, nullptr, &runtime);
 #else
 		JsCreateRuntime(JsRuntimeAttributeAllowScriptInterrupt, nullptr, &runtime);
 #endif
@@ -2611,6 +2521,9 @@ namespace {
 
 		Kore::Graphics4::end();
 		Kore::Graphics4::swapBuffers();
+
+		unsigned int nextIdleTick;
+		JsIdle(&nextIdleTick);
 	}
 
 	void dropFiles(wchar_t* filePath) {
