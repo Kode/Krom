@@ -192,16 +192,19 @@ namespace {
 	}
 
 	void sendLogMessageArgs(const char* format, va_list args) {
-		char message[4096];
-		vsnprintf(message, sizeof(message) - 2, format, args);
-		Kore::log(Kore::Info, "%s", message);
+		char msg[4096];
+		vsnprintf(msg, sizeof(msg) - 2, format, args);
+		Kore::log(Kore::Info, "%s", msg);
 
 		if (debugMode) {
-			char json[4096];
-			strcpy(json, "{\"method\":\"Log.entryAdded\",\"params\":{\"entry\":{\"source\":\"javascript\",\"level\":\"log\",\"text\":\"");
-			strcat(json, message);
-			strcat(json, "\",\"timestamp\":0}}}");
-			//sendMessage(json);
+			std::vector<int> message;
+			message.push_back(IDE_MESSAGE_LOG);
+			size_t messageLength = strlen(msg);
+			message.push_back(messageLength);
+			for (size_t i = 0; i < messageLength; ++i) {
+				message.push_back(msg[i]);
+			}
+			sendMessage(message.data(), message.size());
 		}
 	}
 

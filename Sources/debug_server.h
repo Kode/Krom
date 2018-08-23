@@ -17,7 +17,8 @@ enum DebuggerMessageType {
 enum IdeMessageType {
 	IDE_MESSAGE_STACKTRACE = 0,
 	IDE_MESSAGE_BREAK = 1,
-	IDE_MESSAGE_VARIABLES = 2
+	IDE_MESSAGE_VARIABLES = 2,
+	IDE_MESSAGE_LOG = 3
 };
 
 const int RCVBUFSIZE = 1024;
