@@ -191,6 +191,7 @@ namespace {
 			JsNumberToInt(indexObj, &stack.index);
 			JsNumberToInt(scriptIdObj, &stack.scriptId);
 			JsNumberToInt(lineObj, &stack.line);
+			stack.line += 1;
 			JsNumberToInt(columnObj, &stack.column);
 			JsNumberToInt(sourceLengthObj, &stack.sourceLength);
 			JsNumberToInt(functionHandleObj, &stack.functionHandle);
