@@ -850,7 +850,7 @@ namespace {
 			JsValueRef tesname;
 			JsGetProperty(arguments[11], getId("name"), &tesname);
 			JsSetProperty(progobj, getId("tesname"), tesname, false);
-			pipeline->tessellationControlShader = tessellationEvaluationShader;
+			pipeline->tessellationEvaluationShader = tessellationEvaluationShader;
 		}
 		
 		for (int i = 0; i < size; ++i) {
