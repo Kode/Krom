@@ -68,6 +68,8 @@ const char* macgetresourcepath();
 
 const char* getExeDir();
 
+JsRuntimeHandle runtime;
+
 namespace {
 	int _argc;
 	char** _argv;
@@ -126,13 +128,6 @@ namespace {
 	char tempStringFS[tempStringSize + 1];
 
 	JsPropertyIdRef buffer_id;
-
-	JsPropertyIdRef getId(const char* name) {
-		JsPropertyIdRef id;
-		JsErrorCode err = JsCreatePropertyId(name, strlen(name), &id);
-		assert(err == JsNoError);
-		return id;
-	}
 
 	JsValueRef CALLBACK krom_init(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount, void *callbackState) {
 		char title[256];
@@ -2407,7 +2402,6 @@ namespace {
 		JsSetProperty(global, getId("Krom"), krom, false);
 	}
 
-	JsRuntimeHandle runtime;
 	JsSourceContext cookie = 1234;
 
 	bool startKrom(char* scriptfile) {
@@ -2445,19 +2439,7 @@ namespace {
 	void runJS() {
 		if (debugMode) {
 			Message message = receiveMessage();
-			if (message.size > 0) {
-				if (message.data[0] == DEBUGGER_MESSAGE_BREAKPOINT) {
-					int line = message.data[1];
-					JsValueRef breakpoint;
-					JsDiagSetBreakpoint(scriptId(), line, 0, &breakpoint);
-				}
-				else if (message.data[0] == DEBUGGER_MESSAGE_PAUSE) {
-					JsDiagRequestAsyncBreak(runtime);
-				}
-				else if (message.data[0] == DEBUGGER_MESSAGE_STACKTRACE) {
-					Kore::log(Kore::Warning, "Ignore stack trace request.");
-				}
-			}
+			handleDebugMessage(message, false);
 		}
 
 		if (codechanged) {
