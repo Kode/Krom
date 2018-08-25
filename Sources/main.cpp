@@ -1323,9 +1323,9 @@ namespace {
 	JsValueRef CALLBACK krom_set_bool(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount, void *callbackState) {
 		Kore::Graphics4::ConstantLocation* location;
 		JsGetExternalData(arguments[1], (void**)&location);
-		int value;
-		JsNumberToInt(arguments[2], &value);
-		Kore::Graphics4::setBool(*location, value != 0);
+		bool value;
+		JsBooleanToBool(arguments[2], &value);
+		Kore::Graphics4::setBool(*location, value);
 		return JS_INVALID_REFERENCE;
 	}
 
