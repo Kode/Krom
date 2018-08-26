@@ -446,10 +446,8 @@ namespace {
 			name[strLength] = 0;
 			JsValueRef dataObj;
 			JsGetProperty(element, getId("data"), &dataObj);
-			JsValueRef dataObj2;
-			JsGetIndexedProperty(dataObj, one, &dataObj2); // Haxe enums contain arrays
 			int data;
-			JsNumberToInt(dataObj2, &data);
+			JsNumberToInt(dataObj, &data);
 			structure.add(name, convertVertexData(data));
 		}
 
@@ -764,10 +762,8 @@ namespace {
 				JsGetProperty(element, getId("name"), &str);
 				JsValueRef dataObj;
 				JsGetProperty(element, getId("data"), &dataObj);
-				JsValueRef dataObj2;
-				JsGetIndexedProperty(dataObj, one, &dataObj2); // Haxe enums contain arrays
 				int data;
-				JsNumberToInt(dataObj2, &data);
+				JsNumberToInt(dataObj, &data);
 				char* name = new char[256]; // TODO
 				size_t length;
 				JsCopyString(str, name, 255, &length);
