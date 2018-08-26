@@ -2470,8 +2470,15 @@ namespace {
 			size_t length;
 			JsCopyString(sourceObj, source, 1023, &length);
 			source[length] = 0;
+			JsValueRef exceptionObj;
+			JsGetProperty(meta, getId("exception"), &exceptionObj);
+			JsValueRef messageObj;
+			JsGetProperty(exceptionObj, getId("message"), &messageObj);
+			char message[1024];
+			JsCopyString(messageObj, message, 1023, &length);
+			message[length] = 0;
 
-			Kore::log(Kore::Error, "Exception at line %i: %s\n", line, source);
+			Kore::log(Kore::Error, "Exception at line %i: %s - %s\n", line, source, message);
 		}
 	}
 
