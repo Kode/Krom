@@ -171,7 +171,9 @@ namespace {
 		if (!nosound) {
 			Kore::Audio2::audioCallback = updateAudio;
 			Kore::Audio2::init();
+#ifdef KORE_WINDOWS
 			initAudioBuffer();
+#endif
 		}
 		Kore::Random::init((int)(Kore::System::time() * 1000));
 
