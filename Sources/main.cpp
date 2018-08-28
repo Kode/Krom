@@ -1,7 +1,6 @@
-#include "pch.h"
-
 #include <ChakraCore.h>
 
+#if 0
 #include "Runtime.h"
 #include "Core/AtomLockGuids.h"
 #include "Core/ConfigParser.h"
@@ -18,6 +17,9 @@
 #ifdef ENABLE_JS_ETW
 #include "Base/EtwTrace.h"
 #endif
+#endif
+
+#include "pch.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -27,6 +29,7 @@
 #include <Kore/IO/FileWriter.h>
 #include <Kore/Graphics4/Graphics.h>
 #include <Kore/Graphics4/PipelineState.h>
+
 #include <Kore/Graphics4/Shader.h>
 #include <Kore/Compute/Compute.h>
 #include <Kore/Input/Keyboard.h>
@@ -69,6 +72,12 @@ const char* macgetresourcepath();
 const char* getExeDir();
 
 JsRuntimeHandle runtime;
+
+#ifdef KORE_WINDOWS
+#define CALLBACK    __stdcall
+#else
+#define CALLBACK
+#endif
 
 namespace {
 	int _argc;
@@ -2404,8 +2413,12 @@ namespace {
 	JsSourceContext cookie = 1234;
 
 	bool startKrom(char* scriptfile) {
+#ifdef KORE_WINDOWS
 		AttachProcess(GetModuleHandle(nullptr));
-
+#else
+		AttachProcess(nullptr);
+#endif
+		
 #ifdef NDEBUG
 		JsCreateRuntime(JsRuntimeAttributeEnableIdleProcessing, nullptr, &runtime);
 #else

@@ -10,6 +10,10 @@
 #include <assert.h>
 #include <vector>
 
+#ifndef KORE_WINDOWS
+#include <unistd.h>
+#endif
+
 namespace {
 	void CHAKRA_CALLBACK debugCallback(JsDiagDebugEvent debugEvent, JsValueRef eventData, void* callbackState) {
 		if (debugEvent == JsDiagDebugEventBreakpoint || debugEvent == JsDiagDebugEventAsyncBreak || debugEvent == JsDiagDebugEventStepComplete
@@ -24,7 +28,11 @@ namespace {
 				if (handleDebugMessage(message, true)) {
 					break;
 				}
+#ifdef KORE_WINDOWS
 				Sleep(100);
+#else
+				usleep(100 * 1000);
+#endif
 			}
 		}
 		else if (debugEvent == JsDiagDebugEventCompileError) {
