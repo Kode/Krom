@@ -114,7 +114,7 @@ namespace {
 	void dropFiles(wchar_t* filePath);
 	void keyDown(Kore::KeyCode code);
 	void keyUp(Kore::KeyCode code);
-    void keyPress(wchar_t character);
+	void keyPress(wchar_t character);
 	void mouseMove(int window, int x, int y, int mx, int my);
 	void mouseDown(int window, int button, int x, int y);
 	void mouseUp(int window, int button, int x, int y);
@@ -226,19 +226,24 @@ namespace {
 		va_end(args);
 	}
 
-	JsValueRef CALLBACK LogCallback(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount, void *callbackState) {
+	JsValueRef CALLBACK krom_log(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount, void *callbackState) {
 		if (argumentCount < 2) {
 			return JS_INVALID_REFERENCE;
 		}
-		char message[256];
+		JsValueRef stringValue;
+		JsConvertValueToString(arguments[1], &stringValue);
+		const wchar_t *string;
 		size_t length;
-		JsCopyString(arguments[1], message, 255, &length);
-		message[length] = 0;
+		JsStringToPointer(stringValue, &string, &length);
+		char message[512];
+		if (length > 512) length = 512;
+		for (int i = 0; i < length - 2; i++) message[i] = string[i];
+		message[length - 1] = 0;
 		sendLogMessage(message);
 		return JS_INVALID_REFERENCE;
 	}
 
-	JsValueRef CALLBACK graphics_clear(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount, void *callbackState) {
+	JsValueRef CALLBACK krom_graphics_clear(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount, void *callbackState) {
 		int flags, color, stencil;
 		JsNumberToInt(arguments[1], &flags);
 		JsNumberToInt(arguments[2], &color);
@@ -369,7 +374,7 @@ namespace {
 	}
 
 	// TODO: krom_audio_lock
-	JsValueRef CALLBACK audio_thread(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount, void *callbackState) {
+	JsValueRef CALLBACK krom_audio_thread(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount, void *callbackState) {
 		bool lock;
 		JsBooleanToBool(arguments[1], &lock);
 
@@ -1130,7 +1135,7 @@ namespace {
 		return array;
 	}
 
-	JsValueRef CALLBACK write_audio_buffer(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount, void *callbackState) {
+	JsValueRef CALLBACK krom_write_audio_buffer(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount, void *callbackState) {
 		double value;
 		JsNumberToDouble(arguments[1], &value);
 
@@ -2273,8 +2278,8 @@ namespace {
 		JsCreateObject(&krom);
 
 		addFunction(init, krom_init);
-		addFunction(log, LogCallback);
-		addFunction(clear, graphics_clear);
+		addFunction(log, krom_log);
+		addFunction(clear, krom_graphics_clear);
 		addFunction(setCallback, krom_set_callback);
 		addFunction(setDropFilesCallback, krom_set_drop_files_callback);
 		addFunction(setKeyboardDownCallback, krom_set_keyboard_down_callback);
@@ -2323,8 +2328,8 @@ namespace {
 		addFunction(unloadImage, krom_unload_image);
 		addFunction(loadSound, krom_load_sound);
 		addFunction(setAudioCallback, krom_set_audio_callback);
-		addFunction(audioThread, audio_thread);
-		addFunction(writeAudioBuffer, write_audio_buffer);
+		addFunction(audioThread, krom_audio_thread);
+		addFunction(writeAudioBuffer, krom_write_audio_buffer);
 		addFunction(loadBlob, krom_load_blob);
 		addFunction(getConstantLocation, krom_get_constant_location);
 		addFunction(getTextureUnit, krom_get_texture_unit);
@@ -2563,13 +2568,13 @@ namespace {
 		JsCallFunction(keyboardUpFunction, args, 2, &result);
 	}
 
-    void keyPress(wchar_t character) {
+	void keyPress(wchar_t character) {
 		JsValueRef args[2];
 		JsGetUndefinedValue(&args[0]);
 		JsIntToNumber((int)character, &args[1]);
 		JsValueRef result;
 		JsCallFunction(keyboardPressFunction, args, 2, &result);
-    }
+	}
 
 	void mouseMove(int window, int x, int y, int mx, int my) {
 		JsValueRef args[5];
