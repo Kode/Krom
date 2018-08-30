@@ -236,9 +236,9 @@ namespace {
 		size_t length;
 		JsStringToPointer(stringValue, &string, &length);
 		char message[512];
-		if (length > 512) length = 512;
-		for (int i = 0; i < length - 2; i++) message[i] = string[i];
-		message[length - 1] = 0;
+		if (length > 512 - 2) length = 512 - 2;
+		for (int i = 0; i < length; i++) message[i] = string[i];
+		message[length + 1] = 0;
 		sendLogMessage(message);
 		return JS_INVALID_REFERENCE;
 	}
