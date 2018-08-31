@@ -232,13 +232,12 @@ namespace {
 		}
 		JsValueRef stringValue;
 		JsConvertValueToString(arguments[1], &stringValue);
-		const wchar_t *string;
 		size_t length;
-		JsStringToPointer(stringValue, &string, &length);
+		JsCopyString(stringValue, nullptr, 0, &length);
+		if (length > 511) return JS_INVALID_REFERENCE;
 		char message[512];
-		if (length > 512 - 2) length = 512 - 2;
-		for (int i = 0; i < length; i++) message[i] = string[i];
-		message[length + 1] = 0;
+		JsCopyString(stringValue, message, 511, &length);
+		message[length - 1] = 0;
 		sendLogMessage(message);
 		return JS_INVALID_REFERENCE;
 	}
