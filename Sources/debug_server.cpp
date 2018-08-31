@@ -285,7 +285,6 @@ namespace {
 
 bool handleDebugMessage(Message& message, bool halted) {
 	if (message.size > 0) {
-		// from debug.cpp
 		switch (message.data[0]) {
 		case DEBUGGER_MESSAGE_BREAKPOINT: {
 			int line = message.data[1];
