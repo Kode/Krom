@@ -63,7 +63,7 @@
 #include <Windows.h> // AttachConsole
 #endif
 
-BOOL AttachProcess(HANDLE hmod);
+bool AttachProcess(HANDLE hmod);
 
 #ifdef KORE_MACOS
 const char* macgetresourcepath();
