@@ -2470,26 +2470,44 @@ namespace {
 		JsHasException(&except);
 		if (except) {
 			JsValueRef meta;
-			JsGetAndClearExceptionWithMetadata(&meta);
-			JsValueRef lineObj;
-			JsGetProperty(meta, getId("line"), &lineObj);
-			int line;
-			JsNumberToInt(lineObj, &line);
-			JsValueRef sourceObj;
-			JsGetProperty(meta, getId("source"), &sourceObj);
-			char source[1024];
-			size_t length;
-			JsCopyString(sourceObj, source, 1023, &length);
-			source[length] = 0;
 			JsValueRef exceptionObj;
+			JsGetAndClearExceptionWithMetadata(&meta);
 			JsGetProperty(meta, getId("exception"), &exceptionObj);
+			char buf[2048];
+			size_t length;
+			
 			JsValueRef messageObj;
 			JsGetProperty(exceptionObj, getId("message"), &messageObj);
-			char message[1024];
-			JsCopyString(messageObj, message, 1023, &length);
-			message[length] = 0;
+			JsCopyString(messageObj, buf, 2047, &length);
+			buf[length] = 0;
+			Kore::log(Kore::Error, "Uncaught exception: %s", buf);
 
-			Kore::log(Kore::Error, "Exception at line %i: %s - %s\n", line, source, message);
+			JsValueRef sourceObj;
+			JsGetProperty(meta, getId("source"), &sourceObj);
+			JsCopyString(sourceObj, nullptr, 0, &length);
+			if (length < 2048) {
+				JsCopyString(sourceObj, buf, 2047, &length);
+				buf[length] = 0;
+				Kore::log(Kore::Error, "%s", buf);
+			
+				JsValueRef columnObj;
+				JsGetProperty(meta, getId("column"), &columnObj);
+				int column;
+				JsNumberToInt(columnObj, &column);
+				for (int i = 0; i < column; i++) if (buf[i] != '\t') buf[i] = ' ';
+				buf[column] = '^';
+				buf[column + 1] = 0;
+				Kore::log(Kore::Error, "%s", buf);
+			}
+
+			JsValueRef stackObj;
+			JsGetProperty(exceptionObj, getId("stack"), &stackObj);
+			JsCopyString(stackObj, nullptr, 0, &length);
+			if (length < 2048) {
+				JsCopyString(stackObj, buf, 2047, &length);
+				buf[length] = 0;
+				Kore::log(Kore::Error, "%s", buf);
+			}
 		}
 	}
 
