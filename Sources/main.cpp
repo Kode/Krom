@@ -1204,14 +1204,15 @@ namespace {
 			JsValueRef filenameObj;
 			JsGetProperty(arguments[2], getId("filename"), &filenameObj);
 			size_t length;
-			JsCopyString(filenameObj, tempString, tempStringSize, &length);
-			tempString[length] = 0;
-			if (imageChanges[tempString]) {
-				imageChanges[tempString] = false;
-				sendLogMessage("Image %s changed.", tempString);
-				texture = new Kore::Graphics4::Texture(tempString);
-				JsSetExternalData(arguments[2], texture);
-				imageChanged = true;
+			if (JsCopyString(filenameObj, tempString, tempStringSize, &length) == JsNoError) {
+				tempString[length] = 0;
+				if (imageChanges[tempString]) {
+					imageChanges[tempString] = false;
+					sendLogMessage("Image %s changed.", tempString);
+					texture = new Kore::Graphics4::Texture(tempString);
+					JsSetExternalData(arguments[2], texture);
+					imageChanged = true;
+				}
 			}
 		}
 		if (!imageChanged) {
