@@ -2,7 +2,6 @@ sudo: false
 dist: trusty
 os:
   - linux
-  - osx
 addons:
   apt:
     packages:
