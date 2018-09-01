@@ -8,10 +8,15 @@ Note that Krom does not rely on web APIs. It rather exposes full, native hardwar
 
 ## Build instructions
 
-(build process is still being refined...)
+To do a release build first set the release variable in Chakra/Build/korefile.js to true.
+
+* For Windows: Compile Chakra/Build/Chakra.Core.sln then run node Kore/make
+* For macOS: Run node Kore/make --noshaders
+* For Linux: Run node Kore/make --compiler clang --compile
 
 ## Running
 
 `krom [assetsdir shadersdir [--flags]]`
 
 If no arguments are provided, assets and shaders are loaded from the executable path.
+
