@@ -2429,7 +2429,7 @@ namespace {
 		bindFunctions();
 
 		JsValueRef script;
-		JsCreateString(scriptfile, strlen(scriptfile), &script); //TODO: Use JavascriptExternalArrayBuffer
+		JsCreateExternalArrayBuffer((void*)scriptfile, (unsigned int)strlen(scriptfile), nullptr, nullptr, &script);
 
 		JsValueRef source;
 		JsCreateString("krom.js", strlen("krom.js"), &source);
