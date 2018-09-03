@@ -72,6 +72,7 @@ const char* macgetresourcepath();
 const char* getExeDir();
 
 JsRuntimeHandle runtime;
+JsContextRef context;
 
 #ifdef KORE_WINDOWS
 #define CALLBACK    __stdcall
@@ -369,17 +370,6 @@ namespace {
 	JsValueRef CALLBACK krom_set_audio_callback(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount, void *callbackState) {
 		audioFunction = arguments[1];
 		JsAddRef(audioFunction, nullptr);
-		return JS_INVALID_REFERENCE;
-	}
-
-	// TODO: krom_audio_lock
-	JsValueRef CALLBACK krom_audio_thread(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount, void *callbackState) {
-		bool lock;
-		JsBooleanToBool(arguments[1], &lock);
-
-		if (lock) mutex.lock();    //v8::Locker::Locker(isolate);
-		else mutex.unlock();       //v8::Unlocker(args.GetIsolate());
-		
 		return JS_INVALID_REFERENCE;
 	}
 
@@ -2328,7 +2318,6 @@ namespace {
 		addFunction(unloadImage, krom_unload_image);
 		addFunction(loadSound, krom_load_sound);
 		addFunction(setAudioCallback, krom_set_audio_callback);
-		addFunction(audioThread, krom_audio_thread);
 		addFunction(writeAudioBuffer, krom_write_audio_buffer);
 		addFunction(loadBlob, krom_load_blob);
 		addFunction(getConstantLocation, krom_get_constant_location);
@@ -2432,8 +2421,8 @@ namespace {
 		JsCreateRuntime(JsRuntimeAttributeAllowScriptInterrupt, nullptr, &runtime);
 #endif
 
-		JsContextRef context;
 		JsCreateContext(runtime, &context);
+		JsAddRef(context, nullptr);
 
 		JsSetCurrentContext(context);
 
@@ -2528,22 +2517,30 @@ namespace {
 	}
 
 	void updateAudio(int samples) {
-		//mutex.Lock();
-		/*JsValueRef args[2];
+		mutex.lock();
+		JsSetCurrentContext(context);
+
+		JsValueRef args[2];
 		JsGetUndefinedValue(&args[0]);
 		JsIntToNumber(samples, &args[1]);
 		JsValueRef result;
-		JsCallFunction(audioFunction, args, 2, &result);*/
-		//mutex.Unlock();
+		JsCallFunction(audioFunction, args, 2, &result);
+
+		JsSetCurrentContext(JS_INVALID_REFERENCE);
+		mutex.unlock();
 	}
 
 	void update() {
+		mutex.lock();
+		JsSetCurrentContext(context);
+		
 		if (!nosound) Kore::Audio2::update();
 		Kore::Graphics4::begin();
-
-		//mutex.Lock();
+		
 		runJS();
-		//mutex.Unlock();
+
+		JsSetCurrentContext(JS_INVALID_REFERENCE);
+		mutex.unlock();
 
 		Kore::Graphics4::end();
 
@@ -2554,6 +2551,9 @@ namespace {
 	}
 
 	void dropFiles(wchar_t* filePath) {
+		mutex.lock();
+		JsSetCurrentContext(context);
+
 		JsValueRef args[2];
 		JsGetUndefinedValue(&args[0]);
 		size_t len = wcslen(filePath);
@@ -2569,33 +2569,57 @@ namespace {
 		}
 		JsValueRef result;
 		JsCallFunction(dropFilesFunction, args, 2, &result);
+
+		JsSetCurrentContext(JS_INVALID_REFERENCE);
+		mutex.unlock();
 	}
 
 	void keyDown(Kore::KeyCode code) {
+		mutex.lock();
+		JsSetCurrentContext(context);
+
 		JsValueRef args[2];
 		JsGetUndefinedValue(&args[0]);
 		JsIntToNumber((int)code, &args[1]);
 		JsValueRef result;
 		JsCallFunction(keyboardDownFunction, args, 2, &result);
+
+		JsSetCurrentContext(JS_INVALID_REFERENCE);
+		mutex.unlock();
 	}
 
 	void keyUp(Kore::KeyCode code) {
+		mutex.lock();
+		JsSetCurrentContext(context);
+
 		JsValueRef args[2];
 		JsGetUndefinedValue(&args[0]);
 		JsIntToNumber((int)code, &args[1]);
 		JsValueRef result;
 		JsCallFunction(keyboardUpFunction, args, 2, &result);
+
+		JsSetCurrentContext(JS_INVALID_REFERENCE);
+		mutex.unlock();
 	}
 
 	void keyPress(wchar_t character) {
+		mutex.lock();
+		JsSetCurrentContext(context);
+
 		JsValueRef args[2];
 		JsGetUndefinedValue(&args[0]);
 		JsIntToNumber((int)character, &args[1]);
 		JsValueRef result;
 		JsCallFunction(keyboardPressFunction, args, 2, &result);
+
+		JsSetCurrentContext(JS_INVALID_REFERENCE);
+		mutex.unlock();
 	}
 
 	void mouseMove(int window, int x, int y, int mx, int my) {
+		mutex.lock();
+		JsSetCurrentContext(context);
+
 		JsValueRef args[5];
 		JsGetUndefinedValue(&args[0]);
 		JsIntToNumber(x, &args[1]);
@@ -2604,9 +2628,15 @@ namespace {
 		JsIntToNumber(my, &args[4]);
 		JsValueRef result;
 		JsCallFunction(mouseMoveFunction, args, 5, &result);
+
+		JsSetCurrentContext(JS_INVALID_REFERENCE);
+		mutex.unlock();
 	}
 
 	void mouseDown(int window, int button, int x, int y) {
+		mutex.lock();
+		JsSetCurrentContext(context);
+
 		JsValueRef args[4];
 		JsGetUndefinedValue(&args[0]);
 		JsIntToNumber(button, &args[1]);
@@ -2614,9 +2644,15 @@ namespace {
 		JsIntToNumber(y, &args[3]);
 		JsValueRef result;
 		JsCallFunction(mouseDownFunction, args, 4, &result);
+
+		JsSetCurrentContext(JS_INVALID_REFERENCE);
+		mutex.unlock();
 	}
 
 	void mouseUp(int window, int button, int x, int y) {
+		mutex.lock();
+		JsSetCurrentContext(context);
+
 		JsValueRef args[4];
 		JsGetUndefinedValue(&args[0]);
 		JsIntToNumber(button, &args[1]);
@@ -2624,17 +2660,29 @@ namespace {
 		JsIntToNumber(y, &args[3]);
 		JsValueRef result;
 		JsCallFunction(mouseUpFunction, args, 4, &result);
+
+		JsSetCurrentContext(JS_INVALID_REFERENCE);
+		mutex.unlock();
 	}
 
 	void mouseWheel(int window, int delta) {
+		mutex.lock();
+		JsSetCurrentContext(context);
+
 		JsValueRef args[2];
 		JsGetUndefinedValue(&args[0]);
 		JsIntToNumber(delta, &args[1]);
 		JsValueRef result;
 		JsCallFunction(mouseWheelFunction, args, 2, &result);
+
+		JsSetCurrentContext(JS_INVALID_REFERENCE);
+		mutex.unlock();
 	}
 
 	void penDown(int window, int x, int y, float pressure) {
+		mutex.lock();
+		JsSetCurrentContext(context);
+
 		JsValueRef args[4];
 		JsGetUndefinedValue(&args[0]);
 		JsIntToNumber(x, &args[1]);
@@ -2642,9 +2690,15 @@ namespace {
 		JsDoubleToNumber(pressure, &args[3]);
 		JsValueRef result;
 		JsCallFunction(penDownFunction, args, 4, &result);
+
+		JsSetCurrentContext(JS_INVALID_REFERENCE);
+		mutex.unlock();
 	}
 
 	void penUp(int window, int x, int y, float pressure) {
+		mutex.lock();
+		JsSetCurrentContext(context);
+
 		JsValueRef args[4];
 		JsGetUndefinedValue(&args[0]);
 		JsIntToNumber(x, &args[1]);
@@ -2652,9 +2706,15 @@ namespace {
 		JsDoubleToNumber(pressure, &args[3]);
 		JsValueRef result;
 		JsCallFunction(penUpFunction, args, 4, &result);
+
+		JsSetCurrentContext(JS_INVALID_REFERENCE);
+		mutex.unlock();
 	}
 
 	void penMove(int window, int x, int y, float pressure) {
+		mutex.lock();
+		JsSetCurrentContext(context);
+
 		JsValueRef args[4];
 		JsGetUndefinedValue(&args[0]);
 		JsIntToNumber(x, &args[1]);
@@ -2662,9 +2722,15 @@ namespace {
 		JsDoubleToNumber(pressure, &args[3]);
 		JsValueRef result;
 		JsCallFunction(penMoveFunction, args, 4, &result);
+
+		JsSetCurrentContext(JS_INVALID_REFERENCE);
+		mutex.unlock();
 	}
 
 	void gamepadAxis(int gamepad, int axis, float value) {
+		mutex.lock();
+		JsSetCurrentContext(context);
+
 		JsValueRef args[4];
 		JsGetUndefinedValue(&args[0]);
 		JsIntToNumber(gamepad, &args[1]);
@@ -2672,9 +2738,15 @@ namespace {
 		JsDoubleToNumber(value, &args[3]);
 		JsValueRef result;
 		JsCallFunction(gamepadAxisFunction, args, 4, &result);
+
+		JsSetCurrentContext(JS_INVALID_REFERENCE);
+		mutex.unlock();
 	}
 
 	void gamepadButton(int gamepad, int button, float value) {
+		mutex.lock();
+		JsSetCurrentContext(context);
+
 		JsValueRef args[4];
 		JsGetUndefinedValue(&args[0]);
 		JsIntToNumber(gamepad, &args[1]);
@@ -2682,6 +2754,9 @@ namespace {
 		JsDoubleToNumber(value, &args[3]);
 		JsValueRef result;
 		JsCallFunction(gamepadButtonFunction, args, 4, &result);
+
+		JsSetCurrentContext(JS_INVALID_REFERENCE);
+		mutex.unlock();
 	}
 
 	void gamepad1Axis(int axis, float value) {
@@ -3118,6 +3193,11 @@ int kore(int argc, char** argv) {
 	}
 
 	Kore::System::start();
+
+	if (!nosound) {
+		Kore::Audio2::shutdown();
+		mutex.lock(); // Prevent audio thread from running
+	}
 
 	exit(0); // TODO
 
