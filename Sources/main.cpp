@@ -2546,10 +2546,11 @@ namespace {
 		//mutex.Unlock();
 
 		Kore::Graphics4::end();
-		Kore::Graphics4::swapBuffers();
 
 		unsigned int nextIdleTick;
 		JsIdle(&nextIdleTick);
+		
+		Kore::Graphics4::swapBuffers();
 	}
 
 	void dropFiles(wchar_t* filePath) {
