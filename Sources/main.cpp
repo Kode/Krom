@@ -421,7 +421,7 @@ namespace {
 			structure.add(name, convertVertexData(data));
 		}
 
-		obj->SetInternalField(0, External::New(isolate, new Kore::Graphics4::VertexBuffer(args[0]->Int32Value(), structure, args[3]->Int32Value())));
+		obj->SetInternalField(0, External::New(isolate, new Kore::Graphics4::VertexBuffer(args[0]->Int32Value(), structure, (Kore::Graphics4::Usage)args[2]->Int32Value(), args[3]->Int32Value())));
 		args.GetReturnValue().Set(obj);
 	}
 
