@@ -238,7 +238,7 @@ namespace {
 		if (length > 511) return JS_INVALID_REFERENCE;
 		char message[512];
 		JsCopyString(stringValue, message, 511, &length);
-		message[length - 1] = 0;
+		message[length] = 0;
 		sendLogMessage(message);
 		return JS_INVALID_REFERENCE;
 	}
