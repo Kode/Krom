@@ -90,6 +90,9 @@ namespace {
 
 	JsValueRef updateFunction;
 	JsValueRef dropFilesFunction;
+	JsValueRef cutFunction;
+	JsValueRef copyFunction;
+	JsValueRef pasteFunction;
 	JsValueRef keyboardDownFunction;
 	JsValueRef keyboardUpFunction;
 	JsValueRef keyboardPressFunction;
@@ -113,6 +116,9 @@ namespace {
 	void initAudioBuffer();
 	void updateAudio(int samples);
 	void dropFiles(wchar_t* filePath);
+	char* cut();
+	char* copy();
+	void paste(char* data);
 	void keyDown(Kore::KeyCode code);
 	void keyUp(Kore::KeyCode code);
 	void keyPress(wchar_t character);
@@ -180,6 +186,9 @@ namespace {
 
 		Kore::System::setCallback(update);
 		Kore::System::setDropFilesCallback(dropFiles);
+		Kore::System::setCopyCallback(copy);
+		Kore::System::setCutCallback(cut);
+		Kore::System::setPasteCallback(paste);
 
 		Kore::Keyboard::the()->KeyDown = keyDown;
 		Kore::Keyboard::the()->KeyUp = keyUp;
@@ -263,6 +272,16 @@ namespace {
 	JsValueRef CALLBACK krom_set_drop_files_callback(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount, void *callbackState) {
 		dropFilesFunction = arguments[1];
 		JsAddRef(dropFilesFunction, nullptr);
+		return JS_INVALID_REFERENCE;
+	}
+
+	JsValueRef CALLBACK krom_set_cut_copy_paste_callback(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount, void *callbackState) {
+		cutFunction = arguments[1];
+		copyFunction = arguments[2];
+		pasteFunction = arguments[3];
+		JsAddRef(cutFunction, nullptr);
+		JsAddRef(copyFunction, nullptr);
+		JsAddRef(pasteFunction, nullptr);
 		return JS_INVALID_REFERENCE;
 	}
 
@@ -2272,6 +2291,7 @@ namespace {
 		addFunction(clear, krom_graphics_clear);
 		addFunction(setCallback, krom_set_callback);
 		addFunction(setDropFilesCallback, krom_set_drop_files_callback);
+		addFunction(setCutCopyPasteCallback, krom_set_cut_copy_paste_callback);
 		addFunction(setKeyboardDownCallback, krom_set_keyboard_down_callback);
 		addFunction(setKeyboardUpCallback, krom_set_keyboard_up_callback);
 		addFunction(setKeyboardPressCallback, krom_set_keyboard_press_callback);
@@ -2569,6 +2589,68 @@ namespace {
 		}
 		JsValueRef result;
 		JsCallFunction(dropFilesFunction, args, 2, &result);
+
+		JsSetCurrentContext(JS_INVALID_REFERENCE);
+		mutex.unlock();
+	}
+
+	char cutCopyString[4096];
+
+	char* copy() {
+		mutex.lock();
+		JsSetCurrentContext(context);
+
+		JsValueRef args[1];
+		JsGetUndefinedValue(&args[0]);
+		JsValueRef result;
+		JsCallFunction(copyFunction, args, 1, &result);
+
+		JsValueRef stringValue;
+		JsConvertValueToString(result, &stringValue);
+		size_t length;
+		JsCopyString(stringValue, nullptr, 0, &length);
+		if (length > 4095) return nullptr;
+		JsCopyString(stringValue, cutCopyString, 4095, &length);
+		cutCopyString[length] = 0;
+
+		JsSetCurrentContext(JS_INVALID_REFERENCE);
+		mutex.unlock();
+
+		return cutCopyString;
+	}
+
+	char* cut() {
+		mutex.lock();
+		JsSetCurrentContext(context);
+
+		JsValueRef args[1];
+		JsGetUndefinedValue(&args[0]);
+		JsValueRef result;
+		JsCallFunction(cutFunction, args, 1, &result);
+
+		JsValueRef stringValue;
+		JsConvertValueToString(result, &stringValue);
+		size_t length;
+		JsCopyString(stringValue, nullptr, 0, &length);
+		if (length > 4095) return nullptr;
+		JsCopyString(stringValue, cutCopyString, 4095, &length);
+		cutCopyString[length] = 0;
+
+		JsSetCurrentContext(JS_INVALID_REFERENCE);
+		mutex.unlock();
+
+		return cutCopyString;
+	}
+
+	void paste(char* data) {
+		mutex.lock();
+		JsSetCurrentContext(context);
+
+		JsValueRef args[2];
+		JsGetUndefinedValue(&args[0]);
+		JsCreateString(data, strlen(data), &args[1]);
+		JsValueRef result;
+		JsCallFunction(pasteFunction, args, 2, &result);
 
 		JsSetCurrentContext(JS_INVALID_REFERENCE);
 		mutex.unlock();
