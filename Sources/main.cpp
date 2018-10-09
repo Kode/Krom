@@ -909,14 +909,33 @@ namespace {
 		getPipeInt(alphaBlendDestination);
 		pipeline->alphaBlendDestination = (Kore::Graphics4::BlendingOperation)alphaBlendDestination;
 
-		getPipeBool(colorWriteMaskRed);
-		pipeline->colorWriteMaskRed = colorWriteMaskRed;
-		getPipeBool(colorWriteMaskGreen);
-		pipeline->colorWriteMaskGreen = colorWriteMaskGreen;
-		getPipeBool(colorWriteMaskBlue);
-		pipeline->colorWriteMaskBlue = colorWriteMaskBlue;
-		getPipeBool(colorWriteMaskAlpha);
-		pipeline->colorWriteMaskAlpha = colorWriteMaskAlpha;
+		JsValueRef maskRed, maskGreen, maskBlue, maskAlpha;
+		JsGetProperty(arguments[12], getId("colorWriteMaskRed"), &maskRed);
+		JsGetProperty(arguments[12], getId("colorWriteMaskGreen"), &maskGreen);
+		JsGetProperty(arguments[12], getId("colorWriteMaskBlue"), &maskBlue);
+		JsGetProperty(arguments[12], getId("colorWriteMaskAlpha"), &maskAlpha);
+
+		for (int i = 0; i < 8; ++i) {
+			bool b;
+			JsValueRef index, element;
+			JsIntToNumber(i, &index);
+
+			JsGetIndexedProperty(maskRed, index, &element);
+			JsBooleanToBool(element, &b);
+			pipeline->colorWriteMaskRed[i] = b;
+
+			JsGetIndexedProperty(maskGreen, index, &element);
+			JsBooleanToBool(element, &b);
+			pipeline->colorWriteMaskGreen[i] = b;
+
+			JsGetIndexedProperty(maskBlue, index, &element);
+			JsBooleanToBool(element, &b);
+			pipeline->colorWriteMaskBlue[i] = b;
+
+			JsGetIndexedProperty(maskAlpha, index, &element);
+			JsBooleanToBool(element, &b);
+			pipeline->colorWriteMaskAlpha[i] = b;
+		}
 
 		getPipeBool(conservativeRasterization);
 		pipeline->conservativeRasterization = conservativeRasterization;
