@@ -2513,7 +2513,7 @@ namespace {
 			JsGetProperty(exceptionObj, getId("message"), &messageObj);
 			JsCopyString(messageObj, buf, 2047, &length);
 			buf[length] = 0;
-			Kore::log(Kore::Error, "Uncaught exception: %s", buf);
+			sendLogMessage("Uncaught exception: %s", buf);
 
 			JsValueRef sourceObj;
 			JsGetProperty(meta, getId("source"), &sourceObj);
@@ -2521,7 +2521,7 @@ namespace {
 			if (length < 2048) {
 				JsCopyString(sourceObj, buf, 2047, &length);
 				buf[length] = 0;
-				Kore::log(Kore::Error, "%s", buf);
+				sendLogMessage("%s", buf);
 			
 				JsValueRef columnObj;
 				JsGetProperty(meta, getId("column"), &columnObj);
@@ -2530,7 +2530,7 @@ namespace {
 				for (int i = 0; i < column; i++) if (buf[i] != '\t') buf[i] = ' ';
 				buf[column] = '^';
 				buf[column + 1] = 0;
-				Kore::log(Kore::Error, "%s", buf);
+				sendLogMessage("%s", buf);
 			}
 
 			JsValueRef stackObj;
@@ -2539,7 +2539,7 @@ namespace {
 			if (length < 2048) {
 				JsCopyString(stackObj, buf, 2047, &length);
 				buf[length] = 0;
-				Kore::log(Kore::Error, "%s", buf);
+				sendLogMessage("%s", buf);
 			}
 		}
 	}
