@@ -63,7 +63,12 @@
 #include <Windows.h> // AttachConsole
 #endif
 
+#ifndef KORE_WINDOWS
+#include <unistd.h>
+#endif
+
 const int KROM_API = 1;
+const int KROM_DEBUG_API = 1;
 
 bool AttachProcess(HANDLE hmod);
 
@@ -2446,14 +2451,15 @@ namespace {
 	}
 
 	JsSourceContext cookie = 1234;
+	JsValueRef script, source;
 
-	bool startKrom(char* scriptfile) {
+	void initKrom(char* scriptfile) {
 #ifdef KORE_WINDOWS
 		AttachProcess(GetModuleHandle(nullptr));
 #else
 		AttachProcess(nullptr);
 #endif
-		
+
 #ifdef NDEBUG
 		JsCreateRuntime(JsRuntimeAttributeEnableIdleProcessing, nullptr, &runtime);
 #else
@@ -2467,16 +2473,13 @@ namespace {
 
 		bindFunctions();
 
-		JsValueRef script;
 		JsCreateExternalArrayBuffer((void*)scriptfile, (unsigned int)strlen(scriptfile), nullptr, nullptr, &script);
-
-		JsValueRef source;
 		JsCreateString("krom.js", strlen("krom.js"), &source);
+	}
 
+	void startKrom(char* scriptfile) {
 		JsValueRef result;
 		JsRun(script, cookie, source, JsParseScriptAttributeNone, &result);
-
-		return true;
 	}
 
 	bool codechanged = false;
@@ -3287,12 +3290,36 @@ int kore(int argc, char** argv) {
 		watchDirectories(&path1[0], &path2[0]);
 	}
 
-	startKrom(code);
+	initKrom(code);
 
 	if (debugMode) {
 		startDebugger(runtime, port);
+		for (;;) {
+			Message message = receiveMessage();
+			if (message.size > 0 && message.data[0] == DEBUGGER_MESSAGE_START) {
+				if (message.data[1] != KROM_DEBUG_API) {
+					const char* outdated;
+					if (message.data[1] < KROM_DEBUG_API) {
+						outdated = "your IDE";
+					}
+					else if (KROM_DEBUG_API < message.data[1]) {
+						outdated = "Krom";
+					}
+					sendLogMessage("Krom uses Debug API version %i but your IDE targets Debug API version %i. Please update %s.", KROM_DEBUG_API, message.data[1], outdated);
+					exit(1);
+				}
+				break;
+			}
+#ifdef KORE_WINDOWS
+			Sleep(100);
+#else
+			usleep(100 * 1000);
+#endif
+		}
 	}
 
+	startKrom(code);
+	
 	Kore::System::start();
 
 	if (!nosound) {
