@@ -63,6 +63,8 @@
 #include <Windows.h> // AttachConsole
 #endif
 
+const int KROM_API = 1;
+
 bool AttachProcess(HANDLE hmod);
 
 #ifdef KORE_MACOS
@@ -145,6 +147,30 @@ namespace {
 
 	JsPropertyIdRef buffer_id;
 
+	void sendLogMessageArgs(const char* format, va_list args) {
+		char msg[4096];
+		vsnprintf(msg, sizeof(msg) - 2, format, args);
+		Kore::log(Kore::Info, "%s", msg);
+
+		if (debugMode) {
+			std::vector<int> message;
+			message.push_back(IDE_MESSAGE_LOG);
+			size_t messageLength = strlen(msg);
+			message.push_back(messageLength);
+			for (size_t i = 0; i < messageLength; ++i) {
+				message.push_back(msg[i]);
+			}
+			sendMessage(message.data(), message.size());
+		}
+	}
+
+	void sendLogMessage(const char* format, ...) {
+		va_list args;
+		va_start(args, format);
+		sendLogMessageArgs(format, args);
+		va_end(args);
+	}
+
 	JsValueRef CALLBACK krom_init(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount, void *callbackState) {
 		char title[256];
 		size_t length;
@@ -159,6 +185,23 @@ namespace {
 		int windowMode, windowFeatures;
 		JsNumberToInt(arguments[6], &windowMode);
 		JsNumberToInt(arguments[7], &windowFeatures);
+
+		int apiVersion = 0;
+		if (argumentCount > 8) {
+			JsNumberToInt(arguments[8], &apiVersion);
+		}
+
+		if (apiVersion != KROM_API) {
+			const char* outdated;
+			if (apiVersion < KROM_API) {
+				outdated = "Kha";
+			}
+			else if (KROM_API < apiVersion) {
+				outdated = "Krom";
+			}
+			sendLogMessage("Krom uses API version %i but Kha targets API version %i. Please update %s.", KROM_API, apiVersion, outdated);
+			exit(1);
+		}
 
 		Kore::WindowOptions win;
 		win.title = title;
@@ -210,30 +253,6 @@ namespace {
 		Kore::Gamepad::get(3)->Button = gamepad4Button;
 
 		return JS_INVALID_REFERENCE;
-	}
-
-	void sendLogMessageArgs(const char* format, va_list args) {
-		char msg[4096];
-		vsnprintf(msg, sizeof(msg) - 2, format, args);
-		Kore::log(Kore::Info, "%s", msg);
-
-		if (debugMode) {
-			std::vector<int> message;
-			message.push_back(IDE_MESSAGE_LOG);
-			size_t messageLength = strlen(msg);
-			message.push_back(messageLength);
-			for (size_t i = 0; i < messageLength; ++i) {
-				message.push_back(msg[i]);
-			}
-			sendMessage(message.data(), message.size());
-		}
-	}
-
-	void sendLogMessage(const char* format, ...) {
-		va_list args;
-		va_start(args, format);
-		sendLogMessageArgs(format, args);
-		va_end(args);
 	}
 
 	JsValueRef CALLBACK krom_log(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount, void *callbackState) {
