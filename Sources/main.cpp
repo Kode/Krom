@@ -2010,6 +2010,12 @@ namespace {
 		return value;
 	}
 
+	JsValueRef CALLBACK krom_get_files_location(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount, void *callbackState) {
+		JsValueRef value;
+		JsCreateString(Kore::getFilesLocation(), strlen(Kore::getFilesLocation()), &value);
+		return value;
+	}
+
 	JsValueRef CALLBACK krom_set_bool_compute(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount, void *callbackState) {
 		Kore::ComputeConstantLocation* location;
 		JsGetExternalData(arguments[1], (void**)&location);
@@ -2421,6 +2427,7 @@ namespace {
 		addFunction(savePath, krom_save_path);
 		addFunction(getArgCount, krom_get_arg_count);
 		addFunction(getArg, krom_get_arg);
+		addFunction(getFilesLocation, krom_get_files_location);
 		addFunction(setBoolCompute, krom_set_bool_compute);
 		addFunction(setIntCompute, krom_set_int_compute);
 		addFunction(setFloatCompute, krom_set_float_compute);
