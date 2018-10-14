@@ -1980,9 +1980,9 @@ namespace {
 	}
 
 	JsValueRef CALLBACK krom_sys_command(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount, void *callbackState) {
-		char command[256];
+		char command[1024];
 		size_t length;
-		JsCopyString(arguments[1], command, 255, &length);
+		JsCopyString(arguments[1], command, 1023, &length);
 		command[length] = 0;
 		int result = system(command);
 		JsValueRef value;
