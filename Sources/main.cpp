@@ -44,6 +44,8 @@
 
 using namespace v8;
 
+const int KROM_API = 1;
+
 void sendMessage(const char* message);
 
 #ifdef KORE_MACOS
@@ -68,6 +70,9 @@ namespace {
 	Platform* plat;
 	Global<Function> updateFunction;
 	Global<Function> dropFilesFunction;
+	Global<Function> cutFunction;
+	Global<Function> copyFunction;
+	Global<Function> pasteFunction;
 	Global<Function> keyboardDownFunction;
 	Global<Function> keyboardUpFunction;
 	Global<Function> keyboardPressFunction;
@@ -91,6 +96,9 @@ namespace {
 	void initAudioBuffer();
 	void mix(int samples);
 	void dropFiles(wchar_t* filePath);
+	char* cut();
+	char* copy();
+	void paste(char* data);
 	void keyDown(Kore::KeyCode code);
 	void keyUp(Kore::KeyCode code);
     void keyPress(wchar_t character);
@@ -110,6 +118,27 @@ namespace {
 	void gamepad4Axis(int axis, float value);
 	void gamepad4Button(int button, float value);
 
+	void sendLogMessageArgs(const char* format, va_list args) {
+		char message[4096];
+		vsnprintf(message, sizeof(message) - 2, format, args);
+		Kore::log(Kore::Info, "%s", message);
+
+		if (debugMode) {
+			char json[4096];
+			strcpy(json, "{\"method\":\"Log.entryAdded\",\"params\":{\"entry\":{\"source\":\"javascript\",\"level\":\"log\",\"text\":\"");
+			strcat(json, message);
+			strcat(json, "\",\"timestamp\":0}}}");
+			sendMessage(json);
+		}
+	}
+
+	void sendLogMessage(const char* format, ...) {
+		va_list args;
+		va_start(args, format);
+		sendLogMessageArgs(format, args);
+		va_end(args);
+	}
+
 	void krom_init(const v8::FunctionCallbackInfo<v8::Value>& args) {
 		HandleScope scope(args.GetIsolate());
 		Local<Value> arg = args[0];
@@ -120,6 +149,19 @@ namespace {
 		bool vSync = args[4]->ToBoolean()->Value();
 		int windowMode = args[5]->ToInt32()->Value();
 		int windowFeatures = args[6]->ToInt32()->Value();
+		int apiVersion = args[7]->ToInt32()->Value();
+
+		if (apiVersion != KROM_API) {
+			const char* outdated;
+			if (apiVersion < KROM_API) {
+				outdated = "Kha";
+			}
+			else if (KROM_API < apiVersion) {
+				outdated = "Krom";
+			}
+			sendLogMessage("Krom uses API version %i but Kha targets API version %i. Please update %s.", KROM_API, apiVersion, outdated);
+			exit(1);
+		}
 
 		Kore::WindowOptions win;
 		win.title = *title;
@@ -145,6 +187,9 @@ namespace {
 
 		Kore::System::setCallback(update);
 		Kore::System::setDropFilesCallback(dropFiles);
+		Kore::System::setCopyCallback(copy);
+		Kore::System::setCutCallback(cut);
+		Kore::System::setPasteCallback(paste);
 
 		Kore::Keyboard::the()->KeyDown = keyDown;
 		Kore::Keyboard::the()->KeyUp = keyUp;
@@ -164,27 +209,6 @@ namespace {
 		Kore::Gamepad::get(2)->Button = gamepad3Button;
 		Kore::Gamepad::get(3)->Axis = gamepad4Axis;
 		Kore::Gamepad::get(3)->Button = gamepad4Button;
-	}
-
-	void sendLogMessageArgs(const char* format, va_list args) {
-		char message[4096];
-		vsnprintf(message, sizeof(message) - 2, format, args);
-		Kore::log(Kore::Info, "%s", message);
-
-		if (debugMode) {
-			char json[4096];
-			strcpy(json, "{\"method\":\"Log.entryAdded\",\"params\":{\"entry\":{\"source\":\"javascript\",\"level\":\"log\",\"text\":\"");
-			strcat(json, message);
-			strcat(json, "\",\"timestamp\":0}}}");
-			sendMessage(json);
-		}
-	}
-
-	void sendLogMessage(const char* format, ...) {
-		va_list args;
-		va_start(args, format);
-		sendLogMessageArgs(format, args);
-		va_end(args);
 	}
 
 	void LogCallback(const v8::FunctionCallbackInfo<v8::Value>& args) {
@@ -216,6 +240,19 @@ namespace {
 		Local<Value> arg = args[0];
 		Local<Function> func = Local<Function>::Cast(arg);
 		dropFilesFunction.Reset(isolate, func);
+	}
+
+	void krom_set_cut_copy_paste_callback(const FunctionCallbackInfo<Value>& args) {
+		HandleScope scope(args.GetIsolate());
+		Local<Value> cutArg = args[0];
+		Local<Function> cutFunc = Local<Function>::Cast(cutArg);
+		cutFunction.Reset(isolate, cutFunc);
+		Local<Value> copyArg = args[1];
+		Local<Function> copyFunc = Local<Function>::Cast(copyArg);
+		copyFunction.Reset(isolate, copyFunc);
+		Local<Value> pasteArg = args[2];
+		Local<Function> pasteFunc = Local<Function>::Cast(pasteArg);
+		pasteFunction.Reset(isolate, pasteFunc);
 	}
 
 	void krom_set_keyboard_down_callback(const FunctionCallbackInfo<Value>& args) {
@@ -773,10 +810,17 @@ namespace {
 		pipeline->alphaBlendSource = (Kore::Graphics4::BlendingOperation)args[11]->ToObject()->Get(String::NewFromUtf8(isolate, "alphaBlendSource"))->Int32Value();
 		pipeline->alphaBlendDestination = (Kore::Graphics4::BlendingOperation)args[11]->ToObject()->Get(String::NewFromUtf8(isolate, "alphaBlendDestination"))->Int32Value();
 
-		pipeline->colorWriteMaskRed = args[11]->ToObject()->Get(String::NewFromUtf8(isolate, "colorWriteMaskRed"))->BooleanValue();
-		pipeline->colorWriteMaskGreen = args[11]->ToObject()->Get(String::NewFromUtf8(isolate, "colorWriteMaskGreen"))->BooleanValue();
-		pipeline->colorWriteMaskBlue = args[11]->ToObject()->Get(String::NewFromUtf8(isolate, "colorWriteMaskBlue"))->BooleanValue();
-		pipeline->colorWriteMaskAlpha = args[11]->ToObject()->Get(String::NewFromUtf8(isolate, "colorWriteMaskAlpha"))->BooleanValue();
+		Local<Object> maskRedArray = args[11]->ToObject()->Get(String::NewFromUtf8(isolate, "colorWriteMaskRed"))->ToObject();
+		Local<Object> maskGreenArray = args[11]->ToObject()->Get(String::NewFromUtf8(isolate, "colorWriteMaskGreen"))->ToObject();
+		Local<Object> maskBlueArray = args[11]->ToObject()->Get(String::NewFromUtf8(isolate, "colorWriteMaskBlue"))->ToObject();
+		Local<Object> maskAlphaArray = args[11]->ToObject()->Get(String::NewFromUtf8(isolate, "colorWriteMaskAlpha"))->ToObject();
+
+		for (int i = 0; i < 8; ++i) {
+			pipeline->colorWriteMaskRed[i] = maskRedArray->Get(i)->BooleanValue();
+			pipeline->colorWriteMaskGreen[i] = maskGreenArray->Get(i)->BooleanValue();
+			pipeline->colorWriteMaskBlue[i] = maskBlueArray->Get(i)->BooleanValue();
+			pipeline->colorWriteMaskAlpha[i] = maskAlphaArray->Get(i)->BooleanValue();
+		}
 
 		pipeline->conservativeRasterization = args[11]->ToObject()->Get(String::NewFromUtf8(isolate, "conservativeRasterization"))->BooleanValue();
 
@@ -1641,6 +1685,11 @@ namespace {
 		args.GetReturnValue().Set(String::NewFromUtf8(isolate, _argv[index]));
 	}
 
+	void krom_get_files_location(const FunctionCallbackInfo<Value>& args) {
+		HandleScope scope(args.GetIsolate());
+		args.GetReturnValue().Set(String::NewFromUtf8(isolate, Kore::getFilesLocation()));
+	}
+
 	void krom_set_bool_compute(const FunctionCallbackInfo<Value>& args) {
 		HandleScope scope(args.GetIsolate());
 		Local<External> locationfield = Local<External>::Cast(args[0]->ToObject()->GetInternalField(0));
@@ -1929,6 +1978,7 @@ namespace {
 		krom->Set(String::NewFromUtf8(isolate, "clear"), FunctionTemplate::New(isolate, graphics_clear));
 		krom->Set(String::NewFromUtf8(isolate, "setCallback"), FunctionTemplate::New(isolate, krom_set_callback));
 		krom->Set(String::NewFromUtf8(isolate, "setDropFilesCallback"), FunctionTemplate::New(isolate, krom_set_drop_files_callback));
+		krom->Set(String::NewFromUtf8(isolate, "setCutCopyPasteCallback"), FunctionTemplate::New(isolate, krom_set_cut_copy_paste_callback));
 		krom->Set(String::NewFromUtf8(isolate, "setKeyboardDownCallback"), FunctionTemplate::New(isolate, krom_set_keyboard_down_callback));
 		krom->Set(String::NewFromUtf8(isolate, "setKeyboardUpCallback"), FunctionTemplate::New(isolate, krom_set_keyboard_up_callback));
 		krom->Set(String::NewFromUtf8(isolate, "setKeyboardPressCallback"), FunctionTemplate::New(isolate, krom_set_keyboard_press_callback));
@@ -2035,6 +2085,7 @@ namespace {
 		krom->Set(String::NewFromUtf8(isolate, "savePath"), FunctionTemplate::New(isolate, krom_save_path));
 		krom->Set(String::NewFromUtf8(isolate, "getArgCount"), FunctionTemplate::New(isolate, krom_get_arg_count));
 		krom->Set(String::NewFromUtf8(isolate, "getArg"), FunctionTemplate::New(isolate, krom_get_arg));
+		krom->Set(String::NewFromUtf8(isolate, "getFilesLocation"), FunctionTemplate::New(isolate, krom_get_files_location));
 		krom->Set(String::NewFromUtf8(isolate, "setBoolCompute"), FunctionTemplate::New(isolate, krom_set_bool_compute));
 		krom->Set(String::NewFromUtf8(isolate, "setIntCompute"), FunctionTemplate::New(isolate, krom_set_int_compute));
 		krom->Set(String::NewFromUtf8(isolate, "setFloatCompute"), FunctionTemplate::New(isolate, krom_set_float_compute));
@@ -2208,6 +2259,65 @@ namespace {
 			v8::String::Utf8Value stack_trace(try_catch.StackTrace());
 			sendLogMessage("Trace: %s", *stack_trace);
 		}
+	}
+
+	char cutCopyString[4096];
+
+ 	char* copy() {
+ 		v8::Locker locker{isolate};
+
+		Isolate::Scope isolate_scope(isolate);
+		HandleScope handle_scope(isolate);
+		v8::Local<v8::Context> context = v8::Local<v8::Context>::New(isolate, globalContext);
+		Context::Scope context_scope(context);
+
+		TryCatch try_catch(isolate);
+		v8::Local<v8::Function> func = v8::Local<v8::Function>::New(isolate, copyFunction);
+		Local<Value> result;
+		if (!func->Call(context, context->Global(), 0, NULL).ToLocal(&result)) {
+			v8::String::Utf8Value stack_trace(try_catch.StackTrace());
+			sendLogMessage("Trace: %s", *stack_trace);
+		}
+		String::Utf8Value cutCopyString(result);
+		return *cutCopyString;
+	}
+
+ 	char* cut() {
+		v8::Locker locker{isolate};
+
+		Isolate::Scope isolate_scope(isolate);
+		HandleScope handle_scope(isolate);
+		v8::Local<v8::Context> context = v8::Local<v8::Context>::New(isolate, globalContext);
+		Context::Scope context_scope(context);
+
+		TryCatch try_catch(isolate);
+		v8::Local<v8::Function> func = v8::Local<v8::Function>::New(isolate, cutFunction);
+		Local<Value> result;
+		if (!func->Call(context, context->Global(), 0, NULL).ToLocal(&result)) {
+			v8::String::Utf8Value stack_trace(try_catch.StackTrace());
+			sendLogMessage("Trace: %s", *stack_trace);
+		}
+		String::Utf8Value cutCopyString(result);
+		return *cutCopyString;
+	}
+
+ 	void paste(char* data) {
+ 		v8::Locker locker{isolate};
+
+		Isolate::Scope isolate_scope(isolate);
+		HandleScope handle_scope(isolate);
+		v8::Local<v8::Context> context = v8::Local<v8::Context>::New(isolate, globalContext);
+		Context::Scope context_scope(context);
+
+		TryCatch try_catch(isolate);
+		v8::Local<v8::Function> func = v8::Local<v8::Function>::New(isolate, pasteFunction);
+		Local<Value> result;
+		const int argc = 1;
+		Local<Value> argv[argc] = {String::NewFromUtf8(isolate, data)};
+		if (!func->Call(context, context->Global(), argc, argv).ToLocal(&result)) {
+			v8::String::Utf8Value stack_trace(try_catch.StackTrace());
+			sendLogMessage("Trace: %s", *stack_trace);
+		} 		
 	}
 
 	void keyDown(Kore::KeyCode code) {
