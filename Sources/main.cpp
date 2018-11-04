@@ -1519,6 +1519,17 @@ namespace {
 		return obj;
 	}
 
+	JsValueRef CALLBACK krom_set_window_title(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount, void *callbackState) {
+		int windowId;
+		JsNumberToInt(arguments[1], &windowId);
+		char title[256];
+		size_t length;
+		JsCopyString(arguments[2], title, 255, &length);
+		title[length] = 0;
+		Kore::Window::get(windowId)->setTitle(title);
+		return JS_INVALID_REFERENCE;
+	}
+
 	JsValueRef CALLBACK krom_screen_dpi(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount, void *callbackState) {
 		JsValueRef obj;
 		JsIntToNumber(Kore::Display::primary()->pixelsPerInch(), &obj);
@@ -2409,6 +2420,7 @@ namespace {
 		addFunction(getTime, krom_get_time);
 		addFunction(windowWidth, krom_window_width);
 		addFunction(windowHeight, krom_window_height);
+		addFunction(setWindowTitle, krom_set_window_title);
 		addFunction(screenDpi, krom_screen_dpi);
 		addFunction(systemId, krom_system_id);
 		addFunction(requestShutdown, krom_request_shutdown);
