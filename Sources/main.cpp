@@ -1621,7 +1621,7 @@ namespace {
 
 		Kore::u8* bufferData;
 		unsigned bufferLength;
-		JsGetArrayBufferStorage(arguments[2], &bufferData, &bufferLength);
+		JsGetArrayBufferStorage(buffer, &bufferData, &bufferLength);
 
 		memcpy(bufferData, reader.readAll(), reader.size());
 		reader.close();
