@@ -1282,6 +1282,13 @@ namespace {
 		args.GetReturnValue().Set(Int32::New(isolate, Kore::System::windowHeight(windowId)));
 	}
 
+	void krom_set_window_title(const FunctionCallbackInfo<Value>& args) {
+		HandleScope scope(args.GetIsolate());
+		int windowId = args[0]->ToInt32()->Value();
+		String::Utf8Value title(args[1]);
+		Kore::Window::get(windowId)->setTitle(*title);
+	}
+
 	void krom_screen_dpi(const FunctionCallbackInfo<Value>& args) {
 		HandleScope scope(args.GetIsolate());
 		args.GetReturnValue().Set(Int32::New(isolate, Kore::Display::primary()->pixelsPerInch()));
@@ -2048,6 +2055,7 @@ namespace {
 		krom->Set(String::NewFromUtf8(isolate, "getTime"), FunctionTemplate::New(isolate, krom_get_time));
 		krom->Set(String::NewFromUtf8(isolate, "windowWidth"), FunctionTemplate::New(isolate, krom_window_width));
 		krom->Set(String::NewFromUtf8(isolate, "windowHeight"), FunctionTemplate::New(isolate, krom_window_height));
+		krom->Set(String::NewFromUtf8(isolate, "setWindowTitle"), FunctionTemplate::New(isolate, krom_set_window_title));
 		krom->Set(String::NewFromUtf8(isolate, "screenDpi"), FunctionTemplate::New(isolate, krom_screen_dpi));
 		krom->Set(String::NewFromUtf8(isolate, "systemId"), FunctionTemplate::New(isolate, krom_system_id));
 		krom->Set(String::NewFromUtf8(isolate, "requestShutdown"), FunctionTemplate::New(isolate, krom_request_shutdown));
