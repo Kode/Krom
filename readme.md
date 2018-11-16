@@ -10,8 +10,8 @@ Note that Krom does not rely on web APIs. It rather exposes full, native hardwar
 
 To do a release build first set the release variable in Chakra/Build/korefile.js to true.
 
-* For Windows: Compile Chakra/Build/Chakra.Core.sln then run node Kore/make
-* For macOS: Run node Kore/make --noshaders
+* For Windows: Run node Kore/make and compile in Visual Studio for x64
+* For macOS: Run node Kore/make --noshaders and compile in Xcode
 * For Linux: Run node Kore/make --compiler clang --compile
 
 ## Running
