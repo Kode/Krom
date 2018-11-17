@@ -92,7 +92,7 @@ namespace {
 	char** _argv;
 	bool debugMode = false;
 	bool watch = false;
-	bool nosound = false;
+	bool enableSound = false;
 	bool nowindow = false;
 
 	JsValueRef updateFunction;
@@ -223,7 +223,7 @@ namespace {
 		Kore::System::init(title, width, height, &win, &frame);
 
 		mutex.create();
-		if (!nosound) {
+		if (enableSound) {
 			Kore::Audio2::audioCallback = updateAudio;
 			Kore::Audio2::init();
 #ifdef KORE_WINDOWS
@@ -2614,7 +2614,7 @@ namespace {
 		mutex.lock();
 		JsSetCurrentContext(context);
 		
-		if (!nosound) Kore::Audio2::update();
+		if (enableSound) Kore::Audio2::update();
 		Kore::Graphics4::begin();
 		
 		runJS();
@@ -3274,8 +3274,8 @@ int kore(int argc, char** argv) {
 		else if (strcmp(argv[i], "--watch") == 0) {
 			watch = true;
 		}
-		else if (strcmp(argv[i], "--nosound") == 0) {
-			nosound = true;
+		else if (strcmp(argv[i], "--sound") == 0) {
+			enableSound = true;
 		}
 		else if (strcmp(argv[i], "--nowindow") == 0) {
 			nowindow = true;
@@ -3360,7 +3360,7 @@ int kore(int argc, char** argv) {
 	
 	Kore::System::start();
 
-	if (!nosound) {
+	if (enableSound) {
 		Kore::Audio2::shutdown();
 		mutex.lock(); // Prevent audio thread from running
 	}
