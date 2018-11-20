@@ -20,3 +20,14 @@ To do a release build first set the release variable in Chakra/Build/korefile.js
 
 If no arguments are provided, assets and shaders are loaded from the executable path.
 
+## Debugging
+
+To debug Krom itself, just start it in Visual Studio or Xcode (Linux IDEs are not yet setup automatically for Krom debugging). The debug protocol can be debugged using an "attach" debug configuration in Kode Studio or Visual Studio Code. First start Krom in your C++ IDE with parameters ala `/path/to/project/build/krom --debug 9988` and then start a launch config which looks something like this:
+
+`{
+	"type": "krom",
+	"request": "attach",
+	"name": "Krom-Test",
+	"preLaunchTask": "Kha: Build for Krom",
+	"port": 9988
+}`
