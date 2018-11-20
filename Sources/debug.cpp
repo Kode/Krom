@@ -52,39 +52,40 @@ namespace {
 }
 
 int scriptId() {
-	return scripts[0].scriptId;
+	if (::scripts.size() == 0) {
+		JsValueRef scripts;
+		JsDiagGetScripts(&scripts);
+		JsValueRef lengthObj;
+		JsGetProperty(scripts, getId("length"), &lengthObj);
+		int length;
+		JsNumberToInt(lengthObj, &length);
+		for (int i = 0; i < length; ++i) {
+			JsValueRef scriptId, fileName, lineCount, sourceLength;
+			JsValueRef iObj;
+			JsIntToNumber(i, &iObj);
+			JsValueRef obj;
+			JsGetIndexedProperty(scripts, iObj, &obj);
+			JsGetProperty(obj, getId("scriptId"), &scriptId);
+			JsGetProperty(obj, getId("fileName"), &fileName);
+			JsGetProperty(obj, getId("lineCount"), &lineCount);
+			JsGetProperty(obj, getId("sourceLength"), &sourceLength);
+
+			Script script;
+			JsNumberToInt(scriptId, &script.scriptId);
+			JsNumberToInt(lineCount, &script.lineCount);
+			JsNumberToInt(sourceLength, &script.sourceLength);
+			size_t length;
+			JsCopyString(fileName, script.fileName, 1023, &length);
+			script.fileName[length] = 0;
+
+			::scripts.push_back(script);
+		}
+	}
+
+	return ::scripts[0].scriptId;
 }
 
 void startDebugger(JsRuntimeHandle runtimeHandle, int port) {
 	JsDiagStartDebugging(runtimeHandle, debugCallback, nullptr);
-
-	JsValueRef scripts;
-	JsDiagGetScripts(&scripts);
-	JsValueRef lengthObj;
-	JsGetProperty(scripts, getId("length"), &lengthObj);
-	int length;
-	JsNumberToInt(lengthObj, &length);
-	for (int i = 0; i < length; ++i) {
-		JsValueRef scriptId, fileName, lineCount, sourceLength;
-		JsValueRef iObj;
-		JsIntToNumber(i, &iObj);
-		JsValueRef obj;
-		JsGetIndexedProperty(scripts, iObj, &obj);
-		JsGetProperty(obj, getId("scriptId"), &scriptId);
-		JsGetProperty(obj, getId("fileName"), &fileName);
-		JsGetProperty(obj, getId("lineCount"), &lineCount);
-		JsGetProperty(obj, getId("sourceLength"), &sourceLength);
-		
-		Script script;
-		JsNumberToInt(scriptId, &script.scriptId);
-		JsNumberToInt(lineCount, &script.lineCount);
-		JsNumberToInt(sourceLength, &script.sourceLength);
-		size_t length;
-		JsCopyString(fileName, script.fileName, 1023, &length);
-		script.fileName[length] = 0;
-
-		::scripts.push_back(script);
-	}
-
 	startServer(port);
 }
