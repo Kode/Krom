@@ -1384,6 +1384,24 @@ namespace {
 		return JS_INVALID_REFERENCE;
 	}
 
+	JsValueRef CALLBACK krom_set_texture_compare_mode(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount, void *callbackState) {
+		Kore::Graphics4::TextureUnit* unit;
+		JsGetExternalData(arguments[1], (void**)&unit);
+		bool enabled;
+		JsBooleanToBool(arguments[2], &enabled);
+		Kore::Graphics4::setTextureCompareMode(*unit, enabled);
+		return JS_INVALID_REFERENCE;
+	}
+
+	JsValueRef CALLBACK krom_set_cube_map_compare_mode(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount, void *callbackState) {
+		Kore::Graphics4::TextureUnit* unit;
+		JsGetExternalData(arguments[1], (void**)&unit);
+		bool enabled;
+		JsBooleanToBool(arguments[2], &enabled);
+		Kore::Graphics4::setCubeMapCompareMode(*unit, enabled);
+		return JS_INVALID_REFERENCE;
+	}
+
 	JsValueRef CALLBACK krom_set_bool(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount, void *callbackState) {
 		Kore::Graphics4::ConstantLocation* location;
 		JsGetExternalData(arguments[1], (void**)&location);
@@ -2408,6 +2426,8 @@ namespace {
 		addFunction(setImageTexture, krom_set_image_texture);
 		addFunction(setTextureParameters, krom_set_texture_parameters);
 		addFunction(setTexture3DParameters, krom_set_texture_3d_parameters);
+		addFunction(setTextureCompareMode, krom_set_texture_compare_mode);
+		addFunction(setCubeMapCompareMode, krom_set_cube_map_compare_mode);
 		addFunction(setBool, krom_set_bool);
 		addFunction(setInt, krom_set_int);
 		addFunction(setFloat, krom_set_float);
