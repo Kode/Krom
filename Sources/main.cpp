@@ -1160,6 +1160,20 @@ namespace {
 		Kore::Graphics4::setTexture3DMipmapFilter(*unit, convertMipmapFilter(args[6]->ToInt32()->Int32Value()));
 	}
 
+	void krom_set_texture_compare_mode(const FunctionCallbackInfo<Value>& args) {
+		HandleScope scope(args.GetIsolate());
+		Local<External> unitfield = Local<External>::Cast(args[0]->ToObject()->GetInternalField(0));
+		Kore::Graphics4::TextureUnit* unit = (Kore::Graphics4::TextureUnit*)unitfield->Value();
+		Kore::Graphics4::setTextureCompareMode(*unit, args[1]->ToBoolean()->Value());
+	}
+
+	void krom_set_cube_map_compare_mode(const FunctionCallbackInfo<Value>& args) {
+		HandleScope scope(args.GetIsolate());
+		Local<External> unitfield = Local<External>::Cast(args[0]->ToObject()->GetInternalField(0));
+		Kore::Graphics4::TextureUnit* unit = (Kore::Graphics4::TextureUnit*)unitfield->Value();
+		Kore::Graphics4::setCubeMapCompareMode(*unit, args[1]->ToBoolean()->Value());
+	}
+
 	void krom_set_bool(const FunctionCallbackInfo<Value>& args) {
 		HandleScope scope(args.GetIsolate());
 		Local<External> locationfield = Local<External>::Cast(args[0]->ToObject()->GetInternalField(0));
@@ -2043,6 +2057,8 @@ namespace {
 		krom->Set(String::NewFromUtf8(isolate, "setImageTexture"), FunctionTemplate::New(isolate, krom_set_image_texture));
 		krom->Set(String::NewFromUtf8(isolate, "setTextureParameters"), FunctionTemplate::New(isolate, krom_set_texture_parameters));
 		krom->Set(String::NewFromUtf8(isolate, "setTexture3DParameters"), FunctionTemplate::New(isolate, krom_set_texture_3d_parameters));
+		krom->Set(String::NewFromUtf8(isolate, "setTextureCompareMode"), FunctionTemplate::New(isolate, krom_set_texture_compare_mode));
+		krom->Set(String::NewFromUtf8(isolate, "setCubeMapCompareMode"), FunctionTemplate::New(isolate, krom_set_cube_map_compare_mode));
 		krom->Set(String::NewFromUtf8(isolate, "setBool"), FunctionTemplate::New(isolate, krom_set_bool));
 		krom->Set(String::NewFromUtf8(isolate, "setInt"), FunctionTemplate::New(isolate, krom_set_int));
 		krom->Set(String::NewFromUtf8(isolate, "setFloat"), FunctionTemplate::New(isolate, krom_set_float));
