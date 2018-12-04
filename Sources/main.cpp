@@ -1805,6 +1805,37 @@ namespace {
 		return value;
 	}
 
+	JsValueRef CALLBACK krom_create_texture_from_encoded_bytes(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount, void *callbackState) {
+		Kore::u8* content;
+		unsigned bufferLength;
+		JsGetArrayBufferStorage(arguments[1], &content, &bufferLength);
+
+		char format[32];
+		size_t length;
+		JsCopyString(arguments[2], format, 31, &length);
+		format[length] = 0;
+		bool readable;
+		JsBooleanToBool(arguments[3], &readable);
+
+		Kore::Graphics4::Texture* texture = new Kore::Graphics4::Texture(content, bufferLength, *format, readable);
+
+		JsValueRef value;
+		JsCreateExternalObject(texture, nullptr, &value);
+		
+		JsValueRef width, height, realWidth, realHeight;
+		JsIntToNumber(texture->width, &width);
+		JsIntToNumber(texture->height, &height);
+		JsIntToNumber(texture->texWidth, &realWidth);
+		JsIntToNumber(texture->texHeight, &realHeight);
+
+		JsSetProperty(value, getId("width"), width, false);
+		JsSetProperty(value, getId("height"), height, false);
+		JsSetProperty(value, getId("realWidth"), realWidth, false);
+		JsSetProperty(value, getId("realHeight"), realHeight, false);
+
+		return value;
+	}
+
 	JsValueRef CALLBACK krom_get_render_target_pixels(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount, void *callbackState) {
 		Kore::Graphics4::RenderTarget* rt;
 		JsGetExternalData(arguments[1], (void**)&rt);
@@ -2458,6 +2489,7 @@ namespace {
 		addFunction(createTexture3D, krom_create_texture_3d);
 		addFunction(createTextureFromBytes, krom_create_texture_from_bytes);
 		addFunction(createTextureFromBytes3D, krom_create_texture_from_bytes_3d);
+		addFunction(createTextureFromEncodedBytes, krom_create_texture_from_encoded_bytes);
 		addFunction(getRenderTargetPixels, krom_get_render_target_pixels);
 		addFunction(lockTexture, krom_lock_texture);
 		addFunction(unlockTexture, krom_unlock_texture);
