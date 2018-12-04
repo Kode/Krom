@@ -1489,6 +1489,28 @@ namespace {
 		args.GetReturnValue().Set(obj);
 	}
 
+	void krom_create_texture_from_encoded_bytes(const FunctionCallbackInfo<Value>& args) {
+		HandleScope scope(args.GetIsolate());
+
+		Local<ArrayBuffer> buffer = Local<ArrayBuffer>::Cast(args[0]);
+		ArrayBuffer::Contents content;
+		if (buffer->IsExternal()) content = buffer->GetContents();
+		else content = buffer->Externalize();
+		String::Utf8Value format(args[1]);
+		Kore::Graphics4::Texture* texture = new Kore::Graphics4::Texture(content.Data(), (int)content.ByteLength(), *format, args[2]->ToBoolean()->Value());
+
+		Local<ObjectTemplate> templ = ObjectTemplate::New(isolate);
+		templ->SetInternalFieldCount(1);
+
+		Local<Object> obj = templ->NewInstance(isolate->GetCurrentContext()).ToLocalChecked();
+		obj->SetInternalField(0, External::New(isolate, texture));
+		obj->Set(String::NewFromUtf8(isolate, "width"), Int32::New(isolate, texture->width));
+		obj->Set(String::NewFromUtf8(isolate, "height"), Int32::New(isolate, texture->height));
+		obj->Set(String::NewFromUtf8(isolate, "realWidth"), Int32::New(isolate, texture->texWidth));
+		obj->Set(String::NewFromUtf8(isolate, "realHeight"), Int32::New(isolate, texture->texHeight));
+		args.GetReturnValue().Set(obj);
+	}
+
 	void krom_get_render_target_pixels(const FunctionCallbackInfo<Value>& args) {
 		HandleScope scope(args.GetIsolate());
 
@@ -2089,6 +2111,7 @@ namespace {
 		krom->Set(String::NewFromUtf8(isolate, "createTexture3D"), FunctionTemplate::New(isolate, krom_create_texture_3d));
 		krom->Set(String::NewFromUtf8(isolate, "createTextureFromBytes"), FunctionTemplate::New(isolate, krom_create_texture_from_bytes));
 		krom->Set(String::NewFromUtf8(isolate, "createTextureFromBytes3D"), FunctionTemplate::New(isolate, krom_create_texture_from_bytes_3d));
+		krom->Set(String::NewFromUtf8(isolate, "createTextureFromEncodedBytes"), FunctionTemplate::New(isolate, krom_create_texture_from_encoded_bytes));
 		krom->Set(String::NewFromUtf8(isolate, "getRenderTargetPixels"), FunctionTemplate::New(isolate, krom_get_render_target_pixels));
 		krom->Set(String::NewFromUtf8(isolate, "lockTexture"), FunctionTemplate::New(isolate, krom_lock_texture));
 		krom->Set(String::NewFromUtf8(isolate, "unlockTexture"), FunctionTemplate::New(isolate, krom_unlock_texture));
