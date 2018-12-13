@@ -67,7 +67,7 @@
 #include <unistd.h>
 #endif
 
-const int KROM_API = 1;
+const int KROM_API = 2;
 const int KROM_DEBUG_API = 1;
 
 bool AttachProcess(HANDLE hmod);
