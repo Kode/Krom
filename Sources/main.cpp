@@ -67,7 +67,7 @@
 #include <unistd.h>
 #endif
 
-const int KROM_API = 1;
+const int KROM_API = 2;
 const int KROM_DEBUG_API = 1;
 
 bool AttachProcess(HANDLE hmod);
@@ -801,15 +801,25 @@ namespace {
 		JsNumberToInt(arguments[6], &size);
 		for (int i1 = 0; i1 < size; ++i1) {
 			JsValueRef jsstructure = arguments[i1 + 2];
+			
+			JsValueRef instancedObj;
+			JsGetProperty(jsstructure, getId("instanced"), &instancedObj);
+			bool instanced;
+			JsBooleanToBool(instancedObj, &instanced);
+			structures[i1]->instanced = instanced;
+
+			JsValueRef elementsObj;
+			JsGetProperty(jsstructure, getId("elements"), &elementsObj);
+
 			JsValueRef lengthObj;
-			JsGetProperty(jsstructure, getId("length"), &lengthObj);
+			JsGetProperty(elementsObj, getId("length"), &lengthObj);
 			int length;
 			JsNumberToInt(lengthObj, &length);
 			for (int i2 = 0; i2 < length; ++i2) {
 				JsValueRef index;
 				JsIntToNumber(i2, &index);
 				JsValueRef element;
-				JsGetIndexedProperty(jsstructure, index, &element);
+				JsGetIndexedProperty(elementsObj, index, &element);
 				JsValueRef str;
 				JsGetProperty(element, getId("name"), &str);
 				JsValueRef dataObj;
