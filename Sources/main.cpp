@@ -44,7 +44,7 @@
 
 using namespace v8;
 
-const int KROM_API = 1;
+const int KROM_API = 2;
 
 void sendMessage(const char* message);
 
@@ -433,6 +433,10 @@ namespace {
 			return Kore::Graphics4::Float4VertexData;
 		case 4:
 			return Kore::Graphics4::Float4x4VertexData;
+		case 5:
+			return Kore::Graphics4::Short2NormVertexData;
+		case 6:
+			return Kore::Graphics4::Short4NormVertexData;
 		}
 		return Kore::Graphics4::Float1VertexData;
 	}
@@ -735,9 +739,11 @@ namespace {
 		int32_t size = args[5]->ToObject()->ToInt32()->Value();
 		for (int32_t i1 = 0; i1 < size; ++i1) {
 			Local<Object> jsstructure = args[i1 + 1]->ToObject();
-			int32_t length = jsstructure->Get(String::NewFromUtf8(isolate, "length"))->ToInt32()->Value();
+			structures[i1]->instanced = jsstructure->Get(String::NewFromUtf8(isolate, "instanced"))->ToBoolean()->Value();
+			Local<Object> elements = jsstructure->Get(String::NewFromUtf8(isolate, "elements"))->ToObject();
+			int32_t length = elements->Get(String::NewFromUtf8(isolate, "length"))->ToInt32()->Value();
 			for (int32_t i2 = 0; i2 < length; ++i2) {
-				Local<Object> element = jsstructure->Get(i2)->ToObject();
+				Local<Object> element = elements->Get(i2)->ToObject();
 				Local<Value> str = element->Get(String::NewFromUtf8(isolate, "name"));
 				String::Utf8Value utf8_value(str);
 				int32_t data = element->Get(String::NewFromUtf8(isolate, "data"))->ToInt32()->Value();
