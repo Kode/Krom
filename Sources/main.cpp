@@ -468,6 +468,10 @@ namespace {
 			return Kore::Graphics4::Float4VertexData;
 		case 4:
 			return Kore::Graphics4::Float4x4VertexData;
+		case 5:
+			return Kore::Graphics4::Short2NormVertexData;
+		case 6:
+			return Kore::Graphics4::Short4NormVertexData;
 		}
 		return Kore::Graphics4::Float1VertexData;
 	}
