@@ -1850,19 +1850,6 @@ namespace {
 		return value;
 	}
 
-	JsValueRef CALLBACK krom_get_render_target_pixels(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount, void *callbackState) {
-		Kore::Graphics4::RenderTarget* rt;
-		JsGetExternalData(arguments[1], (void**)&rt);
-
-		Kore::u8* content;
-		unsigned bufferLength;
-		JsGetArrayBufferStorage(arguments[2], &content, &bufferLength);
-
-		rt->getPixels(content);
-
-		return JS_INVALID_REFERENCE;
-	}
-
 	int formatByteSize(Kore::Graphics4::Image::Format format) {
 		switch (format) {
 		case Kore::Graphics4::Image::RGBA128:
@@ -1882,6 +1869,30 @@ namespace {
 		default:
 			return 4;
 		}
+	}
+
+	JsValueRef CALLBACK krom_get_texture_pixels(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount, void *callbackState) {
+		Kore::Graphics4::Texture* texture;
+		JsGetExternalData(arguments[1], (void**)&texture);
+
+		Kore::u8* data = texture->getPixels();
+		int byteLength = formatByteSize(texture->format) * texture->width * texture->height * texture->depth;
+		JsValueRef value;
+		JsCreateExternalArrayBuffer(data, byteLength, nullptr, nullptr, &value);
+		return value;
+	}
+
+	JsValueRef CALLBACK krom_get_render_target_pixels(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount, void *callbackState) {
+		Kore::Graphics4::RenderTarget* rt;
+		JsGetExternalData(arguments[1], (void**)&rt);
+
+		Kore::u8* content;
+		unsigned bufferLength;
+		JsGetArrayBufferStorage(arguments[2], &content, &bufferLength);
+
+		rt->getPixels(content);
+
+		return JS_INVALID_REFERENCE;
 	}
 
 	JsValueRef CALLBACK krom_lock_texture(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount, void *callbackState) {
@@ -2504,6 +2515,7 @@ namespace {
 		addFunction(createTextureFromBytes, krom_create_texture_from_bytes);
 		addFunction(createTextureFromBytes3D, krom_create_texture_from_bytes_3d);
 		addFunction(createTextureFromEncodedBytes, krom_create_texture_from_encoded_bytes);
+		addFunction(getTexturePixels, krom_get_texture_pixels);
 		addFunction(getRenderTargetPixels, krom_get_render_target_pixels);
 		addFunction(lockTexture, krom_lock_texture);
 		addFunction(unlockTexture, krom_unlock_texture);
