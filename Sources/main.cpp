@@ -1517,21 +1517,6 @@ namespace {
 		args.GetReturnValue().Set(obj);
 	}
 
-	void krom_get_render_target_pixels(const FunctionCallbackInfo<Value>& args) {
-		HandleScope scope(args.GetIsolate());
-
-		Local<External> field = Local<External>::Cast(args[0]->ToObject()->GetInternalField(0));
-		Kore::Graphics4::RenderTarget* rt = (Kore::Graphics4::RenderTarget*)field->Value();
-
-		Local<ArrayBuffer> buffer = Local<ArrayBuffer>::Cast(args[1]);
-		ArrayBuffer::Contents content;
-		if (buffer->IsExternal()) content = buffer->GetContents();
-		else content = buffer->Externalize();
-
-		Kore::u8* b = (Kore::u8*)content.Data();
-		rt->getPixels(b);
-	}
-
 	int formatByteSize(Kore::Graphics4::Image::Format format) {
 		switch (format) {
 		case Kore::Graphics4::Image::RGBA128:
@@ -1551,6 +1536,33 @@ namespace {
 		default:
 			return 4;
 		}
+	}
+
+	void krom_get_texture_pixels(const FunctionCallbackInfo<Value>& args) {
+		HandleScope scope(args.GetIsolate());
+
+		Local<External> field = Local<External>::Cast(args[0]->ToObject()->GetInternalField(0));
+		Kore::Graphics4::Texture* texture = (Kore::Graphics4::Texture*)field->Value();
+
+		Kore::u8* data = texture->getPixels();
+		int byteLength = formatByteSize(texture->format) * texture->width * texture->height * texture->depth;
+		Local<ArrayBuffer> buffer = ArrayBuffer::New(isolate, data, byteLength);
+		args.GetReturnValue().Set(buffer);
+	}
+
+	void krom_get_render_target_pixels(const FunctionCallbackInfo<Value>& args) {
+		HandleScope scope(args.GetIsolate());
+
+		Local<External> field = Local<External>::Cast(args[0]->ToObject()->GetInternalField(0));
+		Kore::Graphics4::RenderTarget* rt = (Kore::Graphics4::RenderTarget*)field->Value();
+
+		Local<ArrayBuffer> buffer = Local<ArrayBuffer>::Cast(args[1]);
+		ArrayBuffer::Contents content;
+		if (buffer->IsExternal()) content = buffer->GetContents();
+		else content = buffer->Externalize();
+
+		Kore::u8* b = (Kore::u8*)content.Data();
+		rt->getPixels(b);
 	}
 
 	void krom_lock_texture(const FunctionCallbackInfo<Value>& args) {
@@ -2118,6 +2130,7 @@ namespace {
 		krom->Set(String::NewFromUtf8(isolate, "createTextureFromBytes"), FunctionTemplate::New(isolate, krom_create_texture_from_bytes));
 		krom->Set(String::NewFromUtf8(isolate, "createTextureFromBytes3D"), FunctionTemplate::New(isolate, krom_create_texture_from_bytes_3d));
 		krom->Set(String::NewFromUtf8(isolate, "createTextureFromEncodedBytes"), FunctionTemplate::New(isolate, krom_create_texture_from_encoded_bytes));
+		krom->Set(String::NewFromUtf8(isolate, "getTexturePixels"), FunctionTemplate::New(isolate, krom_get_texture_pixels));
 		krom->Set(String::NewFromUtf8(isolate, "getRenderTargetPixels"), FunctionTemplate::New(isolate, krom_get_render_target_pixels));
 		krom->Set(String::NewFromUtf8(isolate, "lockTexture"), FunctionTemplate::New(isolate, krom_lock_texture));
 		krom->Set(String::NewFromUtf8(isolate, "unlockTexture"), FunctionTemplate::New(isolate, krom_unlock_texture));
