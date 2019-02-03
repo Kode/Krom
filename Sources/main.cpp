@@ -94,6 +94,8 @@ namespace {
 	bool watch = false;
 	bool enableSound = false;
 	bool nowindow = false;
+	bool serialized = false;
+	unsigned int serializedLength = 0;
 
 	JsValueRef updateFunction;
 	JsValueRef dropFilesFunction;
@@ -2589,13 +2591,27 @@ namespace {
 
 		bindFunctions();
 
-		JsCreateExternalArrayBuffer((void*)scriptfile, (unsigned int)strlen(scriptfile), nullptr, nullptr, &script);
+		JsCreateExternalArrayBuffer((void*)scriptfile, serialized ? serializedLength : (unsigned int)strlen(scriptfile), nullptr, nullptr, &script);
 		JsCreateString("krom.js", strlen("krom.js"), &source);
 	}
 
 	void startKrom(char* scriptfile) {
 		JsValueRef result;
-		JsRun(script, cookie, source, JsParseScriptAttributeNone, &result);
+		if (serialized) {
+			JsRunSerialized(
+				script,
+				[](JsSourceContext sourceContext, JsValueRef* scriptBuffer, JsParseScriptAttributes* parseAttributes) {
+					fprintf(stderr, "krom.bin does not match this Krom version");
+					return false;
+				},
+				cookie,
+				source,
+				&result
+			);
+		}
+		else {
+			JsRun(script, cookie, source, JsParseScriptAttributeNone, &result);
+		}
 	}
 
 	bool codechanged = false;
@@ -2661,6 +2677,30 @@ namespace {
 				sendLogMessage("%s", buf);
 			}
 		}
+	}
+
+	void serializeScript(char* code, char* outpath) {
+#ifdef KORE_WINDOWS
+		AttachProcess(GetModuleHandle(nullptr));
+#else
+		AttachProcess(nullptr);
+#endif
+		JsCreateRuntime(JsRuntimeAttributeNone, nullptr, &runtime);
+		JsContextRef context;
+		JsCreateContext(runtime, &context);
+		JsSetCurrentContext(context);
+
+		JsValueRef codeObj, bufferObj;
+		JsCreateExternalArrayBuffer((void*)code, (unsigned int)strlen(code), nullptr, nullptr, &codeObj);
+		JsSerialize(codeObj, &bufferObj, JsParseScriptAttributeNone);
+		Kore::u8* buffer;
+		unsigned bufferLength;
+		JsGetArrayBufferStorage(bufferObj, &buffer, &bufferLength);
+		
+		FILE* file = fopen(outpath, "wb");
+		if (file == nullptr) return;
+		fwrite(buffer, 1, (int)bufferLength, file);
+		fclose(file);
 	}
 
 	void endKrom() {
@@ -3339,6 +3379,7 @@ int kore(int argc, char** argv) {
 	bool readStdoutPath = false;
 	bool readConsolePid = false;
 	bool readPort = false;
+	bool writebin = false;
 	int port = 0;
 	for (int i = optionIndex; i < argc; ++i) {
 		if (readPort) {
@@ -3374,26 +3415,35 @@ int kore(int argc, char** argv) {
 		else if (strcmp(argv[i], "--consolepid") == 0) {
 			readConsolePid = true;
 		}
+		else if (strcmp(argv[i], "--writebin") == 0) {
+			writebin = true;
+		}
 	}
 
 	kromjs = assetsdir + "/krom.js";
 	Kore::setFilesLocation(&assetsdir[0u]);
 
 	Kore::FileReader reader;
-	if (!reader.open("krom.js")) {
+	if (!writebin && reader.open("krom.bin")) {
+		serialized = true;
+		serializedLength = reader.size();
+	}
+
+	if (!serialized && !reader.open("krom.js")) {
 		fprintf(stderr, "could not load krom.js. aborting.");
 		exit(1);
 	}
+
 	char* code = new char[reader.size() + 1];
 	memcpy(code, reader.readAll(), reader.size());
 	code[reader.size()] = 0;
 	reader.close();
 
-	#ifdef KORE_WINDOWS
-	char dirsep = '\\';
-	#else
-	char dirsep = '/';
-	#endif
+	if (writebin) {
+		std::string krombin = assetsdir + "/krom.bin";
+		serializeScript(code, &krombin[0u]);
+		return 0;
+	}
 
 	if (watch) {
 		parseCode();
