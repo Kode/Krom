@@ -51,12 +51,10 @@
 #include "debug_server.h"
 
 #include <assert.h>
-#include <stdio.h>
 #include <stdarg.h>
 #include <fstream>
 #include <map>
 #include <sstream>
-#include <string>
 #include <vector>
 
 #ifdef KORE_WINDOWS
@@ -118,6 +116,9 @@ namespace {
 	std::map<std::string, std::string> shaderFileNames;
 
 	Kore::Mutex mutex;
+	Kore::Mutex audioMutex;
+	int audioSamples = 0;
+	int audioReadLocation = 0;
 
 	void update();
 	void initAudioBuffer();
@@ -223,12 +224,11 @@ namespace {
 		Kore::System::init(title, width, height, &win, &frame);
 
 		mutex.create();
+		audioMutex.create();
 		if (enableSound) {
 			Kore::Audio2::audioCallback = updateAudio;
 			Kore::Audio2::init();
-#ifdef KORE_WINDOWS
 			initAudioBuffer();
-#endif
 		}
 		Kore::Random::init((int)(Kore::System::time() * 1000));
 
@@ -1201,12 +1201,22 @@ namespace {
 	}
 
 	JsValueRef CALLBACK krom_write_audio_buffer(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount, void *callbackState) {
-		double value;
-		JsNumberToDouble(arguments[1], &value);
+		Kore::u8* buffer;
+		unsigned bufferLength;
+		JsGetArrayBufferStorage(arguments[1], &buffer, &bufferLength);
 
-		*(float*)&Kore::Audio2::buffer.data[Kore::Audio2::buffer.writeLocation] = value;
-		Kore::Audio2::buffer.writeLocation += 4;
-		if (Kore::Audio2::buffer.writeLocation >= Kore::Audio2::buffer.dataSize) Kore::Audio2::buffer.writeLocation = 0;
+		int samples;
+		JsNumberToInt(arguments[2], &samples);
+
+		for (int i = 0; i < samples; ++i) {
+			float value = *(float*)&buffer[audioReadLocation];
+			audioReadLocation += 4;
+			if (audioReadLocation >= bufferLength) audioReadLocation = 0;
+
+			*(float*)&Kore::Audio2::buffer.data[Kore::Audio2::buffer.writeLocation] = value;
+			Kore::Audio2::buffer.writeLocation += 4;
+			if (Kore::Audio2::buffer.writeLocation >= Kore::Audio2::buffer.dataSize) Kore::Audio2::buffer.writeLocation = 0;
+		}
 
 		return JS_INVALID_REFERENCE;
 	}
@@ -2675,24 +2685,30 @@ namespace {
 	}
 
 	void updateAudio(int samples) {
-		mutex.lock();
-		JsSetCurrentContext(context);
-
-		JsValueRef args[2];
-		JsGetUndefinedValue(&args[0]);
-		JsIntToNumber(samples, &args[1]);
-		JsValueRef result;
-		JsCallFunction(audioFunction, args, 2, &result);
-
-		JsSetCurrentContext(JS_INVALID_REFERENCE);
-		mutex.unlock();
+		audioMutex.lock();
+		audioSamples += samples;
+		audioMutex.unlock();
 	}
 
 	void update() {
 		mutex.lock();
 		JsSetCurrentContext(context);
 		
-		if (enableSound) Kore::Audio2::update();
+		if (enableSound) {
+			Kore::Audio2::update();
+
+			audioMutex.lock();
+			if (audioSamples > 0) {
+				JsValueRef args[2];
+				JsGetUndefinedValue(&args[0]);
+				JsIntToNumber(audioSamples, &args[1]);
+				JsValueRef result;
+				JsCallFunction(audioFunction, args, 2, &result);
+				audioSamples = 0;
+			}
+			audioMutex.unlock();
+		}
+		
 		Kore::Graphics4::begin();
 		
 		runJS();
