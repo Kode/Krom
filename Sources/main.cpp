@@ -2637,13 +2637,8 @@ namespace {
 			JsGetProperty(meta, getId("exception"), &exceptionObj);
 			char buf[2048];
 			size_t length;
-			
-			JsValueRef messageObj;
-			JsGetProperty(exceptionObj, getId("message"), &messageObj);
-			JsCopyString(messageObj, buf, 2047, &length);
-			buf[length] = 0;
-			sendLogMessage("Uncaught exception: %s", buf);
 
+			sendLogMessage("Uncaught exception:");
 			JsValueRef sourceObj;
 			JsGetProperty(meta, getId("source"), &sourceObj);
 			JsCopyString(sourceObj, nullptr, 0, &length);
@@ -2668,7 +2663,7 @@ namespace {
 			if (length < 2048) {
 				JsCopyString(stackObj, buf, 2047, &length);
 				buf[length] = 0;
-				sendLogMessage("%s", buf);
+				sendLogMessage("%s\n", buf);
 			}
 		}
 	}
