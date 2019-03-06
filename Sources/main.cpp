@@ -1230,7 +1230,7 @@ namespace {
 		filename[length] = 0;
 
 		Kore::FileReader reader;
-		reader.open(filename);
+		if (!reader.open(filename)) return JS_INVALID_REFERENCE;
 
 		JsValueRef array;
 		JsCreateArrayBuffer(reader.size(), &array);
