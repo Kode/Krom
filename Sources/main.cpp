@@ -2774,7 +2774,7 @@ namespace {
 			for (int i = 0; i < len; i++) str[i] = filePath[i];
 			str[len] = 0;
 			JsCreateStringUtf16(str, len, &args[1]);
-			delete str;
+			delete[] str;
 		}
 		JsValueRef result;
 		JsCallFunction(dropFilesFunction, args, 2, &result);
@@ -3441,7 +3441,7 @@ int kore(int argc, char** argv) {
 	}
 
 	if (!serialized && !reader.open("krom.js")) {
-		fprintf(stderr, "could not load krom.js. aborting.");
+		fprintf(stderr, "could not load krom.js. aborting.\n");
 		exit(1);
 	}
 
