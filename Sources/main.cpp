@@ -3441,7 +3441,7 @@ int kore(int argc, char** argv) {
 	}
 
 	if (!serialized && !reader.open("krom.js")) {
-		fprintf(stderr, "could not load krom.js. aborting.");
+		fprintf(stderr, "could not load krom.js. aborting.\n");
 		exit(1);
 	}
 
