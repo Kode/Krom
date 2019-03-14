@@ -51,12 +51,10 @@
 #include "debug_server.h"
 
 #include <assert.h>
-#include <stdio.h>
 #include <stdarg.h>
 #include <fstream>
 #include <map>
 #include <sstream>
-#include <string>
 #include <vector>
 
 #ifdef KORE_WINDOWS
@@ -94,6 +92,8 @@ namespace {
 	bool watch = false;
 	bool enableSound = false;
 	bool nowindow = false;
+	bool serialized = false;
+	unsigned int serializedLength = 0;
 
 	JsValueRef updateFunction;
 	JsValueRef dropFilesFunction;
@@ -118,6 +118,9 @@ namespace {
 	std::map<std::string, std::string> shaderFileNames;
 
 	Kore::Mutex mutex;
+	Kore::Mutex audioMutex;
+	int audioSamples = 0;
+	int audioReadLocation = 0;
 
 	void update();
 	void initAudioBuffer();
@@ -223,12 +226,11 @@ namespace {
 		Kore::System::init(title, width, height, &win, &frame);
 
 		mutex.create();
+		audioMutex.create();
 		if (enableSound) {
 			Kore::Audio2::audioCallback = updateAudio;
 			Kore::Audio2::init();
-#ifdef KORE_WINDOWS
 			initAudioBuffer();
-#endif
 		}
 		Kore::Random::init((int)(Kore::System::time() * 1000));
 
@@ -1201,12 +1203,22 @@ namespace {
 	}
 
 	JsValueRef CALLBACK krom_write_audio_buffer(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount, void *callbackState) {
-		double value;
-		JsNumberToDouble(arguments[1], &value);
+		Kore::u8* buffer;
+		unsigned bufferLength;
+		JsGetArrayBufferStorage(arguments[1], &buffer, &bufferLength);
 
-		*(float*)&Kore::Audio2::buffer.data[Kore::Audio2::buffer.writeLocation] = value;
-		Kore::Audio2::buffer.writeLocation += 4;
-		if (Kore::Audio2::buffer.writeLocation >= Kore::Audio2::buffer.dataSize) Kore::Audio2::buffer.writeLocation = 0;
+		int samples;
+		JsNumberToInt(arguments[2], &samples);
+
+		for (int i = 0; i < samples; ++i) {
+			float value = *(float*)&buffer[audioReadLocation];
+			audioReadLocation += 4;
+			if (audioReadLocation >= bufferLength) audioReadLocation = 0;
+
+			*(float*)&Kore::Audio2::buffer.data[Kore::Audio2::buffer.writeLocation] = value;
+			Kore::Audio2::buffer.writeLocation += 4;
+			if (Kore::Audio2::buffer.writeLocation >= Kore::Audio2::buffer.dataSize) Kore::Audio2::buffer.writeLocation = 0;
+		}
 
 		return JS_INVALID_REFERENCE;
 	}
@@ -1850,19 +1862,6 @@ namespace {
 		return value;
 	}
 
-	JsValueRef CALLBACK krom_get_render_target_pixels(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount, void *callbackState) {
-		Kore::Graphics4::RenderTarget* rt;
-		JsGetExternalData(arguments[1], (void**)&rt);
-
-		Kore::u8* content;
-		unsigned bufferLength;
-		JsGetArrayBufferStorage(arguments[2], &content, &bufferLength);
-
-		rt->getPixels(content);
-
-		return JS_INVALID_REFERENCE;
-	}
-
 	int formatByteSize(Kore::Graphics4::Image::Format format) {
 		switch (format) {
 		case Kore::Graphics4::Image::RGBA128:
@@ -1882,6 +1881,30 @@ namespace {
 		default:
 			return 4;
 		}
+	}
+
+	JsValueRef CALLBACK krom_get_texture_pixels(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount, void *callbackState) {
+		Kore::Graphics4::Texture* texture;
+		JsGetExternalData(arguments[1], (void**)&texture);
+
+		Kore::u8* data = texture->getPixels();
+		int byteLength = formatByteSize(texture->format) * texture->width * texture->height * texture->depth;
+		JsValueRef value;
+		JsCreateExternalArrayBuffer(data, byteLength, nullptr, nullptr, &value);
+		return value;
+	}
+
+	JsValueRef CALLBACK krom_get_render_target_pixels(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount, void *callbackState) {
+		Kore::Graphics4::RenderTarget* rt;
+		JsGetExternalData(arguments[1], (void**)&rt);
+
+		Kore::u8* content;
+		unsigned bufferLength;
+		JsGetArrayBufferStorage(arguments[2], &content, &bufferLength);
+
+		rt->getPixels(content);
+
+		return JS_INVALID_REFERENCE;
 	}
 
 	JsValueRef CALLBACK krom_lock_texture(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount, void *callbackState) {
@@ -2504,6 +2527,7 @@ namespace {
 		addFunction(createTextureFromBytes, krom_create_texture_from_bytes);
 		addFunction(createTextureFromBytes3D, krom_create_texture_from_bytes_3d);
 		addFunction(createTextureFromEncodedBytes, krom_create_texture_from_encoded_bytes);
+		addFunction(getTexturePixels, krom_get_texture_pixels);
 		addFunction(getRenderTargetPixels, krom_get_render_target_pixels);
 		addFunction(lockTexture, krom_lock_texture);
 		addFunction(unlockTexture, krom_unlock_texture);
@@ -2577,13 +2601,27 @@ namespace {
 
 		bindFunctions();
 
-		JsCreateExternalArrayBuffer((void*)scriptfile, (unsigned int)strlen(scriptfile), nullptr, nullptr, &script);
+		JsCreateExternalArrayBuffer((void*)scriptfile, serialized ? serializedLength : (unsigned int)strlen(scriptfile), nullptr, nullptr, &script);
 		JsCreateString("krom.js", strlen("krom.js"), &source);
 	}
 
 	void startKrom(char* scriptfile) {
 		JsValueRef result;
-		JsRun(script, cookie, source, JsParseScriptAttributeNone, &result);
+		if (serialized) {
+			JsRunSerialized(
+				script,
+				[](JsSourceContext sourceContext, JsValueRef* scriptBuffer, JsParseScriptAttributes* parseAttributes) {
+					fprintf(stderr, "krom.bin does not match this Krom version");
+					return false;
+				},
+				cookie,
+				source,
+				&result
+			);
+		}
+		else {
+			JsRun(script, cookie, source, JsParseScriptAttributeNone, &result);
+		}
 	}
 
 	bool codechanged = false;
@@ -2615,13 +2653,8 @@ namespace {
 			JsGetProperty(meta, getId("exception"), &exceptionObj);
 			char buf[2048];
 			size_t length;
-			
-			JsValueRef messageObj;
-			JsGetProperty(exceptionObj, getId("message"), &messageObj);
-			JsCopyString(messageObj, buf, 2047, &length);
-			buf[length] = 0;
-			sendLogMessage("Uncaught exception: %s", buf);
 
+			sendLogMessage("Uncaught exception:");
 			JsValueRef sourceObj;
 			JsGetProperty(meta, getId("source"), &sourceObj);
 			JsCopyString(sourceObj, nullptr, 0, &length);
@@ -2646,9 +2679,33 @@ namespace {
 			if (length < 2048) {
 				JsCopyString(stackObj, buf, 2047, &length);
 				buf[length] = 0;
-				sendLogMessage("%s", buf);
+				sendLogMessage("%s\n", buf);
 			}
 		}
+	}
+
+	void serializeScript(char* code, char* outpath) {
+#ifdef KORE_WINDOWS
+		AttachProcess(GetModuleHandle(nullptr));
+#else
+		AttachProcess(nullptr);
+#endif
+		JsCreateRuntime(JsRuntimeAttributeNone, nullptr, &runtime);
+		JsContextRef context;
+		JsCreateContext(runtime, &context);
+		JsSetCurrentContext(context);
+
+		JsValueRef codeObj, bufferObj;
+		JsCreateExternalArrayBuffer((void*)code, (unsigned int)strlen(code), nullptr, nullptr, &codeObj);
+		JsSerialize(codeObj, &bufferObj, JsParseScriptAttributeNone);
+		Kore::u8* buffer;
+		unsigned bufferLength;
+		JsGetArrayBufferStorage(bufferObj, &buffer, &bufferLength);
+		
+		FILE* file = fopen(outpath, "wb");
+		if (file == nullptr) return;
+		fwrite(buffer, 1, (int)bufferLength, file);
+		fclose(file);
 	}
 
 	void endKrom() {
@@ -2663,24 +2720,30 @@ namespace {
 	}
 
 	void updateAudio(int samples) {
-		mutex.lock();
-		JsSetCurrentContext(context);
-
-		JsValueRef args[2];
-		JsGetUndefinedValue(&args[0]);
-		JsIntToNumber(samples, &args[1]);
-		JsValueRef result;
-		JsCallFunction(audioFunction, args, 2, &result);
-
-		JsSetCurrentContext(JS_INVALID_REFERENCE);
-		mutex.unlock();
+		audioMutex.lock();
+		audioSamples += samples;
+		audioMutex.unlock();
 	}
 
 	void update() {
 		mutex.lock();
 		JsSetCurrentContext(context);
 		
-		if (enableSound) Kore::Audio2::update();
+		if (enableSound) {
+			Kore::Audio2::update();
+
+			audioMutex.lock();
+			if (audioSamples > 0) {
+				JsValueRef args[2];
+				JsGetUndefinedValue(&args[0]);
+				JsIntToNumber(audioSamples, &args[1]);
+				JsValueRef result;
+				JsCallFunction(audioFunction, args, 2, &result);
+				audioSamples = 0;
+			}
+			audioMutex.unlock();
+		}
+		
 		Kore::Graphics4::begin();
 		
 		runJS();
@@ -2711,7 +2774,7 @@ namespace {
 			for (int i = 0; i < len; i++) str[i] = filePath[i];
 			str[len] = 0;
 			JsCreateStringUtf16(str, len, &args[1]);
-			delete str;
+			delete[] str;
 		}
 		JsValueRef result;
 		JsCallFunction(dropFilesFunction, args, 2, &result);
@@ -3327,6 +3390,7 @@ int kore(int argc, char** argv) {
 	bool readStdoutPath = false;
 	bool readConsolePid = false;
 	bool readPort = false;
+	bool writebin = false;
 	int port = 0;
 	for (int i = optionIndex; i < argc; ++i) {
 		if (readPort) {
@@ -3362,26 +3426,35 @@ int kore(int argc, char** argv) {
 		else if (strcmp(argv[i], "--consolepid") == 0) {
 			readConsolePid = true;
 		}
+		else if (strcmp(argv[i], "--writebin") == 0) {
+			writebin = true;
+		}
 	}
 
 	kromjs = assetsdir + "/krom.js";
 	Kore::setFilesLocation(&assetsdir[0u]);
 
 	Kore::FileReader reader;
-	if (!reader.open("krom.js")) {
-		fprintf(stderr, "could not load krom.js. aborting.");
+	if (!writebin && reader.open("krom.bin")) {
+		serialized = true;
+		serializedLength = reader.size();
+	}
+
+	if (!serialized && !reader.open("krom.js")) {
+		fprintf(stderr, "could not load krom.js. aborting.\n");
 		exit(1);
 	}
+
 	char* code = new char[reader.size() + 1];
 	memcpy(code, reader.readAll(), reader.size());
 	code[reader.size()] = 0;
 	reader.close();
 
-	#ifdef KORE_WINDOWS
-	char dirsep = '\\';
-	#else
-	char dirsep = '/';
-	#endif
+	if (writebin) {
+		std::string krombin = assetsdir + "/krom.bin";
+		serializeScript(code, &krombin[0u]);
+		return 0;
+	}
 
 	if (watch) {
 		parseCode();
