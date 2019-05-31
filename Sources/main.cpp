@@ -3109,56 +3109,110 @@ namespace {
 	};
 
 	void parseCode() {
-		/**int types = 0;
+		int types = 0;
 		ParseMode mode = ParseRegular;
 		Klass* currentClass = nullptr;
-		Func* currentFunction = nullptr;
+		Function* currentFunction = nullptr;
 		std::string currentBody;
 		int brackets = 1;
 
 		std::ifstream infile(kromjs.c_str());
 		std::string line;
 		while (std::getline(infile, line)) {
+			if (line.find("ricochet") != std::string::npos){
+				int vd = 3;
+				vd += 2;
+			}
 			switch (mode) {
 				case ParseRegular: {
 					if (endsWith(line, ".prototype = {") || line.find(".prototype = $extend(") != std::string::npos) { // parse methods
 						mode = ParseMethods;
 					}
-					else if (line.find(" = function(") != std::string::npos && line.find("var ") == std::string::npos) {
-						size_t first = 0;
-						size_t last = line.find(".");
-						std::string internal_name = line.substr(first, last - first);
-						currentClass = classes[internal_name];
-
-						first = line.find('.') + 1;
-						last = line.find(' ');
-						std::string methodname = line.substr(first, last - first);
-						if (currentClass->methods.find(methodname) == currentClass->methods.end()) {
-							currentFunction = new Func;
-							currentFunction->name = methodname;
-							first = line.find('(') + 1;
-							last = line.find_last_of(')');
-							size_t last_param_start = first;
-							for (size_t i = first; i <= last; ++i) {
-								if (line[i] == ',') {
-									currentFunction->parameters.push_back(line.substr(last_param_start, i - last_param_start));
-									last_param_start = i + 1;
-								}
-								if (line[i] == ')') {
-									currentFunction->parameters.push_back(line.substr(last_param_start, i - last_param_start));
-									break;
-								}
+					else if (line.find(" = function(") != std::string::npos && line.find("if") == std::string::npos) {
+						if(line.find("var ") == std::string::npos){
+							size_t first = 0;
+							size_t last = line.find('.');
+							if (last == std::string::npos) {
+								last = line.find('[');
 							}
+							std::string internal_name = line.substr(first, last - first);
+							currentClass = classes[internal_name];
 
-							//printf("Found method %s.\n", methodname.c_str());
-							currentClass->methods[methodname] = currentFunction;
+							first = line.find('.') + 1;
+							last = line.find(' ');
+							std::string methodname = line.substr(first, last - first);
+							if (currentClass->methods.find(methodname) == currentClass->methods.end()) {
+								currentFunction = new Function;
+								currentFunction->name = methodname;
+								first = line.find('(') + 1;
+								last = line.find_last_of(')');
+								size_t last_param_start = first;
+								for (size_t i = first; i <= last; ++i) {
+									if (line[i] == ',') {
+										currentFunction->parameters.push_back(line.substr(last_param_start, i - last_param_start));
+										last_param_start = i + 1;
+									}
+									if (line[i] == ')') {
+										currentFunction->parameters.push_back(line.substr(last_param_start, i - last_param_start));
+										break;
+									}
+								}
+
+								//printf("Found method %s.\n", methodname.c_str());
+								currentClass->methods[methodname] = currentFunction;
+							}
+							else {
+								currentFunction = currentClass->methods[methodname];
+							}
+							mode = ParseFunction;
+							currentBody = "";
+							brackets = 1;
 						}
-						else {
-							currentFunction = currentClass->methods[methodname];
+						else if (line.find("var ") == 0 && line.find("$hxClasses") == std::string::npos) //constructor
+						{
+							size_t first = 4;
+							size_t last = line.find(' =');
+							std::string internal_name = line.substr(first, last - first);
+							if (classes.find(internal_name) == classes.end()) {
+								currentClass = new Klass;
+								currentClass->name = "";
+								currentClass->internal_name = internal_name;
+								classes[internal_name] = currentClass;
+								++types;
+							}
+							else {
+								currentClass = classes[internal_name];
+							}
+							std::string methodname = internal_name+"_new";
+							if (currentClass->methods.find(methodname) == currentClass->methods.end()) {
+								currentFunction = new Function;
+								currentFunction->name = methodname;
+								first = line.find('(') + 1;
+								last = line.find_last_of(')');
+								size_t last_param_start = first;
+								for (size_t i = first; i <= last; ++i) {
+									if (line[i] == ',') {
+										currentFunction->parameters.push_back(line.substr(last_param_start, i - last_param_start));
+										last_param_start = i + 1;
+									}
+									if (line[i] == ')') {
+										currentFunction->parameters.push_back(line.substr(last_param_start, i - last_param_start));
+										break;
+									}
+								}
+
+								//printf("Found method %s.\n", methodname.c_str());
+								currentClass->methods[methodname] = currentFunction;
+							}
+							else {
+								currentFunction = currentClass->methods[methodname];
+							}
+							if (line.find("{ };") == std::string::npos) {
+								mode = ParseFunction;
+								currentBody = "";
+								brackets = 1;
+							}
 						}
-						mode = ParseFunction;
-						currentBody = "";
-						brackets = 1;
 					}
 					// hxClasses["BigBlock"] = BigBlock;
 					// var BigBlock = $hxClasses["BigBlock"] = function(xx,yy) {
@@ -3166,8 +3220,8 @@ namespace {
 						size_t first = line.find('\"');
 						size_t last = line.find_last_of('\"');
 						std::string name = line.substr(first + 1, last - first - 1);
-						first = line.find(' ');
-						last = line.find(' ', first + 1);
+						first = line.find('=')+1;
+						last = line.find(';', first + 1);
 						std::string internal_name = line.substr(first + 1, last - first - 1);
 						if (classes.find(internal_name) == classes.end()) {
 							//printf("Found type %s.\n", internal_name.c_str());
@@ -3179,6 +3233,7 @@ namespace {
 						}
 						else {
 							currentClass = classes[internal_name];
+							currentClass->name = name;
 						}
 					}
 					break;
@@ -3193,10 +3248,16 @@ namespace {
 						size_t last = line.find(':');
 						std::string methodname = line.substr(first, last - first);
 						if (currentClass->methods.find(methodname) == currentClass->methods.end()) {
-							currentFunction = new Func;
+							currentFunction = new Function;
 							currentFunction->name = methodname;
 							first = line.find('(') + 1;
+							if (first == std::string::npos) {
+								first=0;
+							}
 							last = line.find_last_of(')');
+							if (last == std::string::npos) {
+								last = 0;
+							}
 							size_t last_param_start = first;
 							for (size_t i = first; i <= last; ++i) {
 								if (line[i] == ',') {
@@ -3225,8 +3286,8 @@ namespace {
 					break;
 				}
 				case ParseMethod: {
-					if (line.find('{') != std::string::npos) ++brackets;
-					if (line.find('}') != std::string::npos) --brackets;
+					brackets += std::count(line.begin(),line.end(),'{');
+					brackets -= std::count(line.begin(), line.end(), '}');
 					if (brackets > 0) {
 						currentBody += line + " ";
 					}
@@ -3276,14 +3337,15 @@ namespace {
 								v8::String::Utf8Value stack_trace(try_catch.StackTrace());
 								sendLogMessage("Trace: %s", *stack_trace);
 							}
+							
 						}
 						mode = ParseMethods;
 					}
 					break;
 				}
 				case ParseFunction: {
-					if (line.find('{') != std::string::npos) ++brackets;
-					if (line.find('}') != std::string::npos) --brackets;
+					brackets += std::count(line.begin(), line.end(), '{');
+					brackets -= std::count(line.begin(), line.end(), '}');
 					if (brackets > 0) {
 						currentBody += line + " ";
 					}
@@ -3340,7 +3402,7 @@ namespace {
 				}
 			}
 		}
-		sendLogMessage("%i new types found.", types);*/
+		sendLogMessage("%i new types found.", types);
 	}
 }
 
