@@ -24,7 +24,7 @@ namespace {
 		DWORD bytesReturned = 0;
 
 		for (;;) {
-			ReadDirectoryChangesW(handle, &info, sizeof(info), TRUE, FILE_NOTIFY_CHANGE_LAST_WRITE, &bytesReturned, nullptr, nullptr);
+			ReadDirectoryChangesW(handle, &info, sizeof(info), TRUE, FILE_NOTIFY_CHANGE_FILE_NAME | FILE_NOTIFY_CHANGE_LAST_WRITE, &bytesReturned, nullptr, nullptr);
 			info.i.FileName[info.i.FileNameLength] = 0;
 			for (unsigned i = 0; i < info.i.FileNameLength; ++i) {
 				path[i] = (char)info.i.FileName[i];
