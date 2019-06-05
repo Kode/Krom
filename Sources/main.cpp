@@ -2722,10 +2722,6 @@ namespace {
 		std::ifstream infile(kromjs.c_str());
 		std::string line;
 		while (std::getline(infile, line)) {
-			if (line.find("var com_gEngine_display_AreaEffectCircular = $hxClasses") != std::string::npos){
-				int vd = 3;
-				vd += 2;
-			}
 			switch (mode) {
 				case ParseRegular: {
 					if (line.find("__super__ =") != std::string::npos) {
@@ -2911,21 +2907,7 @@ namespace {
 
 							sendLogMessage("Patching method %s in class %s.", currentFunction->name.c_str(), currentClass->name.c_str());
 
-							Local<String> source = String::NewFromUtf8(isolate, script.c_str(), NewStringType::kNormal).ToLocalChecked();
-
-							TryCatch try_catch(isolate);
-
-							Local<Script> compiled_script;
-							if (!Script::Compile(context, source).ToLocal(&compiled_script)) {
-								v8::String::Utf8Value stack_trace(try_catch.StackTrace());
-								sendLogMessage("Trace: %s", *stack_trace);
-							}
-
-							Local<Value> result;
-							if (!compiled_script->Run(context).ToLocal(&result)) {
-								v8::String::Utf8Value stack_trace(try_catch.StackTrace());
-								sendLogMessage("Trace: %s", *stack_trace);
-							}
+							patchCode(script, context);
 							
 						}
 						mode = ParseMethods;
@@ -2967,21 +2949,7 @@ namespace {
 
 							sendLogMessage("Patching function %s in class %s.", currentFunction->name.c_str(), currentClass->name.c_str());
 
-							Local<String> source = String::NewFromUtf8(isolate, script.c_str(), NewStringType::kNormal).ToLocalChecked();
-
-							TryCatch try_catch(isolate);
-
-							Local<Script> compiled_script;
-							if (!Script::Compile(context, source).ToLocal(&compiled_script)) {
-								v8::String::Utf8Value stack_trace(try_catch.StackTrace());
-								sendLogMessage("Trace: %s", *stack_trace);
-							}
-
-							Local<Value> result;
-							if (!compiled_script->Run(context).ToLocal(&result)) {
-								v8::String::Utf8Value stack_trace(try_catch.StackTrace());
-								sendLogMessage("Trace: %s", *stack_trace);
-							}
+							patchCode(script, context);
 						}
 						mode = ParseRegular;
 					}
