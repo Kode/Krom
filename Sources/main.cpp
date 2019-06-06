@@ -2694,7 +2694,15 @@ namespace {
 		ParseFunction,
 		ParseConstructor
 	};
-	void patchCode(std::string script, v8::Local<v8::Context> context) {
+	void patchCode(std::string script) {
+
+		v8::Locker locker{ isolate };
+
+		Isolate::Scope isolate_scope(isolate);
+		HandleScope handle_scope(isolate);
+		v8::Local<v8::Context> context = v8::Local<v8::Context>::New(isolate, globalContext);
+		Context::Scope context_scope(context);
+
 		Local<String> source = String::NewFromUtf8(isolate, script.c_str(), NewStringType::kNormal).ToLocalChecked();
 
 		TryCatch try_catch(isolate);
@@ -2885,13 +2893,6 @@ namespace {
 						else if (currentFunction->body != currentBody) {
 							currentFunction->body = currentBody;
 
-							v8::Locker locker{isolate};
-
-							Isolate::Scope isolate_scope(isolate);
-							HandleScope handle_scope(isolate);
-							v8::Local<v8::Context> context = v8::Local<v8::Context>::New(isolate, globalContext);
-							Context::Scope context_scope(context);
-
 							std::string script;
 							script += currentClass->internal_name;
 							script += ".prototype.";
@@ -2907,7 +2908,7 @@ namespace {
 
 							sendLogMessage("Patching method %s in class %s.", currentFunction->name.c_str(), currentClass->name.c_str());
 
-							patchCode(script, context);
+							patchCode(script);
 							
 						}
 						mode = ParseMethods;
@@ -2927,13 +2928,6 @@ namespace {
 						else if (currentFunction->body != currentBody) {
 							currentFunction->body = currentBody;
 
-							v8::Locker locker{ isolate };
-
-							Isolate::Scope isolate_scope(isolate);
-							HandleScope handle_scope(isolate);
-							v8::Local<v8::Context> context = v8::Local<v8::Context>::New(isolate, globalContext);
-							Context::Scope context_scope(context);
-
 							std::string script;
 							script += currentClass->internal_name;
 							script += ".";
@@ -2949,7 +2943,7 @@ namespace {
 
 							sendLogMessage("Patching function %s in class %s.", currentFunction->name.c_str(), currentClass->name.c_str());
 
-							patchCode(script, context);
+							patchCode(script);
 						}
 						mode = ParseRegular;
 					}
@@ -2975,13 +2969,6 @@ namespace {
 
 							currentFunction->body = currentBody;
 
-							v8::Locker locker{ isolate };
-
-							Isolate::Scope isolate_scope(isolate);
-							HandleScope handle_scope(isolate);
-							v8::Local<v8::Context> context = v8::Local<v8::Context>::New(isolate, globalContext);
-							Context::Scope context_scope(context);
-							//var mergeSwf_AnimationDB = $hxClasses["mergeSwf.AnimationDB"] =
 							std::string script;
 							script += "var ";
 							script += currentClass->internal_name;
@@ -2999,25 +2986,21 @@ namespace {
 		
 							sendLogMessage("Patching constructor in class %s.", currentFunction->name.c_str());
 
-							patchCode(script, context);
-							script = currentClass->internal_name;
+							script += currentClass->internal_name;
 							script += ".__name__ = \"" + currentClass->name + "\";";
-							patchCode(script, context);
 
 							if (currentClass->parent != "") {
-								script = currentClass->internal_name;
+								script += currentClass->internal_name;
 								script += ".__super__ = " + currentClass->parent + ";";
-								patchCode(script, context);
-								script = currentClass->internal_name;
+								script += currentClass->internal_name;
 								script += ".prototype = $extend(" + currentClass->parent + ".prototype , {__class__: "+ currentClass->internal_name +"});";
-								patchCode(script, context);
+								
 							}
 							if (currentClass->interfaces != "") {
-								script = currentClass->internal_name;
+								script += currentClass->internal_name;
 								script += ".__interfaces__ = " + currentClass->interfaces + ";";
-								patchCode(script, context);
 							}
-
+							patchCode(script);
 						}
 						mode = ParseRegular;
 					}
