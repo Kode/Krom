@@ -2679,6 +2679,8 @@ namespace {
 	struct Klass {
 		std::string name;
 		std::string internal_name;
+		std::string parent;
+		std::string interfaces;
 		std::map<std::string, Function*> methods;
 		std::map<std::string, Function*> functions;
 	};
@@ -2689,9 +2691,34 @@ namespace {
 		ParseRegular,
 		ParseMethods,
 		ParseMethod,
-		ParseFunction
+		ParseFunction,
+		ParseConstructor
 	};
+	void patchCode(std::string script) {
 
+		v8::Locker locker{ isolate };
+
+		Isolate::Scope isolate_scope(isolate);
+		HandleScope handle_scope(isolate);
+		v8::Local<v8::Context> context = v8::Local<v8::Context>::New(isolate, globalContext);
+		Context::Scope context_scope(context);
+
+		Local<String> source = String::NewFromUtf8(isolate, script.c_str(), NewStringType::kNormal).ToLocalChecked();
+
+		TryCatch try_catch(isolate);
+
+		Local<Script> compiled_script;
+		if (!Script::Compile(context, source).ToLocal(&compiled_script)) {
+			v8::String::Utf8Value stack_trace(try_catch.StackTrace());
+			sendLogMessage("Trace: %s", *stack_trace);
+		}
+
+		Local<Value> result;
+		if (!compiled_script->Run(context).ToLocal(&result)) {
+			v8::String::Utf8Value stack_trace(try_catch.StackTrace());
+			sendLogMessage("Trace: %s", *stack_trace);
+		}
+	}
 	void parseCode() {
 		int types = 0;
 		ParseMode mode = ParseRegular;
@@ -2705,70 +2732,111 @@ namespace {
 		while (std::getline(infile, line)) {
 			switch (mode) {
 				case ParseRegular: {
-					if (endsWith(line, ".prototype = {") || line.find(".prototype = $extend(") != std::string::npos) { // parse methods
+					if (line.find("__super__ =") != std::string::npos) {
+						size_t first = line.find_last_of(' = ');
+						size_t last = line.find_last_of(';');
+						currentClass->parent = line.substr(first+1, last-first-1);
+					}
+					else if (line.find("__interfaces__ =") != std::string::npos) {
+						size_t first = line.find_last_of(' = ');
+						size_t last = line.find_last_of(';');
+						currentClass->interfaces = line.substr(first+1, last - first-1);
+					}
+					else if (endsWith(line, ".prototype = {") || line.find(".prototype = $extend(") != std::string::npos) { // parse methods
 						mode = ParseMethods;
 					}
-					else if (line.find(" = function(") != std::string::npos && line.find("var ") == std::string::npos) {
-						size_t first = 0;
-						size_t last = line.find(".");
-						std::string internal_name = line.substr(first, last - first);
-						currentClass = classes[internal_name];
-
-						first = line.find('.') + 1;
-						last = line.find(' ');
-						std::string methodname = line.substr(first, last - first);
-						if (currentClass->methods.find(methodname) == currentClass->methods.end()) {
-							currentFunction = new Function;
-							currentFunction->name = methodname;
-							first = line.find('(') + 1;
-							last = line.find_last_of(')');
-							size_t last_param_start = first;
-							for (size_t i = first; i <= last; ++i) {
-								if (line[i] == ',') {
-									currentFunction->parameters.push_back(line.substr(last_param_start, i - last_param_start));
-									last_param_start = i + 1;
-								}
-								if (line[i] == ')') {
-									currentFunction->parameters.push_back(line.substr(last_param_start, i - last_param_start));
-									break;
-								}
-							}
-
-							//printf("Found method %s.\n", methodname.c_str());
-							currentClass->methods[methodname] = currentFunction;
-						}
-						else {
-							currentFunction = currentClass->methods[methodname];
-						}
-						mode = ParseFunction;
-						currentBody = "";
-						brackets = 1;
-					}
-					// hxClasses["BigBlock"] = BigBlock;
-					// var BigBlock = $hxClasses["BigBlock"] = function(xx,yy) {
-					else if (line.find("$hxClasses[\"") != std::string::npos) { //(startsWith(line, "$hxClasses[\"")) {
+					else if (line.find("$hxClasses[\"") != std::string::npos) { 
 						size_t first = line.find('\"');
 						size_t last = line.find_last_of('\"');
 						std::string name = line.substr(first + 1, last - first - 1);
-						first = line.find(' ');
-						last = line.find(' ', first + 1);
+						first = line.find('var')+1;
+						last = line.find('=', first + 1)-1;
 						std::string internal_name = line.substr(first + 1, last - first - 1);
 						if (classes.find(internal_name) == classes.end()) {
-							//printf("Found type %s.\n", internal_name.c_str());
 							currentClass = new Klass;
 							currentClass->name = name;
+							currentClass->interfaces = "";
+							currentClass->parent = "";
 							currentClass->internal_name = internal_name;
 							classes[internal_name] = currentClass;
 							++types;
 						}
 						else {
 							currentClass = classes[internal_name];
+							currentClass->name = name;
+						}
+						//constructor
+						if (line.find(" = function(") != std::string::npos){
+							if (currentClass->methods.find(internal_name) == currentClass->methods.end()) {
+								currentFunction = new Function;
+								currentFunction->name = internal_name;
+								first = line.find('(') + 1;
+								last = line.find_last_of(')');
+								size_t last_param_start = first;
+								for (size_t i = first; i <= last; ++i) {
+									if (line[i] == ',') {
+										currentFunction->parameters.push_back(line.substr(last_param_start, i - last_param_start));
+											last_param_start = i + 1;
+									}
+									if (line[i] == ')') {
+										currentFunction->parameters.push_back(line.substr(last_param_start, i - last_param_start));
+										break;
+									}
+								}
+								currentClass->methods[internal_name] = currentFunction;
+							}
+							else {
+								currentFunction = currentClass->methods[internal_name];
+							}
+							if (line.find("};") == std::string::npos) {
+								mode = ParseConstructor;
+								currentBody = "";
+								brackets = 1;
+							}
+						}
+					}
+					else if (line.find(" = function(") != std::string::npos && line.find("if") == std::string::npos) {
+						if (line.find("var ") == std::string::npos) {
+							size_t first = 0;
+							size_t last = line.find('.');
+							if (last == std::string::npos) {
+								last = line.find('[');
+							}
+							std::string internal_name = line.substr(first, last - first);
+							currentClass = classes[internal_name];
+
+							first = line.find('.') + 1;
+							last = line.find(' ');
+							std::string methodname = line.substr(first, last - first);
+							if (currentClass->methods.find(methodname) == currentClass->methods.end()) {
+								currentFunction = new Function;
+								currentFunction->name = methodname;
+								first = line.find('(') + 1;
+								last = line.find_last_of(')');
+								size_t last_param_start = first;
+								for (size_t i = first; i <= last; ++i) {
+									if (line[i] == ',') {
+										currentFunction->parameters.push_back(line.substr(last_param_start, i - last_param_start));
+										last_param_start = i + 1;
+									}
+									if (line[i] == ')') {
+										currentFunction->parameters.push_back(line.substr(last_param_start, i - last_param_start));
+										break;
+									}
+								}
+								currentClass->methods[methodname] = currentFunction;
+							}
+							else {
+								currentFunction = currentClass->methods[methodname];
+							}
+							mode = ParseFunction;
+							currentBody = "";
+							brackets = 1;
 						}
 					}
 					break;
 				}
 				case ParseMethods: {
-					// ,draw: function(g) {
 					if (endsWith(line, "{")) {
 						size_t first = 0;
 						while (line[first] == ' ' || line[first] == '\t' || line[first] == ',') {
@@ -2780,7 +2848,13 @@ namespace {
 							currentFunction = new Function;
 							currentFunction->name = methodname;
 							first = line.find('(') + 1;
+							if (first == std::string::npos) {
+								first=0;
+							}
 							last = line.find_last_of(')');
+							if (last == std::string::npos) {
+								last = 0;
+							}
 							size_t last_param_start = first;
 							for (size_t i = first; i <= last; ++i) {
 								if (line[i] == ',') {
@@ -2792,8 +2866,6 @@ namespace {
 									break;
 								}
 							}
-
-							//printf("Found method %s.\n", methodname.c_str());
 							currentClass->methods[methodname] = currentFunction;
 						}
 						else {
@@ -2809,8 +2881,8 @@ namespace {
 					break;
 				}
 				case ParseMethod: {
-					if (line.find('{') != std::string::npos) ++brackets;
-					if (line.find('}') != std::string::npos) --brackets;
+					brackets += std::count(line.begin(),line.end(),'{');
+					brackets -= std::count(line.begin(), line.end(), '}');
 					if (brackets > 0) {
 						currentBody += line + " ";
 					}
@@ -2821,14 +2893,6 @@ namespace {
 						else if (currentFunction->body != currentBody) {
 							currentFunction->body = currentBody;
 
-							v8::Locker locker{isolate};
-
-							Isolate::Scope isolate_scope(isolate);
-							HandleScope handle_scope(isolate);
-							v8::Local<v8::Context> context = v8::Local<v8::Context>::New(isolate, globalContext);
-							Context::Scope context_scope(context);
-
-							// BlocksFromHeaven.prototype.loadingFinished = new Function([a, b], "lots of text;");
 							std::string script;
 							script += currentClass->internal_name;
 							script += ".prototype.";
@@ -2842,32 +2906,18 @@ namespace {
 							script += replaceAll(currentFunction->body, "\"", "\\\"");
 							script += "\");";
 
-							// Kore::log(Kore::Info, "Script:\n%s\n", script.c_str());
 							sendLogMessage("Patching method %s in class %s.", currentFunction->name.c_str(), currentClass->name.c_str());
 
-							Local<String> source = String::NewFromUtf8(isolate, script.c_str(), NewStringType::kNormal).ToLocalChecked();
-
-							TryCatch try_catch(isolate);
-
-							Local<Script> compiled_script;
-							if (!Script::Compile(context, source).ToLocal(&compiled_script)) {
-								v8::String::Utf8Value stack_trace(try_catch.StackTrace());
-								sendLogMessage("Trace: %s", *stack_trace);
-							}
-
-							Local<Value> result;
-							if (!compiled_script->Run(context).ToLocal(&result)) {
-								v8::String::Utf8Value stack_trace(try_catch.StackTrace());
-								sendLogMessage("Trace: %s", *stack_trace);
-							}
+							patchCode(script);
+							
 						}
 						mode = ParseMethods;
 					}
 					break;
 				}
 				case ParseFunction: {
-					if (line.find('{') != std::string::npos) ++brackets;
-					if (line.find('}') != std::string::npos) --brackets;
+					brackets += std::count(line.begin(), line.end(), '{');
+					brackets -= std::count(line.begin(), line.end(), '}');
 					if (brackets > 0) {
 						currentBody += line + " ";
 					}
@@ -2878,14 +2928,6 @@ namespace {
 						else if (currentFunction->body != currentBody) {
 							currentFunction->body = currentBody;
 
-							v8::Locker locker{isolate};
-
-							Isolate::Scope isolate_scope(isolate);
-							HandleScope handle_scope(isolate);
-							v8::Local<v8::Context> context = v8::Local<v8::Context>::New(isolate, globalContext);
-							Context::Scope context_scope(context);
-
-							// BlocksFromHeaven.prototype.loadingFinished = new Function([a, b], "lots of text;");
 							std::string script;
 							script += currentClass->internal_name;
 							script += ".";
@@ -2899,24 +2941,66 @@ namespace {
 							script += replaceAll(currentFunction->body, "\"", "\\\"");
 							script += "\");";
 
-							// Kore::log(Kore::Info, "Script:\n%s\n", script.c_str());
 							sendLogMessage("Patching function %s in class %s.", currentFunction->name.c_str(), currentClass->name.c_str());
 
-							Local<String> source = String::NewFromUtf8(isolate, script.c_str(), NewStringType::kNormal).ToLocalChecked();
+							patchCode(script);
+						}
+						mode = ParseRegular;
+					}
+					break;
+				}
+				case ParseConstructor: {
+					brackets += std::count(line.begin(), line.end(), '{');
+					brackets -= std::count(line.begin(), line.end(), '}');
+					if (brackets > 0) {
+						currentBody += line + " ";
+					}
+					else {
+						if (currentFunction->body == "") {
+							currentFunction->body = currentBody;
+						}
+						else if (currentFunction->body != currentBody) {
 
-							TryCatch try_catch(isolate);
-
-							Local<Script> compiled_script;
-							if (!Script::Compile(context, source).ToLocal(&compiled_script)) {
-								v8::String::Utf8Value stack_trace(try_catch.StackTrace());
-								sendLogMessage("Trace: %s", *stack_trace);
+							std::map<std::string, Function*>::iterator it;
+							for (it = currentClass->methods.begin(); it != currentClass->methods.end(); it++)
+							{
+								it->second->body = "invalidate it";
 							}
 
-							Local<Value> result;
-							if (!compiled_script->Run(context).ToLocal(&result)) {
-								v8::String::Utf8Value stack_trace(try_catch.StackTrace());
-								sendLogMessage("Trace: %s", *stack_trace);
+							currentFunction->body = currentBody;
+
+							std::string script;
+							script += "var ";
+							script += currentClass->internal_name;
+							script += " = $hxClasses[\""+currentClass->name+"\"]";
+							script += " = new Function([";
+							for (size_t i = 0; i < currentFunction->parameters.size(); ++i) {
+								script += "\"" + currentFunction->parameters[i] + "\"";
+								if (i < currentFunction->parameters.size() - 1) script += ",";
 							}
+							script += "], \"";
+							script += replaceAll(currentFunction->body, "\"", "\\\"");
+							script += "\");";
+							
+							
+		
+							sendLogMessage("Patching constructor in class %s.", currentFunction->name.c_str());
+
+							script += currentClass->internal_name;
+							script += ".__name__ = \"" + currentClass->name + "\";";
+
+							if (currentClass->parent != "") {
+								script += currentClass->internal_name;
+								script += ".__super__ = " + currentClass->parent + ";";
+								script += currentClass->internal_name;
+								script += ".prototype = $extend(" + currentClass->parent + ".prototype , {__class__: "+ currentClass->internal_name +"});";
+								
+							}
+							if (currentClass->interfaces != "") {
+								script += currentClass->internal_name;
+								script += ".__interfaces__ = " + currentClass->interfaces + ";";
+							}
+							patchCode(script);
 						}
 						mode = ParseRegular;
 					}
@@ -2925,8 +3009,12 @@ namespace {
 			}
 		}
 		sendLogMessage("%i new types found.", types);
+		infile.close();
 	}
+	
 }
+
+
 
 extern "C" void watchDirectories(char* path1, char* path2);
 
@@ -2979,7 +3067,7 @@ int kore(int argc, char** argv) {
 			readPort = true;
 		}
 		else if (strcmp(argv[i], "--watch") == 0) {
-			//**watch = true;
+			watch = true;
 		}
 		else if (strcmp(argv[i], "--nosound") == 0) {
 			nosound = true;
