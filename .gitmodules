@@ -2,3 +2,7 @@
 	path = Chakra
 	url = https://github.com/Kode/ChakraCore.git
 	branch = master
+[submodule "Kinc"]
+	path = Kinc
+	url = https://github.com/Kode/Kinc.git
+	branch = master
