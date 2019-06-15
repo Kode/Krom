@@ -3441,7 +3441,7 @@ extern "C" void filechanged(char* path) {
 
 //__declspec(dllimport) extern "C" void __stdcall Sleep(unsigned long milliseconds);
 
-int kore(int argc, char** argv) {
+int kickstart(int argc, char** argv) {
 	_argc = argc;
 	_argv = argv;
 	std::string bindir(argv[0]);
