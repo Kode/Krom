@@ -47,6 +47,8 @@
 #include <Kore/Threads/Thread.h>
 #include <Kore/Threads/Mutex.h>
 
+#include <kinc/io/filereader.h>
+
 #include "debug.h"
 #include "debug_server.h"
 
@@ -1843,7 +1845,7 @@ namespace {
 		bool readable;
 		JsBooleanToBool(arguments[3], &readable);
 
-		Kore::Graphics4::Texture* texture = new Kore::Graphics4::Texture(content, bufferLength, *format, readable);
+		Kore::Graphics4::Texture* texture = new Kore::Graphics4::Texture(content, bufferLength, format, readable);
 
 		JsValueRef value;
 		JsCreateExternalObject(texture, nullptr, &value);
@@ -2128,7 +2130,7 @@ namespace {
 
 	JsValueRef CALLBACK krom_get_files_location(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount, void *callbackState) {
 		JsValueRef value;
-		JsCreateString(Kore::getFilesLocation(), strlen(Kore::getFilesLocation()), &value);
+		JsCreateString(kinc_internal_get_files_location(), strlen(kinc_internal_get_files_location()), &value);
 		return value;
 	}
 
@@ -3502,7 +3504,7 @@ int kore(int argc, char** argv) {
 	}
 
 	kromjs = assetsdir + "/krom.js";
-	Kore::setFilesLocation(&assetsdir[0u]);
+	kinc_internal_set_files_location(&assetsdir[0u]);
 
 	Kore::FileReader reader;
 	if (!writebin && reader.open("krom.bin")) {
