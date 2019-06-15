@@ -1,6 +1,6 @@
 # Krom
 
-[Kore](https://github.com/Kode/Kore) + [Chakra](https://github.com/Microsoft/ChakraCore) combined.
+[Kinc](https://github.com/Kode/Kinc) + [Chakra](https://github.com/Microsoft/ChakraCore) combined.
 
 Krom is a highly portable runtime for JavaScript based multimedia applications. It executes [JS](https://github.com/luboslenco/krom_jstest) or webassembly through Chakra and is fully supported in [Kha](https://github.com/Kode/Kha) as one of the backends, see [bindings](https://github.com/Kode/Kha/blob/master/Backends/Krom/Krom.hx). Krom is optimized for very fast development cycles and directly supports hot-patching of code, shaders and assets.
 
@@ -8,9 +8,9 @@ Note that Krom does not rely on web APIs. It rather exposes full, native hardwar
 
 ## Build instructions
 
-* For Windows: Run node Kore/make and compile in Visual Studio for x64
-* For macOS: Run node Kore/make --noshaders and compile in Xcode
-* For Linux: Run node Kore/make --compiler clang --compile
+* For Windows: Run node Kinc/make and compile in Visual Studio for x64
+* For macOS: Run node Kinc/make --noshaders and compile in Xcode
+* For Linux: Run node Kinc/make --compiler clang --compile
 
 ## Running
 
