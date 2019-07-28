@@ -67,7 +67,7 @@
 #include <unistd.h>
 #endif
 
-const int KROM_API = 2;
+const int KROM_API = 3;
 const int KROM_DEBUG_API = 1;
 
 bool AttachProcess(HANDLE hmod);
@@ -102,6 +102,11 @@ namespace {
 	JsValueRef cutFunction;
 	JsValueRef copyFunction;
 	JsValueRef pasteFunction;
+	JsValueRef foregroundFunction;
+	JsValueRef resumeFunction;
+	JsValueRef pauseFunction;
+	JsValueRef backgroundFunction;
+	JsValueRef shutdownFunction;
 	JsValueRef keyboardDownFunction;
 	JsValueRef keyboardUpFunction;
 	JsValueRef keyboardPressFunction;
@@ -131,6 +136,11 @@ namespace {
 	char* cut();
 	char* copy();
 	void paste(char* data);
+	void foreground();
+	void resume();
+	void pause();
+	void background();
+	void shutdown();
 	void keyDown(Kore::KeyCode code);
 	void keyUp(Kore::KeyCode code);
 	void keyPress(wchar_t character);
@@ -241,6 +251,11 @@ namespace {
 		Kore::System::setCopyCallback(copy);
 		Kore::System::setCutCallback(cut);
 		Kore::System::setPasteCallback(paste);
+		Kore::System::setForegroundCallback(foreground);
+		Kore::System::setResumeCallback(resume);
+		Kore::System::setPauseCallback(pause);
+		Kore::System::setBackgroundCallback(background);
+		Kore::System::setShutdownCallback(shutdown);
 
 		Kore::Keyboard::the()->KeyDown = keyDown;
 		Kore::Keyboard::the()->KeyUp = keyUp;
@@ -310,6 +325,20 @@ namespace {
 		JsAddRef(cutFunction, nullptr);
 		JsAddRef(copyFunction, nullptr);
 		JsAddRef(pasteFunction, nullptr);
+		return JS_INVALID_REFERENCE;
+	}
+
+	JsValueRef CALLBACK krom_set_application_state_callback(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount, void *callbackState) {
+		foregroundFunction = arguments[1];
+		resumeFunction = arguments[2];
+		pauseFunction = arguments[3];
+		backgroundFunction = arguments[4];
+		shutdownFunction = arguments[5];
+		JsAddRef(foregroundFunction, nullptr);
+		JsAddRef(resumeFunction, nullptr);
+		JsAddRef(pauseFunction, nullptr);
+		JsAddRef(backgroundFunction, nullptr);
+		JsAddRef(shutdownFunction, nullptr);
 		return JS_INVALID_REFERENCE;
 	}
 
@@ -2440,6 +2469,7 @@ namespace {
 		addFunction(setCallback, krom_set_callback);
 		addFunction(setDropFilesCallback, krom_set_drop_files_callback);
 		addFunction(setCutCopyPasteCallback, krom_set_cut_copy_paste_callback);
+		addFunction(setApplicationStateCallback, krom_set_application_state_callback);
 		addFunction(setKeyboardDownCallback, krom_set_keyboard_down_callback);
 		addFunction(setKeyboardUpCallback, krom_set_keyboard_up_callback);
 		addFunction(setKeyboardPressCallback, krom_set_keyboard_press_callback);
@@ -2842,6 +2872,71 @@ namespace {
 		JsCreateString(data, strlen(data), &args[1]);
 		JsValueRef result;
 		JsCallFunction(pasteFunction, args, 2, &result);
+
+		JsSetCurrentContext(JS_INVALID_REFERENCE);
+		mutex.unlock();
+	}
+
+	void foreground() {
+		mutex.lock();
+		JsSetCurrentContext(context);
+
+		JsValueRef args[1];
+		JsGetUndefinedValue(&args[0]);
+		JsValueRef result;
+		JsCallFunction(foregroundFunction, args, 1, &result);
+
+		JsSetCurrentContext(JS_INVALID_REFERENCE);
+		mutex.unlock();
+	}
+
+	void resume() {
+		mutex.lock();
+		JsSetCurrentContext(context);
+
+		JsValueRef args[1];
+		JsGetUndefinedValue(&args[0]);
+		JsValueRef result;
+		JsCallFunction(resumeFunction, args, 1, &result);
+
+		JsSetCurrentContext(JS_INVALID_REFERENCE);
+		mutex.unlock();
+	}
+
+	void pause() {
+		mutex.lock();
+		JsSetCurrentContext(context);
+
+		JsValueRef args[1];
+		JsGetUndefinedValue(&args[0]);
+		JsValueRef result;
+		JsCallFunction(pauseFunction, args, 1, &result);
+
+		JsSetCurrentContext(JS_INVALID_REFERENCE);
+		mutex.unlock();
+	}
+
+	void background() {
+		mutex.lock();
+		JsSetCurrentContext(context);
+
+		JsValueRef args[1];
+		JsGetUndefinedValue(&args[0]);
+		JsValueRef result;
+		JsCallFunction(backgroundFunction, args, 1, &result);
+
+		JsSetCurrentContext(JS_INVALID_REFERENCE);
+		mutex.unlock();
+	}
+
+	void shutdown() {
+		mutex.lock();
+		JsSetCurrentContext(context);
+
+		JsValueRef args[1];
+		JsGetUndefinedValue(&args[0]);
+		JsValueRef result;
+		JsCallFunction(shutdownFunction, args, 1, &result);
 
 		JsSetCurrentContext(JS_INVALID_REFERENCE);
 		mutex.unlock();
