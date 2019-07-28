@@ -58,6 +58,7 @@
 #include <map>
 #include <sstream>
 #include <vector>
+#include <algorithm>
 
 #ifdef KORE_WINDOWS
 #include <Windows.h> // AttachConsole
