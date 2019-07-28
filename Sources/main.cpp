@@ -44,7 +44,7 @@
 
 using namespace v8;
 
-const int KROM_API = 2;
+const int KROM_API = 3;
 
 void sendMessage(const char* message);
 
@@ -73,6 +73,11 @@ namespace {
 	Global<Function> cutFunction;
 	Global<Function> copyFunction;
 	Global<Function> pasteFunction;
+	Global<Function> foregroundFunction;
+	Global<Function> resumeFunction;
+	Global<Function> pauseFunction;
+	Global<Function> backgroundFunction;
+	Global<Function> shutdownFunction;
 	Global<Function> keyboardDownFunction;
 	Global<Function> keyboardUpFunction;
 	Global<Function> keyboardPressFunction;
@@ -99,6 +104,11 @@ namespace {
 	char* cut();
 	char* copy();
 	void paste(char* data);
+	void foreground();
+	void resume();
+	void pause();
+	void background();
+	void shutdown();
 	void keyDown(Kore::KeyCode code);
 	void keyUp(Kore::KeyCode code);
     void keyPress(wchar_t character);
@@ -190,6 +200,11 @@ namespace {
 		Kore::System::setCopyCallback(copy);
 		Kore::System::setCutCallback(cut);
 		Kore::System::setPasteCallback(paste);
+		Kore::System::setForegroundCallback(foreground);
+		Kore::System::setResumeCallback(resume);
+		Kore::System::setPauseCallback(pause);
+		Kore::System::setBackgroundCallback(background);
+		Kore::System::setShutdownCallback(shutdown);
 
 		Kore::Keyboard::the()->KeyDown = keyDown;
 		Kore::Keyboard::the()->KeyUp = keyUp;
@@ -253,6 +268,25 @@ namespace {
 		Local<Value> pasteArg = args[2];
 		Local<Function> pasteFunc = Local<Function>::Cast(pasteArg);
 		pasteFunction.Reset(isolate, pasteFunc);
+	}
+
+	void krom_set_application_state_callback(const FunctionCallbackInfo<Value>& args) {
+		HandleScope scope(args.GetIsolate());
+		Local<Value> foregroundArg = args[0];
+		Local<Function> foregroundFunc = Local<Function>::Cast(foregroundArg);
+		foregroundFunction.Reset(isolate, foregroundFunc);
+		Local<Value> resumeArg = args[1];
+		Local<Function> resumeFunc = Local<Function>::Cast(resumeArg);
+		resumeFunction.Reset(isolate, resumeFunc);
+		Local<Value> pauseArg = args[2];
+		Local<Function> pauseFunc = Local<Function>::Cast(pauseArg);
+		pauseFunction.Reset(isolate, pauseFunc);
+		Local<Value> backgroundArg = args[3];
+		Local<Function> backgroundFunc = Local<Function>::Cast(backgroundArg);
+		backgroundFunction.Reset(isolate, backgroundFunc);
+		Local<Value> shutdownArg = args[4];
+		Local<Function> shutdownFunc = Local<Function>::Cast(shutdownArg);
+		shutdownFunction.Reset(isolate, shutdownFunc);
 	}
 
 	void krom_set_keyboard_down_callback(const FunctionCallbackInfo<Value>& args) {
@@ -2040,6 +2074,7 @@ namespace {
 		krom->Set(String::NewFromUtf8(isolate, "setCallback"), FunctionTemplate::New(isolate, krom_set_callback));
 		krom->Set(String::NewFromUtf8(isolate, "setDropFilesCallback"), FunctionTemplate::New(isolate, krom_set_drop_files_callback));
 		krom->Set(String::NewFromUtf8(isolate, "setCutCopyPasteCallback"), FunctionTemplate::New(isolate, krom_set_cut_copy_paste_callback));
+		krom->Set(String::NewFromUtf8(isolate, "setApplicationStateCallback"), FunctionTemplate::New(isolate, krom_set_application_state_callback));
 		krom->Set(String::NewFromUtf8(isolate, "setKeyboardDownCallback"), FunctionTemplate::New(isolate, krom_set_keyboard_down_callback));
 		krom->Set(String::NewFromUtf8(isolate, "setKeyboardUpCallback"), FunctionTemplate::New(isolate, krom_set_keyboard_up_callback));
 		krom->Set(String::NewFromUtf8(isolate, "setKeyboardPressCallback"), FunctionTemplate::New(isolate, krom_set_keyboard_press_callback));
@@ -2384,6 +2419,91 @@ namespace {
 			v8::String::Utf8Value stack_trace(try_catch.StackTrace());
 			sendLogMessage("Trace: %s", *stack_trace);
 		} 		
+	}
+
+	void foreground() {
+		v8::Locker locker{isolate};
+
+		Isolate::Scope isolate_scope(isolate);
+		HandleScope handle_scope(isolate);
+		v8::Local<v8::Context> context = v8::Local<v8::Context>::New(isolate, globalContext);
+		Context::Scope context_scope(context);
+
+		TryCatch try_catch(isolate);
+		v8::Local<v8::Function> func = v8::Local<v8::Function>::New(isolate, foregroundFunction);
+		Local<Value> result;
+		if (!func->Call(context, context->Global(), 0, NULL).ToLocal(&result)) {
+			v8::String::Utf8Value stack_trace(try_catch.StackTrace());
+			sendLogMessage("Trace: %s", *stack_trace);
+		}
+	}
+
+	void resume() {
+		v8::Locker locker{isolate};
+
+		Isolate::Scope isolate_scope(isolate);
+		HandleScope handle_scope(isolate);
+		v8::Local<v8::Context> context = v8::Local<v8::Context>::New(isolate, globalContext);
+		Context::Scope context_scope(context);
+
+		TryCatch try_catch(isolate);
+		v8::Local<v8::Function> func = v8::Local<v8::Function>::New(isolate, resumeFunction);
+		Local<Value> result;
+		if (!func->Call(context, context->Global(), 0, NULL).ToLocal(&result)) {
+			v8::String::Utf8Value stack_trace(try_catch.StackTrace());
+			sendLogMessage("Trace: %s", *stack_trace);
+		}
+	}
+
+	void pause() {
+		v8::Locker locker{isolate};
+
+		Isolate::Scope isolate_scope(isolate);
+		HandleScope handle_scope(isolate);
+		v8::Local<v8::Context> context = v8::Local<v8::Context>::New(isolate, globalContext);
+		Context::Scope context_scope(context);
+
+		TryCatch try_catch(isolate);
+		v8::Local<v8::Function> func = v8::Local<v8::Function>::New(isolate, pauseFunction);
+		Local<Value> result;
+		if (!func->Call(context, context->Global(), 0, NULL).ToLocal(&result)) {
+			v8::String::Utf8Value stack_trace(try_catch.StackTrace());
+			sendLogMessage("Trace: %s", *stack_trace);
+		}
+	}
+
+	void background() {
+		v8::Locker locker{isolate};
+
+		Isolate::Scope isolate_scope(isolate);
+		HandleScope handle_scope(isolate);
+		v8::Local<v8::Context> context = v8::Local<v8::Context>::New(isolate, globalContext);
+		Context::Scope context_scope(context);
+
+		TryCatch try_catch(isolate);
+		v8::Local<v8::Function> func = v8::Local<v8::Function>::New(isolate, backgroundFunction);
+		Local<Value> result;
+		if (!func->Call(context, context->Global(), 0, NULL).ToLocal(&result)) {
+			v8::String::Utf8Value stack_trace(try_catch.StackTrace());
+			sendLogMessage("Trace: %s", *stack_trace);
+		}
+	}
+
+	void shutdown() {
+		v8::Locker locker{isolate};
+
+		Isolate::Scope isolate_scope(isolate);
+		HandleScope handle_scope(isolate);
+		v8::Local<v8::Context> context = v8::Local<v8::Context>::New(isolate, globalContext);
+		Context::Scope context_scope(context);
+
+		TryCatch try_catch(isolate);
+		v8::Local<v8::Function> func = v8::Local<v8::Function>::New(isolate, shutdownFunction);
+		Local<Value> result;
+		if (!func->Call(context, context->Global(), 0, NULL).ToLocal(&result)) {
+			v8::String::Utf8Value stack_trace(try_catch.StackTrace());
+			sendLogMessage("Trace: %s", *stack_trace);
+		}
 	}
 
 	void keyDown(Kore::KeyCode code) {
