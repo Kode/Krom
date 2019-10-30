@@ -12,7 +12,7 @@ jobs:
   build:
 
     runs-on: macOS-latest
-    
+
     steps:
     - uses: actions/checkout@v1
     - name: Get Submodules
@@ -23,3 +23,11 @@ jobs:
       run: nodejs_bin/copysysbin.sh
     - name: Compile
       run: nodejs_bin/node Kinc/make.js --noshaders --compile
+    - name: Move app to subfolder
+      run: |
+          mkdir build/build/Release/app
+          mv build/build/Release/Krom.app build/build/Release/app
+    - uses: actions/upload-artifact@master
+      with:
+        name: macos-build
+        path: build/build/Release/app
