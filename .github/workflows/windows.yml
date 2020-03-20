@@ -4,6 +4,7 @@ on:
   push:
     branches:
     - master
+    - actiontest
   pull_request:
     branches:
     - master
