@@ -1,11 +1,11 @@
 #include <ChakraCore.h>
 
 #if 0
-#include "Runtime.h"
+#include "Base/ThreadBoundThreadContextManager.h"
+#include "Base/ThreadContextTlsEntry.h"
 #include "Core/AtomLockGuids.h"
 #include "Core/ConfigParser.h"
-#include "Base/ThreadContextTlsEntry.h"
-#include "Base/ThreadBoundThreadContextManager.h"
+#include "Runtime.h"
 #ifdef DYNAMIC_PROFILE_STORAGE
 #include "Language/DynamicProfileStorage.h"
 #endif
@@ -25,40 +25,40 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include <Kore/IO/FileReader.h>
-#include <Kore/IO/FileWriter.h>
 #include <Kore/Graphics4/Graphics.h>
 #include <Kore/Graphics4/PipelineState.h>
+#include <Kore/IO/FileReader.h>
+#include <Kore/IO/FileWriter.h>
 
-#include <Kore/Graphics4/Shader.h>
-#include <Kore/Compute/Compute.h>
-#include <Kore/Input/Keyboard.h>
-#include <Kore/Input/Mouse.h>
-#include <Kore/Input/Pen.h>
-#include <Kore/Input/Gamepad.h>
-#include <Kore/Audio2/Audio.h>
 #include <Kore/Audio1/Audio.h>
 #include <Kore/Audio1/Sound.h>
 #include <Kore/Audio1/SoundStream.h>
+#include <Kore/Audio2/Audio.h>
+#include <Kore/Compute/Compute.h>
+#include <Kore/Display.h>
+#include <Kore/Graphics4/Shader.h>
+#include <Kore/Input/Gamepad.h>
+#include <Kore/Input/Keyboard.h>
+#include <Kore/Input/Mouse.h>
+#include <Kore/Input/Pen.h>
+#include <Kore/Log.h>
 #include <Kore/Math/Random.h>
 #include <Kore/System.h>
-#include <Kore/Display.h>
-#include <Kore/Log.h>
-#include <Kore/Threads/Thread.h>
 #include <Kore/Threads/Mutex.h>
+#include <Kore/Threads/Thread.h>
 
 #include <kinc/io/filereader.h>
 
 #include "debug.h"
 #include "debug_server.h"
 
+#include <algorithm>
 #include <assert.h>
-#include <stdarg.h>
 #include <fstream>
 #include <map>
 #include <sstream>
+#include <stdarg.h>
 #include <vector>
-#include <algorithm>
 
 #ifdef KORE_WINDOWS
 #include <Windows.h> // AttachConsole
@@ -74,23 +74,23 @@ const int KROM_DEBUG_API = 1;
 bool AttachProcess(HANDLE hmod);
 
 #ifdef KORE_MACOS
-const char* macgetresourcepath();
+const char *macgetresourcepath();
 #endif
 
-const char* getExeDir();
+const char *getExeDir();
 
 JsRuntimeHandle runtime;
 JsContextRef context;
 
 #ifdef KORE_WINDOWS
-#define CALLBACK    __stdcall
+#define CALLBACK __stdcall
 #else
 #define CALLBACK
 #endif
 
 namespace {
 	int _argc;
-	char** _argv;
+	char **_argv;
 	bool debugMode = false;
 	bool watch = false;
 	bool enableSound = false;
@@ -133,10 +133,10 @@ namespace {
 	void update();
 	void initAudioBuffer();
 	void updateAudio(int samples);
-	void dropFiles(wchar_t* filePath);
-	char* cut();
-	char* copy();
-	void paste(char* data);
+	void dropFiles(wchar_t *filePath);
+	char *cut();
+	char *copy();
+	void paste(char *data);
 	void foreground();
 	void resume();
 	void pause();
@@ -168,7 +168,7 @@ namespace {
 
 	JsPropertyIdRef buffer_id;
 
-	void sendLogMessageArgs(const char* format, va_list args) {
+	void sendLogMessageArgs(const char *format, va_list args) {
 		char msg[4096];
 		vsnprintf(msg, sizeof(msg) - 2, format, args);
 		Kore::log(Kore::Info, "%s", msg);
@@ -185,7 +185,7 @@ namespace {
 		}
 	}
 
-	void sendLogMessage(const char* format, ...) {
+	void sendLogMessage(const char *format, ...) {
 		va_list args;
 		va_start(args, format);
 		sendLogMessageArgs(format, args);
@@ -213,7 +213,7 @@ namespace {
 		}
 
 		if (apiVersion != KROM_API) {
-			const char* outdated;
+			const char *outdated;
 			if (apiVersion < KROM_API) {
 				outdated = "Kha";
 			}
@@ -313,13 +313,15 @@ namespace {
 		return JS_INVALID_REFERENCE;
 	}
 
-	JsValueRef CALLBACK krom_set_drop_files_callback(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount, void *callbackState) {
+	JsValueRef CALLBACK krom_set_drop_files_callback(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount,
+	                                                 void *callbackState) {
 		dropFilesFunction = arguments[1];
 		JsAddRef(dropFilesFunction, nullptr);
 		return JS_INVALID_REFERENCE;
 	}
 
-	JsValueRef CALLBACK krom_set_cut_copy_paste_callback(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount, void *callbackState) {
+	JsValueRef CALLBACK krom_set_cut_copy_paste_callback(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount,
+	                                                     void *callbackState) {
 		cutFunction = arguments[1];
 		copyFunction = arguments[2];
 		pasteFunction = arguments[3];
@@ -329,7 +331,8 @@ namespace {
 		return JS_INVALID_REFERENCE;
 	}
 
-	JsValueRef CALLBACK krom_set_application_state_callback(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount, void *callbackState) {
+	JsValueRef CALLBACK krom_set_application_state_callback(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount,
+	                                                        void *callbackState) {
 		foregroundFunction = arguments[1];
 		resumeFunction = arguments[2];
 		pauseFunction = arguments[3];
@@ -343,73 +346,85 @@ namespace {
 		return JS_INVALID_REFERENCE;
 	}
 
-	JsValueRef CALLBACK krom_set_keyboard_down_callback(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount, void *callbackState) {
+	JsValueRef CALLBACK krom_set_keyboard_down_callback(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount,
+	                                                    void *callbackState) {
 		keyboardDownFunction = arguments[1];
 		JsAddRef(keyboardDownFunction, nullptr);
 		return JS_INVALID_REFERENCE;
 	}
 
-	JsValueRef CALLBACK krom_set_keyboard_up_callback(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount, void *callbackState) {
+	JsValueRef CALLBACK krom_set_keyboard_up_callback(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount,
+	                                                  void *callbackState) {
 		keyboardUpFunction = arguments[1];
 		JsAddRef(keyboardUpFunction, nullptr);
 		return JS_INVALID_REFERENCE;
 	}
 
-	JsValueRef CALLBACK krom_set_keyboard_press_callback(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount, void *callbackState) {
+	JsValueRef CALLBACK krom_set_keyboard_press_callback(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount,
+	                                                     void *callbackState) {
 		keyboardPressFunction = arguments[1];
 		JsAddRef(keyboardPressFunction, nullptr);
 		return JS_INVALID_REFERENCE;
 	}
 
-	JsValueRef CALLBACK krom_set_mouse_down_callback(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount, void *callbackState) {
+	JsValueRef CALLBACK krom_set_mouse_down_callback(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount,
+	                                                 void *callbackState) {
 		mouseDownFunction = arguments[1];
 		JsAddRef(mouseDownFunction, nullptr);
 		return JS_INVALID_REFERENCE;
 	}
 
-	JsValueRef CALLBACK krom_set_mouse_up_callback(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount, void *callbackState) {
+	JsValueRef CALLBACK krom_set_mouse_up_callback(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount,
+	                                               void *callbackState) {
 		mouseUpFunction = arguments[1];
 		JsAddRef(mouseUpFunction, nullptr);
 		return JS_INVALID_REFERENCE;
 	}
 
-	JsValueRef CALLBACK krom_set_mouse_move_callback(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount, void *callbackState) {
+	JsValueRef CALLBACK krom_set_mouse_move_callback(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount,
+	                                                 void *callbackState) {
 		mouseMoveFunction = arguments[1];
 		JsAddRef(mouseMoveFunction, nullptr);
 		return JS_INVALID_REFERENCE;
 	}
 
-	JsValueRef CALLBACK krom_set_mouse_wheel_callback(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount, void *callbackState) {
+	JsValueRef CALLBACK krom_set_mouse_wheel_callback(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount,
+	                                                  void *callbackState) {
 		mouseWheelFunction = arguments[1];
 		JsAddRef(mouseWheelFunction, nullptr);
 		return JS_INVALID_REFERENCE;
 	}
 
-	JsValueRef CALLBACK krom_set_pen_down_callback(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount, void *callbackState) {
+	JsValueRef CALLBACK krom_set_pen_down_callback(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount,
+	                                               void *callbackState) {
 		penDownFunction = arguments[1];
 		JsAddRef(penDownFunction, nullptr);
 		return JS_INVALID_REFERENCE;
 	}
 
-	JsValueRef CALLBACK krom_set_pen_up_callback(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount, void *callbackState) {
+	JsValueRef CALLBACK krom_set_pen_up_callback(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount,
+	                                             void *callbackState) {
 		penUpFunction = arguments[1];
 		JsAddRef(penUpFunction, nullptr);
 		return JS_INVALID_REFERENCE;
 	}
 
-	JsValueRef CALLBACK krom_set_pen_move_callback(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount, void *callbackState) {
+	JsValueRef CALLBACK krom_set_pen_move_callback(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount,
+	                                               void *callbackState) {
 		penMoveFunction = arguments[1];
 		JsAddRef(penMoveFunction, nullptr);
 		return JS_INVALID_REFERENCE;
 	}
 
-	JsValueRef CALLBACK krom_set_gamepad_axis_callback(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount, void *callbackState) {
+	JsValueRef CALLBACK krom_set_gamepad_axis_callback(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount,
+	                                                   void *callbackState) {
 		gamepadAxisFunction = arguments[1];
 		JsAddRef(gamepadAxisFunction, nullptr);
 		return JS_INVALID_REFERENCE;
 	}
 
-	JsValueRef CALLBACK krom_set_gamepad_button_callback(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount, void *callbackState) {
+	JsValueRef CALLBACK krom_set_gamepad_button_callback(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount,
+	                                                     void *callbackState) {
 		gamepadButtonFunction = arguments[1];
 		JsAddRef(gamepadButtonFunction, nullptr);
 		return JS_INVALID_REFERENCE;
@@ -431,7 +446,8 @@ namespace {
 		return value;
 	}
 
-	JsValueRef CALLBACK krom_is_mouse_locked(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount, void *callbackState) {
+	JsValueRef CALLBACK krom_is_mouse_locked(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount,
+	                                         void *callbackState) {
 		JsValueRef value;
 		JsBoolToBoolean(Kore::Mouse::the()->isLocked(0), &value);
 		return value;
@@ -444,13 +460,15 @@ namespace {
 		return JS_INVALID_REFERENCE;
 	}
 
-	JsValueRef CALLBACK krom_set_audio_callback(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount, void *callbackState) {
+	JsValueRef CALLBACK krom_set_audio_callback(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount,
+	                                            void *callbackState) {
 		audioFunction = arguments[1];
 		JsAddRef(audioFunction, nullptr);
 		return JS_INVALID_REFERENCE;
 	}
 
-	JsValueRef CALLBACK krom_create_indexbuffer(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount, void *callbackState) {
+	JsValueRef CALLBACK krom_create_indexbuffer(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount,
+	                                            void *callbackState) {
 		int count;
 		JsNumberToInt(arguments[1], &count);
 		JsValueRef ib;
@@ -458,17 +476,19 @@ namespace {
 		return ib;
 	}
 
-	JsValueRef CALLBACK krom_delete_indexbuffer(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount, void *callbackState) {
-		Kore::Graphics4::IndexBuffer* buffer;
-		JsGetExternalData(arguments[1], (void**)&buffer);
+	JsValueRef CALLBACK krom_delete_indexbuffer(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount,
+	                                            void *callbackState) {
+		Kore::Graphics4::IndexBuffer *buffer;
+		JsGetExternalData(arguments[1], (void **)&buffer);
 		delete buffer;
 		return JS_INVALID_REFERENCE;
 	}
 
-	JsValueRef CALLBACK krom_lock_index_buffer(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount, void *callbackState) {
-		Kore::Graphics4::IndexBuffer* buffer;
-		JsGetExternalData(arguments[1], (void**)&buffer);
-		int* indices = buffer->lock();
+	JsValueRef CALLBACK krom_lock_index_buffer(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount,
+	                                           void *callbackState) {
+		Kore::Graphics4::IndexBuffer *buffer;
+		JsGetExternalData(arguments[1], (void **)&buffer);
+		int *indices = buffer->lock();
 		JsValueRef value;
 		JsCreateExternalArrayBuffer(indices, buffer->count() * sizeof(int), nullptr, nullptr, &value);
 		JsValueRef array;
@@ -476,16 +496,18 @@ namespace {
 		return array;
 	}
 
-	JsValueRef CALLBACK krom_unlock_index_buffer(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount, void *callbackState) {
-		Kore::Graphics4::IndexBuffer* buffer;
-		JsGetExternalData(arguments[1], (void**)&buffer);
+	JsValueRef CALLBACK krom_unlock_index_buffer(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount,
+	                                             void *callbackState) {
+		Kore::Graphics4::IndexBuffer *buffer;
+		JsGetExternalData(arguments[1], (void **)&buffer);
 		buffer->unlock();
 		return JS_INVALID_REFERENCE;
 	}
 
-	JsValueRef CALLBACK krom_set_indexbuffer(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount, void *callbackState) {
-		Kore::Graphics4::IndexBuffer* buffer;
-		JsGetExternalData(arguments[1], (void**)&buffer);
+	JsValueRef CALLBACK krom_set_indexbuffer(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount,
+	                                         void *callbackState) {
+		Kore::Graphics4::IndexBuffer *buffer;
+		JsGetExternalData(arguments[1], (void **)&buffer);
 		Kore::Graphics4::setIndexBuffer(*buffer);
 		return JS_INVALID_REFERENCE;
 	}
@@ -510,7 +532,8 @@ namespace {
 		return Kore::Graphics4::Float1VertexData;
 	}
 
-	JsValueRef CALLBACK krom_create_vertexbuffer(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount, void *callbackState) {
+	JsValueRef CALLBACK krom_create_vertexbuffer(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount,
+	                                             void *callbackState) {
 		JsValueRef lengthObj;
 		JsGetProperty(arguments[2], getId("length"), &lengthObj);
 		int length;
@@ -526,7 +549,7 @@ namespace {
 			JsGetIndexedProperty(arguments[2], index, &element);
 			JsValueRef str;
 			JsGetProperty(element, getId("name"), &str);
-			char* name = new char[256]; // TODO
+			char *name = new char[256]; // TODO
 			size_t strLength;
 			JsCopyString(str, name, 255, &strLength);
 			name[strLength] = 0;
@@ -541,23 +564,25 @@ namespace {
 		JsNumberToInt(arguments[1], &value1);
 		JsNumberToInt(arguments[3], &value3);
 		JsNumberToInt(arguments[4], &value4);
-		Kore::Graphics4::VertexBuffer* buffer = new Kore::Graphics4::VertexBuffer(value1, structure, (Kore::Graphics4::Usage)value3, value4);
+		Kore::Graphics4::VertexBuffer *buffer = new Kore::Graphics4::VertexBuffer(value1, structure, (Kore::Graphics4::Usage)value3, value4);
 		JsValueRef obj;
 		JsCreateExternalObject(buffer, nullptr, &obj);
 		return obj;
 	}
 
-	JsValueRef CALLBACK krom_delete_vertexbuffer(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount, void *callbackState) {
-		Kore::Graphics4::VertexBuffer* buffer;
-		JsGetExternalData(arguments[1], (void**)&buffer);
+	JsValueRef CALLBACK krom_delete_vertexbuffer(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount,
+	                                             void *callbackState) {
+		Kore::Graphics4::VertexBuffer *buffer;
+		JsGetExternalData(arguments[1], (void **)&buffer);
 		delete buffer;
 		return JS_INVALID_REFERENCE;
 	}
 
-	JsValueRef CALLBACK krom_lock_vertex_buffer(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount, void *callbackState) {
-		Kore::Graphics4::VertexBuffer* buffer;
-		JsGetExternalData(arguments[1], (void**)&buffer);
-		float* vertices = buffer->lock();
+	JsValueRef CALLBACK krom_lock_vertex_buffer(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount,
+	                                            void *callbackState) {
+		Kore::Graphics4::VertexBuffer *buffer;
+		JsGetExternalData(arguments[1], (void **)&buffer);
+		float *vertices = buffer->lock();
 		JsValueRef value;
 		JsCreateExternalArrayBuffer(vertices, buffer->count() * buffer->stride(), nullptr, nullptr, &value);
 		JsValueRef array;
@@ -565,22 +590,25 @@ namespace {
 		return array;
 	}
 
-	JsValueRef CALLBACK krom_unlock_vertex_buffer(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount, void *callbackState) {
-		Kore::Graphics4::VertexBuffer* buffer;
-		JsGetExternalData(arguments[1], (void**)&buffer);
+	JsValueRef CALLBACK krom_unlock_vertex_buffer(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount,
+	                                              void *callbackState) {
+		Kore::Graphics4::VertexBuffer *buffer;
+		JsGetExternalData(arguments[1], (void **)&buffer);
 		buffer->unlock();
 		return JS_INVALID_REFERENCE;
 	}
 
-	JsValueRef CALLBACK krom_set_vertexbuffer(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount, void *callbackState) {
-		Kore::Graphics4::VertexBuffer* buffer;
-		JsGetExternalData(arguments[1], (void**)&buffer);
+	JsValueRef CALLBACK krom_set_vertexbuffer(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount,
+	                                          void *callbackState) {
+		Kore::Graphics4::VertexBuffer *buffer;
+		JsGetExternalData(arguments[1], (void **)&buffer);
 		Kore::Graphics4::setVertexBuffer(*buffer);
 		return JS_INVALID_REFERENCE;
 	}
 
-	JsValueRef CALLBACK krom_set_vertexbuffers(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount, void *callbackState) {
-		Kore::Graphics4::VertexBuffer* vertexBuffers[8] = { nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr };
+	JsValueRef CALLBACK krom_set_vertexbuffers(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount,
+	                                           void *callbackState) {
+		Kore::Graphics4::VertexBuffer *vertexBuffers[8] = {nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr};
 		JsValueRef lengthObj;
 		JsGetProperty(arguments[1], getId("length"), &lengthObj);
 		int length;
@@ -590,30 +618,36 @@ namespace {
 			JsIntToNumber(i, &index);
 			JsGetIndexedProperty(arguments[1], index, &obj);
 			JsGetProperty(obj, getId("buffer"), &bufObj);
-			Kore::Graphics4::VertexBuffer* buffer;
-			JsGetExternalData(bufObj, (void**)&buffer);
+			Kore::Graphics4::VertexBuffer *buffer;
+			JsGetExternalData(bufObj, (void **)&buffer);
 			vertexBuffers[i] = buffer;
 		}
 		Kore::Graphics4::setVertexBuffers(vertexBuffers, length);
 		return JS_INVALID_REFERENCE;
 	}
 
-	JsValueRef CALLBACK krom_draw_indexed_vertices(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount, void *callbackState) {
+	JsValueRef CALLBACK krom_draw_indexed_vertices(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount,
+	                                               void *callbackState) {
 		int start, count;
 		JsNumberToInt(arguments[1], &start);
 		JsNumberToInt(arguments[2], &count);
-		if (count < 0) Kore::Graphics4::drawIndexedVertices();
-		else Kore::Graphics4::drawIndexedVertices(start, count);
+		if (count < 0)
+			Kore::Graphics4::drawIndexedVertices();
+		else
+			Kore::Graphics4::drawIndexedVertices(start, count);
 		return JS_INVALID_REFERENCE;
 	}
 
-	JsValueRef CALLBACK krom_draw_indexed_vertices_instanced(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount, void *callbackState) {
+	JsValueRef CALLBACK krom_draw_indexed_vertices_instanced(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount,
+	                                                         void *callbackState) {
 		int instanceCount, start, count;
 		JsNumberToInt(arguments[1], &instanceCount);
 		JsNumberToInt(arguments[2], &start);
 		JsNumberToInt(arguments[3], &count);
-		if (count < 0) Kore::Graphics4::drawIndexedVerticesInstanced(instanceCount);
-		else Kore::Graphics4::drawIndexedVerticesInstanced(instanceCount, start, count);
+		if (count < 0)
+			Kore::Graphics4::drawIndexedVerticesInstanced(instanceCount);
+		else
+			Kore::Graphics4::drawIndexedVerticesInstanced(instanceCount, start, count);
 		return JS_INVALID_REFERENCE;
 	}
 
@@ -624,11 +658,12 @@ namespace {
 		return str;
 	}
 
-	JsValueRef CALLBACK krom_create_vertex_shader(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount, void *callbackState) {
-		Kore::u8* content;
+	JsValueRef CALLBACK krom_create_vertex_shader(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount,
+	                                              void *callbackState) {
+		Kore::u8 *content;
 		unsigned bufferLength;
 		JsGetArrayBufferStorage(arguments[1], &content, &bufferLength);
-		Kore::Graphics4::Shader* shader = new Kore::Graphics4::Shader(content, (int)bufferLength, Kore::Graphics4::VertexShader);
+		Kore::Graphics4::Shader *shader = new Kore::Graphics4::Shader(content, (int)bufferLength, Kore::Graphics4::VertexShader);
 
 		JsValueRef value;
 		JsCreateExternalObject(shader, nullptr, &value);
@@ -636,11 +671,12 @@ namespace {
 		return value;
 	}
 
-	JsValueRef CALLBACK krom_create_vertex_shader_from_source(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount, void *callbackState) {
+	JsValueRef CALLBACK krom_create_vertex_shader_from_source(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount,
+	                                                          void *callbackState) {
 		size_t length;
 		JsCopyString(arguments[1], tempStringVS, tempStringSize, &length);
 		tempStringVS[length] = 0;
-		Kore::Graphics4::Shader* shader = new Kore::Graphics4::Shader(tempStringVS, Kore::Graphics4::VertexShader);
+		Kore::Graphics4::Shader *shader = new Kore::Graphics4::Shader(tempStringVS, Kore::Graphics4::VertexShader);
 
 		JsValueRef value;
 		JsCreateExternalObject(shader, nullptr, &value);
@@ -650,11 +686,12 @@ namespace {
 		return value;
 	}
 
-	JsValueRef CALLBACK krom_create_fragment_shader(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount, void *callbackState) {
-		Kore::u8* content;
+	JsValueRef CALLBACK krom_create_fragment_shader(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount,
+	                                                void *callbackState) {
+		Kore::u8 *content;
 		unsigned bufferLength;
 		JsGetArrayBufferStorage(arguments[1], &content, &bufferLength);
-		Kore::Graphics4::Shader* shader = new Kore::Graphics4::Shader(content, (int)bufferLength, Kore::Graphics4::FragmentShader);
+		Kore::Graphics4::Shader *shader = new Kore::Graphics4::Shader(content, (int)bufferLength, Kore::Graphics4::FragmentShader);
 
 		JsValueRef value;
 		JsCreateExternalObject(shader, nullptr, &value);
@@ -662,11 +699,12 @@ namespace {
 		return value;
 	}
 
-	JsValueRef CALLBACK krom_create_fragment_shader_from_source(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount, void *callbackState) {
+	JsValueRef CALLBACK krom_create_fragment_shader_from_source(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount,
+	                                                            void *callbackState) {
 		size_t length;
 		JsCopyString(arguments[1], tempStringFS, tempStringSize, &length);
 		tempStringFS[length] = 0;
-		Kore::Graphics4::Shader* shader = new Kore::Graphics4::Shader(tempStringFS, Kore::Graphics4::FragmentShader);
+		Kore::Graphics4::Shader *shader = new Kore::Graphics4::Shader(tempStringFS, Kore::Graphics4::FragmentShader);
 
 		JsValueRef value;
 		JsCreateExternalObject(shader, nullptr, &value);
@@ -676,11 +714,12 @@ namespace {
 		return value;
 	}
 
-	JsValueRef CALLBACK krom_create_geometry_shader(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount, void *callbackState) {
-		Kore::u8* content;
+	JsValueRef CALLBACK krom_create_geometry_shader(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount,
+	                                                void *callbackState) {
+		Kore::u8 *content;
 		unsigned bufferLength;
 		JsGetArrayBufferStorage(arguments[1], &content, &bufferLength);
-		Kore::Graphics4::Shader* shader = new Kore::Graphics4::Shader(content, (int)bufferLength, Kore::Graphics4::GeometryShader);
+		Kore::Graphics4::Shader *shader = new Kore::Graphics4::Shader(content, (int)bufferLength, Kore::Graphics4::GeometryShader);
 
 		JsValueRef value;
 		JsCreateExternalObject(shader, nullptr, &value);
@@ -688,11 +727,12 @@ namespace {
 		return value;
 	}
 
-	JsValueRef CALLBACK krom_create_tessellation_control_shader(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount, void *callbackState) {
-		Kore::u8* content;
+	JsValueRef CALLBACK krom_create_tessellation_control_shader(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount,
+	                                                            void *callbackState) {
+		Kore::u8 *content;
 		unsigned bufferLength;
 		JsGetArrayBufferStorage(arguments[1], &content, &bufferLength);
-		Kore::Graphics4::Shader* shader = new Kore::Graphics4::Shader(content, (int)bufferLength, Kore::Graphics4::TessellationControlShader);
+		Kore::Graphics4::Shader *shader = new Kore::Graphics4::Shader(content, (int)bufferLength, Kore::Graphics4::TessellationControlShader);
 
 		JsValueRef value;
 		JsCreateExternalObject(shader, nullptr, &value);
@@ -700,11 +740,12 @@ namespace {
 		return value;
 	}
 
-	JsValueRef CALLBACK krom_create_tessellation_evaluation_shader(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount, void *callbackState) {
-		Kore::u8* content;
+	JsValueRef CALLBACK krom_create_tessellation_evaluation_shader(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount,
+	                                                               void *callbackState) {
+		Kore::u8 *content;
 		unsigned bufferLength;
 		JsGetArrayBufferStorage(arguments[1], &content, &bufferLength);
-		Kore::Graphics4::Shader* shader = new Kore::Graphics4::Shader(content, (int)bufferLength, Kore::Graphics4::TessellationEvaluationShader);
+		Kore::Graphics4::Shader *shader = new Kore::Graphics4::Shader(content, (int)bufferLength, Kore::Graphics4::TessellationEvaluationShader);
 
 		JsValueRef value;
 		JsCreateExternalObject(shader, nullptr, &value);
@@ -713,22 +754,24 @@ namespace {
 	}
 
 	JsValueRef CALLBACK krom_delete_shader(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount, void *callbackState) {
-		Kore::Graphics4::Shader* shader;
-		JsGetExternalData(arguments[1], (void**)&shader);
+		Kore::Graphics4::Shader *shader;
+		JsGetExternalData(arguments[1], (void **)&shader);
 		delete shader;
 		return JS_INVALID_REFERENCE;
 	}
 
-	JsValueRef CALLBACK krom_create_pipeline(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount, void *callbackState) {
-		Kore::Graphics4::PipelineState* pipeline = new Kore::Graphics4::PipelineState;
+	JsValueRef CALLBACK krom_create_pipeline(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount,
+	                                         void *callbackState) {
+		Kore::Graphics4::PipelineState *pipeline = new Kore::Graphics4::PipelineState;
 		JsValueRef pipelineObj;
 		JsCreateExternalObject(pipeline, nullptr, &pipelineObj);
 		return pipelineObj;
 	}
 
-	JsValueRef CALLBACK krom_delete_pipeline(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount, void *callbackState) {		
-		Kore::Graphics4::PipelineState* pipeline;
-		JsGetExternalData(arguments[1], (void**)&pipeline);
+	JsValueRef CALLBACK krom_delete_pipeline(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount,
+	                                         void *callbackState) {
+		Kore::Graphics4::PipelineState *pipeline;
+		JsGetExternalData(arguments[1], (void **)&pipeline);
 		delete pipeline;
 		return JS_INVALID_REFERENCE;
 	}
@@ -746,8 +789,8 @@ namespace {
 
 		JsValueRef structsfield;
 		JsGetIndexedProperty(projobj, one, &structsfield);
-		Kore::Graphics4::VertexStructure** structures;
-		JsGetExternalData(structsfield, (void**)&structures);
+		Kore::Graphics4::VertexStructure **structures;
+		JsGetExternalData(structsfield, (void **)&structures);
 
 		JsValueRef sizefield;
 		JsGetIndexedProperty(projobj, two, &sizefield);
@@ -756,15 +799,15 @@ namespace {
 
 		JsValueRef vsfield;
 		JsGetIndexedProperty(projobj, three, &vsfield);
-		Kore::Graphics4::Shader* vs;
-		JsGetExternalData(vsfield, (void**)&vs);
+		Kore::Graphics4::Shader *vs;
+		JsGetExternalData(vsfield, (void **)&vs);
 
 		JsValueRef fsfield;
 		JsGetIndexedProperty(projobj, four, &fsfield);
-		Kore::Graphics4::Shader* fs;
-		JsGetExternalData(fsfield, (void**)&fs);
-		
-		Kore::Graphics4::PipelineState* pipeline = new Kore::Graphics4::PipelineState;
+		Kore::Graphics4::Shader *fs;
+		JsGetExternalData(fsfield, (void **)&fs);
+
+		Kore::Graphics4::PipelineState *pipeline = new Kore::Graphics4::PipelineState;
 		pipeline->vertexShader = vs;
 		pipeline->fragmentShader = fs;
 
@@ -773,8 +816,8 @@ namespace {
 		JsValueType type;
 		JsGetValueType(gsfield, &type);
 		if (type == JsUndefined && type != JsNull) {
-			Kore::Graphics4::Shader* gs;
-			JsGetExternalData(gsfield, (void**)&gs);
+			Kore::Graphics4::Shader *gs;
+			JsGetExternalData(gsfield, (void **)&gs);
 			pipeline->geometryShader = gs;
 		}
 
@@ -782,8 +825,8 @@ namespace {
 		JsGetIndexedProperty(projobj, six, &tcsfield);
 		JsGetValueType(tcsfield, &type);
 		if (type == JsUndefined && type != JsNull) {
-			Kore::Graphics4::Shader* tcs;
-			JsGetExternalData(tcsfield, (void**)&tcs);
+			Kore::Graphics4::Shader *tcs;
+			JsGetExternalData(tcsfield, (void **)&tcs);
 			pipeline->tessellationControlShader = tcs;
 		}
 
@@ -791,8 +834,8 @@ namespace {
 		JsGetIndexedProperty(projobj, six, &tesfield);
 		JsGetValueType(tesfield, &type);
 		if (type == JsUndefined && type != JsNull) {
-			Kore::Graphics4::Shader* tes;
-			JsGetExternalData(tesfield, (void**)&tes);
+			Kore::Graphics4::Shader *tes;
+			JsGetExternalData(tesfield, (void **)&tes);
 			pipeline->tessellationEvaluationShader = tes;
 		}
 
@@ -805,37 +848,40 @@ namespace {
 
 		JsValueRef pipelineObj;
 		JsCreateExternalObject(pipeline, nullptr, &pipelineObj);
-		
+
 		JsSetIndexedProperty(projobj, zero, pipelineObj);
 	}
 
-#define getPipeInt(name) JsValueRef name##Obj;\
-	int name;\
-	JsGetProperty(arguments[12], getId(#name), &name##Obj);\
+#define getPipeInt(name)                                                                                                                                       \
+	JsValueRef name##Obj;                                                                                                                                      \
+	int name;                                                                                                                                                  \
+	JsGetProperty(arguments[12], getId(#name), &name##Obj);                                                                                                    \
 	JsNumberToInt(name##Obj, &name)
 
-#define getPipeBool(name) JsValueRef name##Obj;\
-	bool name;\
-	JsGetProperty(arguments[12], getId(#name), &name##Obj);\
+#define getPipeBool(name)                                                                                                                                      \
+	JsValueRef name##Obj;                                                                                                                                      \
+	bool name;                                                                                                                                                 \
+	JsGetProperty(arguments[12], getId(#name), &name##Obj);                                                                                                    \
 	JsBooleanToBool(name##Obj, &name)
 
-	JsValueRef CALLBACK krom_compile_pipeline(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount, void *callbackState) {
+	JsValueRef CALLBACK krom_compile_pipeline(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount,
+	                                          void *callbackState) {
 		JsValueRef progobj = arguments[1];
 
 		JsValueRef one;
 		JsIntToNumber(1, &one);
 
-		Kore::Graphics4::PipelineState* pipeline;
-		JsGetExternalData(progobj, (void**)&pipeline);
+		Kore::Graphics4::PipelineState *pipeline;
+		JsGetExternalData(progobj, (void **)&pipeline);
 
 		Kore::Graphics4::VertexStructure s0, s1, s2, s3;
-		Kore::Graphics4::VertexStructure* structures[4] = { &s0, &s1, &s2, &s3 };
+		Kore::Graphics4::VertexStructure *structures[4] = {&s0, &s1, &s2, &s3};
 
 		int size;
 		JsNumberToInt(arguments[6], &size);
 		for (int i1 = 0; i1 < size; ++i1) {
 			JsValueRef jsstructure = arguments[i1 + 2];
-			
+
 			JsValueRef instancedObj;
 			JsGetProperty(jsstructure, getId("instanced"), &instancedObj);
 			bool instanced;
@@ -860,7 +906,7 @@ namespace {
 				JsGetProperty(element, getId("data"), &dataObj);
 				int data;
 				JsNumberToInt(dataObj, &data);
-				char* name = new char[256]; // TODO
+				char *name = new char[256]; // TODO
 				size_t length;
 				JsCopyString(str, name, 255, &length);
 				name[length] = 0;
@@ -882,8 +928,8 @@ namespace {
 
 		JsSetIndexedProperty(progobj, two, arguments[6]);
 
-		Kore::Graphics4::Shader* vertexShader;
-		JsGetExternalData(arguments[7], (void**)&vertexShader);
+		Kore::Graphics4::Shader *vertexShader;
+		JsGetExternalData(arguments[7], (void **)&vertexShader);
 		JsValueRef vsObj;
 		JsCreateExternalObject(vertexShader, nullptr, &vsObj);
 		JsSetIndexedProperty(progobj, three, vsObj);
@@ -891,8 +937,8 @@ namespace {
 		JsGetProperty(arguments[7], getId("name"), &vsname);
 		JsSetProperty(progobj, getId("vsname"), vsname, false);
 
-		Kore::Graphics4::Shader* fragmentShader;
-		JsGetExternalData(arguments[8], (void**)&fragmentShader);
+		Kore::Graphics4::Shader *fragmentShader;
+		JsGetExternalData(arguments[8], (void **)&fragmentShader);
 		JsValueRef fsObj;
 		JsCreateExternalObject(fragmentShader, nullptr, &fsObj);
 		JsSetIndexedProperty(progobj, four, fsObj);
@@ -906,8 +952,8 @@ namespace {
 		JsValueType gsType;
 		JsGetValueType(arguments[9], &gsType);
 		if (gsType != JsNull && gsType != JsUndefined) {
-			Kore::Graphics4::Shader* geometryShader;
-			JsGetExternalData(arguments[9], (void**)&geometryShader);
+			Kore::Graphics4::Shader *geometryShader;
+			JsGetExternalData(arguments[9], (void **)&geometryShader);
 			JsValueRef gsObj;
 			JsCreateExternalObject(geometryShader, nullptr, &gsObj);
 			JsSetIndexedProperty(progobj, five, gsObj);
@@ -920,8 +966,8 @@ namespace {
 		JsValueType tcsType;
 		JsGetValueType(arguments[10], &tcsType);
 		if (tcsType != JsNull && tcsType != JsUndefined) {
-			Kore::Graphics4::Shader* tessellationControlShader;
-			JsGetExternalData(arguments[10], (void**)&tessellationControlShader);
+			Kore::Graphics4::Shader *tessellationControlShader;
+			JsGetExternalData(arguments[10], (void **)&tessellationControlShader);
 			JsValueRef tcsObj;
 			JsCreateExternalObject(tessellationControlShader, nullptr, &tcsObj);
 			JsSetIndexedProperty(progobj, six, tcsObj);
@@ -934,8 +980,8 @@ namespace {
 		JsValueType tesType;
 		JsGetValueType(arguments[11], &tesType);
 		if (tesType != JsNull && tesType != JsUndefined) {
-			Kore::Graphics4::Shader* tessellationEvaluationShader;
-			JsGetExternalData(arguments[11], (void**)&tessellationEvaluationShader);
+			Kore::Graphics4::Shader *tessellationEvaluationShader;
+			JsGetExternalData(arguments[11], (void **)&tessellationEvaluationShader);
 			JsValueRef tesObj;
 			JsCreateExternalObject(tessellationEvaluationShader, nullptr, &tesObj);
 			JsSetIndexedProperty(progobj, seven, tesObj);
@@ -944,7 +990,7 @@ namespace {
 			JsSetProperty(progobj, getId("tesname"), tesname, false);
 			pipeline->tessellationEvaluationShader = tessellationEvaluationShader;
 		}
-		
+
 		for (int i = 0; i < size; ++i) {
 			pipeline->inputLayout[i] = structures[i];
 		}
@@ -1021,8 +1067,8 @@ namespace {
 
 	JsValueRef CALLBACK krom_set_pipeline(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount, void *callbackState) {
 		JsValueRef progobj = arguments[1];
-		Kore::Graphics4::PipelineState* pipeline;
-		JsGetExternalData(progobj, (void**)&pipeline);
+		Kore::Graphics4::PipelineState *pipeline;
+		JsGetExternalData(progobj, (void **)&pipeline);
 
 		if (debugMode) {
 			char vsname[256];
@@ -1047,7 +1093,7 @@ namespace {
 				std::string filename = shaderFileNames[vsname];
 				std::ifstream input((shadersdir + "/" + filename).c_str(), std::ios::binary);
 				std::vector<char> buffer((std::istreambuf_iterator<char>(input)), (std::istreambuf_iterator<char>()));
-				Kore::Graphics4::Shader* vertexShader = new Kore::Graphics4::Shader(buffer.data(), (int)buffer.size(), Kore::Graphics4::VertexShader);
+				Kore::Graphics4::Shader *vertexShader = new Kore::Graphics4::Shader(buffer.data(), (int)buffer.size(), Kore::Graphics4::VertexShader);
 				JsValueRef three;
 				JsIntToNumber(3, &three);
 				JsValueRef vsObj;
@@ -1062,7 +1108,7 @@ namespace {
 				std::string filename = shaderFileNames[fsname];
 				std::ifstream input((shadersdir + "/" + filename).c_str(), std::ios::binary);
 				std::vector<char> buffer((std::istreambuf_iterator<char>(input)), (std::istreambuf_iterator<char>()));
-				Kore::Graphics4::Shader* fragmentShader = new Kore::Graphics4::Shader(buffer.data(), (int)buffer.size(), Kore::Graphics4::FragmentShader);
+				Kore::Graphics4::Shader *fragmentShader = new Kore::Graphics4::Shader(buffer.data(), (int)buffer.size(), Kore::Graphics4::FragmentShader);
 				JsValueRef four;
 				JsIntToNumber(4, &four);
 				JsValueRef vsObj;
@@ -1086,7 +1132,7 @@ namespace {
 					std::string filename = shaderFileNames[gsname];
 					std::ifstream input((shadersdir + "/" + filename).c_str(), std::ios::binary);
 					std::vector<char> buffer((std::istreambuf_iterator<char>(input)), (std::istreambuf_iterator<char>()));
-					Kore::Graphics4::Shader* geometryShader = new Kore::Graphics4::Shader(buffer.data(), (int)buffer.size(), Kore::Graphics4::GeometryShader);
+					Kore::Graphics4::Shader *geometryShader = new Kore::Graphics4::Shader(buffer.data(), (int)buffer.size(), Kore::Graphics4::GeometryShader);
 					JsValueRef five;
 					JsIntToNumber(5, &five);
 					JsValueRef gsObj;
@@ -1111,7 +1157,8 @@ namespace {
 					std::string filename = shaderFileNames[tcsname];
 					std::ifstream input((shadersdir + "/" + filename).c_str(), std::ios::binary);
 					std::vector<char> buffer((std::istreambuf_iterator<char>(input)), (std::istreambuf_iterator<char>()));
-					Kore::Graphics4::Shader* tessellationControlShader = new Kore::Graphics4::Shader(buffer.data(), (int)buffer.size(), Kore::Graphics4::TessellationControlShader);
+					Kore::Graphics4::Shader *tessellationControlShader =
+					    new Kore::Graphics4::Shader(buffer.data(), (int)buffer.size(), Kore::Graphics4::TessellationControlShader);
 					JsValueRef six;
 					JsIntToNumber(6, &six);
 					JsValueRef tcsObj;
@@ -1136,7 +1183,8 @@ namespace {
 					std::string filename = shaderFileNames[tesname];
 					std::ifstream input((shadersdir + "/" + filename).c_str(), std::ios::binary);
 					std::vector<char> buffer((std::istreambuf_iterator<char>(input)), (std::istreambuf_iterator<char>()));
-					Kore::Graphics4::Shader* tessellationEvaluationShader = new Kore::Graphics4::Shader(buffer.data(), (int)buffer.size(), Kore::Graphics4::TessellationEvaluationShader);
+					Kore::Graphics4::Shader *tessellationEvaluationShader =
+					    new Kore::Graphics4::Shader(buffer.data(), (int)buffer.size(), Kore::Graphics4::TessellationEvaluationShader);
 					JsValueRef seven;
 					JsIntToNumber(7, &seven);
 					JsValueRef tesObj;
@@ -1148,7 +1196,7 @@ namespace {
 
 			if (shaderChanged) {
 				recompilePipeline(progobj);
-				JsGetExternalData(progobj, (void**)&pipeline);
+				JsGetExternalData(progobj, (void **)&pipeline);
 			}
 		}
 
@@ -1163,7 +1211,7 @@ namespace {
 		filename[length] = 0;
 		bool readable;
 		JsBooleanToBool(arguments[2], &readable);
-		Kore::Graphics4::Texture* texture = new Kore::Graphics4::Texture(filename, readable);
+		Kore::Graphics4::Texture *texture = new Kore::Graphics4::Texture(filename, readable);
 
 		JsValueRef obj;
 		JsCreateExternalObject(texture, nullptr, &obj);
@@ -1193,13 +1241,13 @@ namespace {
 		JsGetValueType(rt, &rtType);
 
 		if (texType == JsObject) {
-			Kore::Graphics4::Texture* texture;
-			JsGetExternalData(tex, (void**)&texture);
+			Kore::Graphics4::Texture *texture;
+			JsGetExternalData(tex, (void **)&texture);
 			delete texture;
 		}
 		else if (rtType == JsObject) {
-			Kore::Graphics4::RenderTarget* renderTarget;
-			JsGetExternalData(rt, (void**)&renderTarget);
+			Kore::Graphics4::RenderTarget *renderTarget;
+			JsGetExternalData(rt, (void **)&renderTarget);
 			delete renderTarget;
 		}
 
@@ -1212,20 +1260,20 @@ namespace {
 		JsCopyString(arguments[1], filename, 255, &length);
 		filename[length] = 0;
 
-		Kore::Sound* sound = new Kore::Sound(filename);
+		Kore::Sound *sound = new Kore::Sound(filename);
 
 		JsValueRef array;
 		JsCreateArrayBuffer(sound->size * 2 * sizeof(float), &array);
 
-		Kore::u8* tobytes;
+		Kore::u8 *tobytes;
 		unsigned bufferLength;
 		JsGetArrayBufferStorage(array, &tobytes, &bufferLength);
-		float* to = (float*)tobytes;
+		float *to = (float *)tobytes;
 
-		Kore::s16* left = (Kore::s16*)&sound->left[0];
-		Kore::s16* right = (Kore::s16*)&sound->right[0];
+		Kore::s16 *left = (Kore::s16 *)&sound->left[0];
+		Kore::s16 *right = (Kore::s16 *)&sound->right[0];
 		for (int i = 0; i < sound->size; i += 1) {
-			to[i * 2 + 0] = (float)(left [i] / 32767.0);
+			to[i * 2 + 0] = (float)(left[i] / 32767.0);
 			to[i * 2 + 1] = (float)(right[i] / 32767.0);
 		}
 
@@ -1234,8 +1282,9 @@ namespace {
 		return array;
 	}
 
-	JsValueRef CALLBACK krom_write_audio_buffer(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount, void *callbackState) {
-		Kore::u8* buffer;
+	JsValueRef CALLBACK krom_write_audio_buffer(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount,
+	                                            void *callbackState) {
+		Kore::u8 *buffer;
 		unsigned bufferLength;
 		JsGetArrayBufferStorage(arguments[1], &buffer, &bufferLength);
 
@@ -1243,11 +1292,11 @@ namespace {
 		JsNumberToInt(arguments[2], &samples);
 
 		for (int i = 0; i < samples; ++i) {
-			float value = *(float*)&buffer[audioReadLocation];
+			float value = *(float *)&buffer[audioReadLocation];
 			audioReadLocation += 4;
 			if (audioReadLocation >= bufferLength) audioReadLocation = 0;
 
-			*(float*)&Kore::Audio2::buffer.data[Kore::Audio2::buffer.writeLocation] = value;
+			*(float *)&Kore::Audio2::buffer.data[Kore::Audio2::buffer.writeLocation] = value;
 			Kore::Audio2::buffer.writeLocation += 4;
 			if (Kore::Audio2::buffer.writeLocation >= Kore::Audio2::buffer.dataSize) Kore::Audio2::buffer.writeLocation = 0;
 		}
@@ -1267,7 +1316,7 @@ namespace {
 		JsValueRef array;
 		JsCreateArrayBuffer(reader.size(), &array);
 
-		Kore::u8* contents;
+		Kore::u8 *contents;
 		unsigned contentsLength;
 		JsGetArrayBufferStorage(array, &contents, &contentsLength);
 
@@ -1278,9 +1327,10 @@ namespace {
 		return array;
 	}
 
-	JsValueRef CALLBACK krom_get_constant_location(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount, void *callbackState) {
-		Kore::Graphics4::PipelineState* pipeline;
-		JsGetExternalData(arguments[1], (void**)&pipeline);
+	JsValueRef CALLBACK krom_get_constant_location(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount,
+	                                               void *callbackState) {
+		Kore::Graphics4::PipelineState *pipeline;
+		JsGetExternalData(arguments[1], (void **)&pipeline);
 
 		char name[256];
 		size_t length;
@@ -1293,9 +1343,10 @@ namespace {
 		return obj;
 	}
 
-	JsValueRef CALLBACK krom_get_texture_unit(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount, void *callbackState) {
-		Kore::Graphics4::PipelineState* pipeline;
-		JsGetExternalData(arguments[1], (void**)&pipeline);
+	JsValueRef CALLBACK krom_get_texture_unit(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount,
+	                                          void *callbackState) {
+		Kore::Graphics4::PipelineState *pipeline;
+		JsGetExternalData(arguments[1], (void **)&pipeline);
 
 		char name[256];
 		size_t length;
@@ -1309,10 +1360,10 @@ namespace {
 	}
 
 	JsValueRef CALLBACK krom_set_texture(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount, void *callbackState) {
-		Kore::Graphics4::TextureUnit* unit;
-		JsGetExternalData(arguments[1], (void**)&unit);
+		Kore::Graphics4::TextureUnit *unit;
+		JsGetExternalData(arguments[1], (void **)&unit);
 
-		Kore::Graphics4::Texture* texture;
+		Kore::Graphics4::Texture *texture;
 		bool imageChanged = false;
 		if (debugMode) {
 			JsValueRef filenameObj;
@@ -1330,41 +1381,44 @@ namespace {
 			}
 		}
 		if (!imageChanged) {
-			JsGetExternalData(arguments[2], (void**)&texture);
+			JsGetExternalData(arguments[2], (void **)&texture);
 		}
 		Kore::Graphics4::setTexture(*unit, texture);
 
 		return JS_INVALID_REFERENCE;
 	}
 
-	JsValueRef CALLBACK krom_set_render_target(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount, void *callbackState) {
-		Kore::Graphics4::TextureUnit* unit;
-		JsGetExternalData(arguments[1], (void**)&unit);
+	JsValueRef CALLBACK krom_set_render_target(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount,
+	                                           void *callbackState) {
+		Kore::Graphics4::TextureUnit *unit;
+		JsGetExternalData(arguments[1], (void **)&unit);
 
-		Kore::Graphics4::RenderTarget* renderTarget;
-		JsGetExternalData(arguments[2], (void**)&renderTarget);
+		Kore::Graphics4::RenderTarget *renderTarget;
+		JsGetExternalData(arguments[2], (void **)&renderTarget);
 		renderTarget->useColorAsTexture(*unit);
 
 		return JS_INVALID_REFERENCE;
 	}
 
-	JsValueRef CALLBACK krom_set_texture_depth(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount, void *callbackState) {
-		Kore::Graphics4::TextureUnit* unit;
-		JsGetExternalData(arguments[1], (void**)&unit);
+	JsValueRef CALLBACK krom_set_texture_depth(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount,
+	                                           void *callbackState) {
+		Kore::Graphics4::TextureUnit *unit;
+		JsGetExternalData(arguments[1], (void **)&unit);
 
-		Kore::Graphics4::RenderTarget* renderTarget;
-		JsGetExternalData(arguments[2], (void**)&renderTarget);
+		Kore::Graphics4::RenderTarget *renderTarget;
+		JsGetExternalData(arguments[2], (void **)&renderTarget);
 		renderTarget->useDepthAsTexture(*unit);
 
 		return JS_INVALID_REFERENCE;
 	}
 
-	JsValueRef CALLBACK krom_set_image_texture(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount, void *callbackState) {
-		Kore::Graphics4::TextureUnit* unit;
-		JsGetExternalData(arguments[1], (void**)&unit);
+	JsValueRef CALLBACK krom_set_image_texture(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount,
+	                                           void *callbackState) {
+		Kore::Graphics4::TextureUnit *unit;
+		JsGetExternalData(arguments[1], (void **)&unit);
 
-		Kore::Graphics4::Texture* texture;
-		JsGetExternalData(arguments[2], (void**)&texture);
+		Kore::Graphics4::Texture *texture;
+		JsGetExternalData(arguments[2], (void **)&texture);
 		Kore::Graphics4::setImageTexture(*unit, texture);
 
 		return JS_INVALID_REFERENCE;
@@ -1406,9 +1460,10 @@ namespace {
 		}
 	}
 
-	JsValueRef CALLBACK krom_set_texture_parameters(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount, void *callbackState) {
-		Kore::Graphics4::TextureUnit* unit;
-		JsGetExternalData(arguments[1], (void**)&unit);
+	JsValueRef CALLBACK krom_set_texture_parameters(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount,
+	                                                void *callbackState) {
+		Kore::Graphics4::TextureUnit *unit;
+		JsGetExternalData(arguments[1], (void **)&unit);
 		int u, v, min, max, mip;
 		JsNumberToInt(arguments[2], &u);
 		JsNumberToInt(arguments[3], &v);
@@ -1423,9 +1478,10 @@ namespace {
 		return JS_INVALID_REFERENCE;
 	}
 
-	JsValueRef CALLBACK krom_set_texture_3d_parameters(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount, void *callbackState) {
-		Kore::Graphics4::TextureUnit* unit;
-		JsGetExternalData(arguments[1], (void**)&unit);
+	JsValueRef CALLBACK krom_set_texture_3d_parameters(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount,
+	                                                   void *callbackState) {
+		Kore::Graphics4::TextureUnit *unit;
+		JsGetExternalData(arguments[1], (void **)&unit);
 		int u, v, w, min, max, mip;
 		JsNumberToInt(arguments[2], &u);
 		JsNumberToInt(arguments[3], &v);
@@ -1442,18 +1498,20 @@ namespace {
 		return JS_INVALID_REFERENCE;
 	}
 
-	JsValueRef CALLBACK krom_set_texture_compare_mode(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount, void *callbackState) {
-		Kore::Graphics4::TextureUnit* unit;
-		JsGetExternalData(arguments[1], (void**)&unit);
+	JsValueRef CALLBACK krom_set_texture_compare_mode(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount,
+	                                                  void *callbackState) {
+		Kore::Graphics4::TextureUnit *unit;
+		JsGetExternalData(arguments[1], (void **)&unit);
 		bool enabled;
 		JsBooleanToBool(arguments[2], &enabled);
 		Kore::Graphics4::setTextureCompareMode(*unit, enabled);
 		return JS_INVALID_REFERENCE;
 	}
 
-	JsValueRef CALLBACK krom_set_cube_map_compare_mode(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount, void *callbackState) {
-		Kore::Graphics4::TextureUnit* unit;
-		JsGetExternalData(arguments[1], (void**)&unit);
+	JsValueRef CALLBACK krom_set_cube_map_compare_mode(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount,
+	                                                   void *callbackState) {
+		Kore::Graphics4::TextureUnit *unit;
+		JsGetExternalData(arguments[1], (void **)&unit);
 		bool enabled;
 		JsBooleanToBool(arguments[2], &enabled);
 		Kore::Graphics4::setCubeMapCompareMode(*unit, enabled);
@@ -1461,8 +1519,8 @@ namespace {
 	}
 
 	JsValueRef CALLBACK krom_set_bool(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount, void *callbackState) {
-		Kore::Graphics4::ConstantLocation* location;
-		JsGetExternalData(arguments[1], (void**)&location);
+		Kore::Graphics4::ConstantLocation *location;
+		JsGetExternalData(arguments[1], (void **)&location);
 		bool value;
 		JsBooleanToBool(arguments[2], &value);
 		Kore::Graphics4::setBool(*location, value);
@@ -1470,8 +1528,8 @@ namespace {
 	}
 
 	JsValueRef CALLBACK krom_set_int(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount, void *callbackState) {
-		Kore::Graphics4::ConstantLocation* location;
-		JsGetExternalData(arguments[1], (void**)&location);
+		Kore::Graphics4::ConstantLocation *location;
+		JsGetExternalData(arguments[1], (void **)&location);
 		int value;
 		JsNumberToInt(arguments[2], &value);
 		Kore::Graphics4::setInt(*location, value);
@@ -1479,8 +1537,8 @@ namespace {
 	}
 
 	JsValueRef CALLBACK krom_set_float(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount, void *callbackState) {
-		Kore::Graphics4::ConstantLocation* location;
-		JsGetExternalData(arguments[1], (void**)&location);
+		Kore::Graphics4::ConstantLocation *location;
+		JsGetExternalData(arguments[1], (void **)&location);
 		double value;
 		JsNumberToDouble(arguments[2], &value);
 		Kore::Graphics4::setFloat(*location, value);
@@ -1488,8 +1546,8 @@ namespace {
 	}
 
 	JsValueRef CALLBACK krom_set_float2(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount, void *callbackState) {
-		Kore::Graphics4::ConstantLocation* location;
-		JsGetExternalData(arguments[1], (void**)&location);
+		Kore::Graphics4::ConstantLocation *location;
+		JsGetExternalData(arguments[1], (void **)&location);
 		double value1, value2;
 		JsNumberToDouble(arguments[2], &value1);
 		JsNumberToDouble(arguments[3], &value2);
@@ -1498,8 +1556,8 @@ namespace {
 	}
 
 	JsValueRef CALLBACK krom_set_float3(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount, void *callbackState) {
-		Kore::Graphics4::ConstantLocation* location;
-		JsGetExternalData(arguments[1], (void**)&location);
+		Kore::Graphics4::ConstantLocation *location;
+		JsGetExternalData(arguments[1], (void **)&location);
 		double value1, value2, value3;
 		JsNumberToDouble(arguments[2], &value1);
 		JsNumberToDouble(arguments[3], &value2);
@@ -1509,8 +1567,8 @@ namespace {
 	}
 
 	JsValueRef CALLBACK krom_set_float4(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount, void *callbackState) {
-		Kore::Graphics4::ConstantLocation* location;
-		JsGetExternalData(arguments[1], (void**)&location);
+		Kore::Graphics4::ConstantLocation *location;
+		JsGetExternalData(arguments[1], (void **)&location);
 		double value1, value2, value3, value4;
 		JsNumberToDouble(arguments[2], &value1);
 		JsNumberToDouble(arguments[3], &value2);
@@ -1521,33 +1579,45 @@ namespace {
 	}
 
 	JsValueRef CALLBACK krom_set_floats(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount, void *callbackState) {
-		Kore::Graphics4::ConstantLocation* location;
-		JsGetExternalData(arguments[1], (void**)&location);
+		Kore::Graphics4::ConstantLocation *location;
+		JsGetExternalData(arguments[1], (void **)&location);
 
-		Kore::u8* data;
+		Kore::u8 *data;
 		unsigned bufferLength;
 		JsGetArrayBufferStorage(arguments[2], &data, &bufferLength);
 
-		float* from = (float*)data;
+		float *from = (float *)data;
 
 		Kore::Graphics4::setFloats(*location, from, int(bufferLength / 4));
 		return JS_INVALID_REFERENCE;
 	}
 
 	JsValueRef CALLBACK krom_set_matrix(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount, void *callbackState) {
-		Kore::Graphics4::ConstantLocation* location;
-		JsGetExternalData(arguments[1], (void**)&location);
+		Kore::Graphics4::ConstantLocation *location;
+		JsGetExternalData(arguments[1], (void **)&location);
 
-		Kore::u8* data;
+		Kore::u8 *data;
 		unsigned bufferLength;
 		JsGetArrayBufferStorage(arguments[2], &data, &bufferLength);
 
-		float* from = (float*)data;
+		float *from = (float *)data;
 		Kore::mat4 m;
-		m.Set(0, 0, from[0]); m.Set(1, 0, from[1]); m.Set(2, 0, from[2]); m.Set(3, 0, from[3]);
-		m.Set(0, 1, from[4]); m.Set(1, 1, from[5]); m.Set(2, 1, from[6]); m.Set(3, 1, from[7]);
-		m.Set(0, 2, from[8]); m.Set(1, 2, from[9]); m.Set(2, 2, from[10]); m.Set(3, 2, from[11]);
-		m.Set(0, 3, from[12]); m.Set(1, 3, from[13]); m.Set(2, 3, from[14]); m.Set(3, 3, from[15]);
+		m.Set(0, 0, from[0]);
+		m.Set(1, 0, from[1]);
+		m.Set(2, 0, from[2]);
+		m.Set(3, 0, from[3]);
+		m.Set(0, 1, from[4]);
+		m.Set(1, 1, from[5]);
+		m.Set(2, 1, from[6]);
+		m.Set(3, 1, from[7]);
+		m.Set(0, 2, from[8]);
+		m.Set(1, 2, from[9]);
+		m.Set(2, 2, from[10]);
+		m.Set(3, 2, from[11]);
+		m.Set(0, 3, from[12]);
+		m.Set(1, 3, from[13]);
+		m.Set(2, 3, from[14]);
+		m.Set(3, 3, from[15]);
 
 		Kore::Graphics4::setMatrix(*location, m);
 
@@ -1555,18 +1625,24 @@ namespace {
 	}
 
 	JsValueRef CALLBACK krom_set_matrix3(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount, void *callbackState) {
-		Kore::Graphics4::ConstantLocation* location;
-		JsGetExternalData(arguments[1], (void**)&location);
+		Kore::Graphics4::ConstantLocation *location;
+		JsGetExternalData(arguments[1], (void **)&location);
 
-		Kore::u8* data;
+		Kore::u8 *data;
 		unsigned bufferLength;
 		JsGetArrayBufferStorage(arguments[2], &data, &bufferLength);
 
-		float* from = (float*)data;
+		float *from = (float *)data;
 		Kore::mat3 m;
-		m.Set(0, 0, from[0]); m.Set(1, 0, from[1]); m.Set(2, 0, from[2]);
-		m.Set(0, 1, from[3]); m.Set(1, 1, from[4]); m.Set(2, 1, from[5]);
-		m.Set(0, 2, from[6]); m.Set(1, 2, from[7]); m.Set(2, 2, from[8]);
+		m.Set(0, 0, from[0]);
+		m.Set(1, 0, from[1]);
+		m.Set(2, 0, from[2]);
+		m.Set(0, 1, from[3]);
+		m.Set(1, 1, from[4]);
+		m.Set(2, 1, from[5]);
+		m.Set(0, 2, from[6]);
+		m.Set(1, 2, from[7]);
+		m.Set(2, 2, from[8]);
 
 		Kore::Graphics4::setMatrix(*location, m);
 
@@ -1595,7 +1671,8 @@ namespace {
 		return obj;
 	}
 
-	JsValueRef CALLBACK krom_set_window_title(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount, void *callbackState) {
+	JsValueRef CALLBACK krom_set_window_title(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount,
+	                                          void *callbackState) {
 		int windowId;
 		JsNumberToInt(arguments[1], &windowId);
 		char title[256];
@@ -1618,7 +1695,8 @@ namespace {
 		return value;
 	}
 
-	JsValueRef CALLBACK krom_request_shutdown(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount, void *callbackState) {
+	JsValueRef CALLBACK krom_request_shutdown(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount,
+	                                          void *callbackState) {
 		Kore::System::stop();
 		return JS_INVALID_REFERENCE;
 	}
@@ -1661,7 +1739,8 @@ namespace {
 		return value;
 	}
 
-	JsValueRef CALLBACK krom_display_is_primary(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount, void *callbackState) {
+	JsValueRef CALLBACK krom_display_is_primary(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount,
+	                                            void *callbackState) {
 		int index;
 		JsNumberToInt(arguments[1], &index);
 		JsValueRef value;
@@ -1674,10 +1753,10 @@ namespace {
 		JsCopyString(arguments[1], tempString, tempStringSize, &length);
 		tempString[length] = 0;
 
-		Kore::u8* buffer;
+		Kore::u8 *buffer;
 		unsigned bufferLength;
 		JsGetArrayBufferStorage(arguments[2], &buffer, &bufferLength);
-		
+
 		Kore::FileWriter writer;
 		if (!writer.open(tempString)) return JS_INVALID_REFERENCE;
 		writer.write(buffer, (int)bufferLength);
@@ -1695,7 +1774,7 @@ namespace {
 		JsValueRef buffer;
 		JsCreateArrayBuffer(reader.size(), &buffer);
 
-		Kore::u8* bufferData;
+		Kore::u8 *bufferData;
 		unsigned bufferLength;
 		JsGetArrayBufferStorage(buffer, &bufferData, &bufferLength);
 
@@ -1704,14 +1783,16 @@ namespace {
 		return buffer;
 	}
 
-	JsValueRef CALLBACK krom_create_render_target(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount, void *callbackState) {
+	JsValueRef CALLBACK krom_create_render_target(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount,
+	                                              void *callbackState) {
 		int value1, value2, value3, value4, value5;
 		JsNumberToInt(arguments[1], &value1);
 		JsNumberToInt(arguments[2], &value2);
 		JsNumberToInt(arguments[3], &value3);
 		JsNumberToInt(arguments[4], &value4);
 		JsNumberToInt(arguments[5], &value5);
-		Kore::Graphics4::RenderTarget* renderTarget = new Kore::Graphics4::RenderTarget(value1, value2, value3, false, (Kore::Graphics4::RenderTargetFormat)value4, value5);
+		Kore::Graphics4::RenderTarget *renderTarget =
+		    new Kore::Graphics4::RenderTarget(value1, value2, value3, false, (Kore::Graphics4::RenderTargetFormat)value4, value5);
 
 		JsValueRef value;
 		JsCreateExternalObject(renderTarget, nullptr, &value);
@@ -1726,13 +1807,15 @@ namespace {
 		return value;
 	}
 
-	JsValueRef CALLBACK krom_create_render_target_cube_map(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount, void *callbackState) {
+	JsValueRef CALLBACK krom_create_render_target_cube_map(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount,
+	                                                       void *callbackState) {
 		int value1, value2, value3, value4;
 		JsNumberToInt(arguments[1], &value1);
 		JsNumberToInt(arguments[2], &value2);
 		JsNumberToInt(arguments[3], &value3);
 		JsNumberToInt(arguments[4], &value4);
-		Kore::Graphics4::RenderTarget* renderTarget = new Kore::Graphics4::RenderTarget(value1, value2, false, (Kore::Graphics4::RenderTargetFormat)value3, value4);
+		Kore::Graphics4::RenderTarget *renderTarget =
+		    new Kore::Graphics4::RenderTarget(value1, value2, false, (Kore::Graphics4::RenderTargetFormat)value3, value4);
 
 		JsValueRef value;
 		JsCreateExternalObject(renderTarget, nullptr, &value);
@@ -1743,7 +1826,7 @@ namespace {
 
 		JsSetProperty(value, getId("width"), width, false);
 		JsSetProperty(value, getId("height"), height, false);
-		
+
 		return value;
 	}
 
@@ -1752,7 +1835,7 @@ namespace {
 		JsNumberToInt(arguments[1], &value1);
 		JsNumberToInt(arguments[2], &value2);
 		JsNumberToInt(arguments[3], &value3);
-		Kore::Graphics4::Texture* texture = new Kore::Graphics4::Texture(value1, value2, (Kore::Graphics4::Image::Format)value3, false);
+		Kore::Graphics4::Texture *texture = new Kore::Graphics4::Texture(value1, value2, (Kore::Graphics4::Image::Format)value3, false);
 
 		JsValueRef value;
 		JsCreateExternalObject(texture, nullptr, &value);
@@ -1767,17 +1850,18 @@ namespace {
 		JsSetProperty(value, getId("height"), height, false);
 		JsSetProperty(value, getId("realWidth"), realWidth, false);
 		JsSetProperty(value, getId("realHeight"), realHeight, false);
-		
+
 		return value;
 	}
 
-	JsValueRef CALLBACK krom_create_texture_3d(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount, void *callbackState) {
+	JsValueRef CALLBACK krom_create_texture_3d(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount,
+	                                           void *callbackState) {
 		int value1, value2, value3, value4;
 		JsNumberToInt(arguments[1], &value1);
 		JsNumberToInt(arguments[2], &value2);
 		JsNumberToInt(arguments[3], &value3);
 		JsNumberToInt(arguments[4], &value4);
-		Kore::Graphics4::Texture* texture = new Kore::Graphics4::Texture(value1, value2, value3, (Kore::Graphics4::Image::Format)value4, false);
+		Kore::Graphics4::Texture *texture = new Kore::Graphics4::Texture(value1, value2, value3, (Kore::Graphics4::Image::Format)value4, false);
 
 		JsValueRef tex;
 		JsCreateExternalObject(texture, nullptr, &tex);
@@ -1798,8 +1882,9 @@ namespace {
 		return tex;
 	}
 
-	JsValueRef CALLBACK krom_create_texture_from_bytes(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount, void *callbackState) {
-		Kore::u8* content;
+	JsValueRef CALLBACK krom_create_texture_from_bytes(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount,
+	                                                   void *callbackState) {
+		Kore::u8 *content;
 		unsigned bufferLength;
 		JsGetArrayBufferStorage(arguments[1], &content, &bufferLength);
 
@@ -1810,11 +1895,11 @@ namespace {
 		JsNumberToInt(arguments[4], &value4);
 		JsBooleanToBool(arguments[5], &value5);
 
-		Kore::Graphics4::Texture* texture = new Kore::Graphics4::Texture(content, value2, value3, (Kore::Graphics4::Image::Format)value4, value5);
+		Kore::Graphics4::Texture *texture = new Kore::Graphics4::Texture(content, value2, value3, (Kore::Graphics4::Image::Format)value4, value5);
 
 		JsValueRef value;
 		JsCreateExternalObject(texture, nullptr, &value);
-		
+
 		JsValueRef width, height, realWidth, realHeight;
 		JsIntToNumber(texture->width, &width);
 		JsIntToNumber(texture->height, &height);
@@ -1829,8 +1914,9 @@ namespace {
 		return value;
 	}
 
-	JsValueRef CALLBACK krom_create_texture_from_bytes_3d(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount, void *callbackState) {
-		Kore::u8* content;
+	JsValueRef CALLBACK krom_create_texture_from_bytes_3d(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount,
+	                                                      void *callbackState) {
+		Kore::u8 *content;
 		unsigned bufferLength;
 		JsGetArrayBufferStorage(arguments[1], &content, &bufferLength);
 
@@ -1842,7 +1928,7 @@ namespace {
 		JsNumberToInt(arguments[5], &value5);
 		JsBooleanToBool(arguments[6], &value6);
 
-		Kore::Graphics4::Texture* texture = new Kore::Graphics4::Texture(content, value2, value3, value4, (Kore::Graphics4::Image::Format)value5, value6);
+		Kore::Graphics4::Texture *texture = new Kore::Graphics4::Texture(content, value2, value3, value4, (Kore::Graphics4::Image::Format)value5, value6);
 
 		JsValueRef value;
 		JsCreateExternalObject(texture, nullptr, &value);
@@ -1863,8 +1949,9 @@ namespace {
 		return value;
 	}
 
-	JsValueRef CALLBACK krom_create_texture_from_encoded_bytes(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount, void *callbackState) {
-		Kore::u8* content;
+	JsValueRef CALLBACK krom_create_texture_from_encoded_bytes(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount,
+	                                                           void *callbackState) {
+		Kore::u8 *content;
 		unsigned bufferLength;
 		JsGetArrayBufferStorage(arguments[1], &content, &bufferLength);
 
@@ -1875,11 +1962,11 @@ namespace {
 		bool readable;
 		JsBooleanToBool(arguments[3], &readable);
 
-		Kore::Graphics4::Texture* texture = new Kore::Graphics4::Texture(content, bufferLength, format, readable);
+		Kore::Graphics4::Texture *texture = new Kore::Graphics4::Texture(content, bufferLength, format, readable);
 
 		JsValueRef value;
 		JsCreateExternalObject(texture, nullptr, &value);
-		
+
 		JsValueRef width, height, realWidth, realHeight;
 		JsIntToNumber(texture->width, &width);
 		JsIntToNumber(texture->height, &height);
@@ -1915,22 +2002,24 @@ namespace {
 		}
 	}
 
-	JsValueRef CALLBACK krom_get_texture_pixels(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount, void *callbackState) {
-		Kore::Graphics4::Texture* texture;
-		JsGetExternalData(arguments[1], (void**)&texture);
+	JsValueRef CALLBACK krom_get_texture_pixels(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount,
+	                                            void *callbackState) {
+		Kore::Graphics4::Texture *texture;
+		JsGetExternalData(arguments[1], (void **)&texture);
 
-		Kore::u8* data = texture->getPixels();
+		Kore::u8 *data = texture->getPixels();
 		int byteLength = formatByteSize(texture->format) * texture->width * texture->height * texture->depth;
 		JsValueRef value;
 		JsCreateExternalArrayBuffer(data, byteLength, nullptr, nullptr, &value);
 		return value;
 	}
 
-	JsValueRef CALLBACK krom_get_render_target_pixels(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount, void *callbackState) {
-		Kore::Graphics4::RenderTarget* rt;
-		JsGetExternalData(arguments[1], (void**)&rt);
+	JsValueRef CALLBACK krom_get_render_target_pixels(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount,
+	                                                  void *callbackState) {
+		Kore::Graphics4::RenderTarget *rt;
+		JsGetExternalData(arguments[1], (void **)&rt);
 
-		Kore::u8* content;
+		Kore::u8 *content;
 		unsigned bufferLength;
 		JsGetArrayBufferStorage(arguments[2], &content, &bufferLength);
 
@@ -1940,9 +2029,9 @@ namespace {
 	}
 
 	JsValueRef CALLBACK krom_lock_texture(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount, void *callbackState) {
-		Kore::Graphics4::Texture* texture;
-		JsGetExternalData(arguments[1], (void**)&texture);
-		Kore::u8* tex = texture->lock();
+		Kore::Graphics4::Texture *texture;
+		JsGetExternalData(arguments[1], (void **)&texture);
+		Kore::u8 *tex = texture->lock();
 
 		int byteLength = formatByteSize(texture->format) * texture->width * texture->height * texture->depth;
 		JsValueRef value;
@@ -1951,15 +2040,15 @@ namespace {
 	}
 
 	JsValueRef CALLBACK krom_unlock_texture(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount, void *callbackState) {
-		Kore::Graphics4::Texture* texture;
-		JsGetExternalData(arguments[1], (void**)&texture);
+		Kore::Graphics4::Texture *texture;
+		JsGetExternalData(arguments[1], (void **)&texture);
 		texture->unlock();
 		return JS_INVALID_REFERENCE;
 	}
 
 	JsValueRef CALLBACK krom_clear_texture(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount, void *callbackState) {
-		Kore::Graphics4::Texture* texture;
-		JsGetExternalData(arguments[1], (void**)&texture);
+		Kore::Graphics4::Texture *texture;
+		JsGetExternalData(arguments[1], (void **)&texture);
 		int x, y, z, width, height, depth, color;
 		JsNumberToInt(arguments[2], &x);
 		JsNumberToInt(arguments[3], &y);
@@ -1972,18 +2061,20 @@ namespace {
 		return JS_INVALID_REFERENCE;
 	}
 
-	JsValueRef CALLBACK krom_generate_texture_mipmaps(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount, void *callbackState) {
-		Kore::Graphics4::Texture* texture;
-		JsGetExternalData(arguments[1], (void**)&texture);
+	JsValueRef CALLBACK krom_generate_texture_mipmaps(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount,
+	                                                  void *callbackState) {
+		Kore::Graphics4::Texture *texture;
+		JsGetExternalData(arguments[1], (void **)&texture);
 		int levels;
 		JsNumberToInt(arguments[2], &levels);
 		texture->generateMipmaps(levels);
 		return JS_INVALID_REFERENCE;
 	}
 
-	JsValueRef CALLBACK krom_generate_render_target_mipmaps(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount, void *callbackState) {
-		Kore::Graphics4::RenderTarget* rt;
-		JsGetExternalData(arguments[1], (void**)&rt);
+	JsValueRef CALLBACK krom_generate_render_target_mipmaps(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount,
+	                                                        void *callbackState) {
+		Kore::Graphics4::RenderTarget *rt;
+		JsGetExternalData(arguments[1], (void **)&rt);
 		int levels;
 		JsNumberToInt(arguments[2], &levels);
 		rt->generateMipmaps(levels);
@@ -1991,8 +2082,8 @@ namespace {
 	}
 
 	JsValueRef CALLBACK krom_set_mipmaps(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount, void *callbackState) {
-		Kore::Graphics4::Texture* texture;
-		JsGetExternalData(arguments[1], (void**)&texture);
+		Kore::Graphics4::Texture *texture;
+		JsGetExternalData(arguments[1], (void **)&texture);
 
 		JsValueRef lengthObj;
 		JsGetProperty(arguments[2], getId("length"), &lengthObj);
@@ -2004,18 +2095,19 @@ namespace {
 			JsGetIndexedProperty(arguments[2], index, &element);
 			JsValueRef obj;
 			JsGetProperty(element, getId("texture_"), &obj);
-			Kore::Graphics4::Texture* mipmap;
-			JsGetExternalData(obj, (void**)&mipmap);
+			Kore::Graphics4::Texture *mipmap;
+			JsGetExternalData(obj, (void **)&mipmap);
 			texture->setMipmap(mipmap, i + 1);
 		}
 		return JS_INVALID_REFERENCE;
 	}
 
-	JsValueRef CALLBACK krom_set_depth_stencil_from(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount, void *callbackState) {
-		Kore::Graphics4::RenderTarget* renderTarget;
-		JsGetExternalData(arguments[1], (void**)&renderTarget);
-		Kore::Graphics4::RenderTarget* sourceTarget;
-		JsGetExternalData(arguments[2], (void**)&sourceTarget);
+	JsValueRef CALLBACK krom_set_depth_stencil_from(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount,
+	                                                void *callbackState) {
+		Kore::Graphics4::RenderTarget *renderTarget;
+		JsGetExternalData(arguments[1], (void **)&renderTarget);
+		Kore::Graphics4::RenderTarget *sourceTarget;
+		JsGetExternalData(arguments[2], (void **)&sourceTarget);
 		renderTarget->setDepthStencilFrom(sourceTarget);
 		return JS_INVALID_REFERENCE;
 	}
@@ -2044,12 +2136,14 @@ namespace {
 		return JS_INVALID_REFERENCE;
 	}
 
-	JsValueRef CALLBACK krom_disable_scissor(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount, void *callbackState) {
+	JsValueRef CALLBACK krom_disable_scissor(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount,
+	                                         void *callbackState) {
 		Kore::Graphics4::disableScissor();
 		return JS_INVALID_REFERENCE;
 	}
 
-	JsValueRef CALLBACK krom_render_targets_inverted_y(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount, void *callbackState) {
+	JsValueRef CALLBACK krom_render_targets_inverted_y(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount,
+	                                                   void *callbackState) {
 		JsValueRef value;
 		JsBoolToBoolean(Kore::Graphics4::renderTargetsInvertedY(), &value);
 		return value;
@@ -2065,8 +2159,8 @@ namespace {
 		else {
 			JsValueRef rt;
 			JsGetProperty(arguments[1], getId("renderTarget_"), &rt);
-			Kore::Graphics4::RenderTarget* renderTarget;
-			JsGetExternalData(rt, (void**)&renderTarget);
+			Kore::Graphics4::RenderTarget *renderTarget;
+			JsGetExternalData(rt, (void **)&renderTarget);
 
 			JsValueType type2;
 			JsGetValueType(arguments[2], &type2);
@@ -2074,7 +2168,7 @@ namespace {
 				Kore::Graphics4::setRenderTarget(renderTarget);
 			}
 			else {
-				Kore::Graphics4::RenderTarget* renderTargets[8] = { renderTarget, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr };
+				Kore::Graphics4::RenderTarget *renderTargets[8] = {renderTarget, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr};
 				JsValueRef lengthObj;
 				JsGetProperty(arguments[2], getId("length"), &lengthObj);
 				int length;
@@ -2086,8 +2180,8 @@ namespace {
 					JsGetIndexedProperty(arguments[2], index, &element);
 					JsValueRef obj;
 					JsGetProperty(element, getId("renderTarget_"), &obj);
-					Kore::Graphics4::RenderTarget* art;
-					JsGetExternalData(obj, (void**)&art);
+					Kore::Graphics4::RenderTarget *art;
+					JsGetExternalData(obj, (void **)&art);
 					renderTargets[i + 1] = art;
 				}
 				Kore::Graphics4::setRenderTargets(renderTargets, length + 1);
@@ -2099,8 +2193,8 @@ namespace {
 	JsValueRef CALLBACK krom_begin_face(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount, void *callbackState) {
 		JsValueRef rt;
 		JsGetProperty(arguments[1], getId("renderTarget_"), &rt);
-		Kore::Graphics4::RenderTarget* renderTarget;
-		JsGetExternalData(rt, (void**)&renderTarget);
+		Kore::Graphics4::RenderTarget *renderTarget;
+		JsGetExternalData(rt, (void **)&renderTarget);
 		int face;
 		JsNumberToInt(arguments[2], &face);
 		Kore::Graphics4::setRenderTargetFace(renderTarget, face);
@@ -2111,16 +2205,17 @@ namespace {
 		return JS_INVALID_REFERENCE;
 	}
 
-	JsValueRef CALLBACK krom_file_save_bytes(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount, void *callbackState) {
+	JsValueRef CALLBACK krom_file_save_bytes(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount,
+	                                         void *callbackState) {
 		size_t length;
 		JsCopyString(arguments[1], tempString, tempStringSize, &length);
 		tempString[length] = 0;
 
-		Kore::u8* content;
+		Kore::u8 *content;
 		unsigned bufferLength;
 		JsGetArrayBufferStorage(arguments[2], &content, &bufferLength);
 
-		FILE* file = fopen(tempString, "wb");
+		FILE *file = fopen(tempString, "wb");
 		if (file == nullptr) return JS_INVALID_REFERENCE;
 		fwrite(content, 1, (int)bufferLength, file);
 		fclose(file);
@@ -2158,42 +2253,47 @@ namespace {
 		return value;
 	}
 
-	JsValueRef CALLBACK krom_get_files_location(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount, void *callbackState) {
+	JsValueRef CALLBACK krom_get_files_location(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount,
+	                                            void *callbackState) {
 		JsValueRef value;
 		JsCreateString(kinc_internal_get_files_location(), strlen(kinc_internal_get_files_location()), &value);
 		return value;
 	}
 
-	JsValueRef CALLBACK krom_set_bool_compute(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount, void *callbackState) {
-		Kore::ComputeConstantLocation* location;
-		JsGetExternalData(arguments[1], (void**)&location);
+	JsValueRef CALLBACK krom_set_bool_compute(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount,
+	                                          void *callbackState) {
+		Kore::ComputeConstantLocation *location;
+		JsGetExternalData(arguments[1], (void **)&location);
 		int value;
 		JsNumberToInt(arguments[2], &value);
 		Kore::Compute::setBool(*location, value != 0);
 		return JS_INVALID_REFERENCE;
 	}
 
-	JsValueRef CALLBACK krom_set_int_compute(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount, void *callbackState) {
-		Kore::ComputeConstantLocation* location;
-		JsGetExternalData(arguments[1], (void**)&location);
+	JsValueRef CALLBACK krom_set_int_compute(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount,
+	                                         void *callbackState) {
+		Kore::ComputeConstantLocation *location;
+		JsGetExternalData(arguments[1], (void **)&location);
 		int value;
 		JsNumberToInt(arguments[2], &value);
 		Kore::Compute::setInt(*location, value);
 		return JS_INVALID_REFERENCE;
 	}
 
-	JsValueRef CALLBACK krom_set_float_compute(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount, void *callbackState) {
-		Kore::ComputeConstantLocation* location;
-		JsGetExternalData(arguments[1], (void**)&location);
+	JsValueRef CALLBACK krom_set_float_compute(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount,
+	                                           void *callbackState) {
+		Kore::ComputeConstantLocation *location;
+		JsGetExternalData(arguments[1], (void **)&location);
 		double value;
 		JsNumberToDouble(arguments[2], &value);
 		Kore::Compute::setFloat(*location, value);
 		return JS_INVALID_REFERENCE;
 	}
 
-	JsValueRef CALLBACK krom_set_float2_compute(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount, void *callbackState) {
-		Kore::ComputeConstantLocation* location;
-		JsGetExternalData(arguments[1], (void**)&location);
+	JsValueRef CALLBACK krom_set_float2_compute(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount,
+	                                            void *callbackState) {
+		Kore::ComputeConstantLocation *location;
+		JsGetExternalData(arguments[1], (void **)&location);
 		double value1, value2;
 		JsNumberToDouble(arguments[2], &value1);
 		JsNumberToDouble(arguments[3], &value2);
@@ -2201,9 +2301,10 @@ namespace {
 		return JS_INVALID_REFERENCE;
 	}
 
-	JsValueRef CALLBACK krom_set_float3_compute(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount, void *callbackState) {
-		Kore::ComputeConstantLocation* location;
-		JsGetExternalData(arguments[1], (void**)&location);
+	JsValueRef CALLBACK krom_set_float3_compute(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount,
+	                                            void *callbackState) {
+		Kore::ComputeConstantLocation *location;
+		JsGetExternalData(arguments[1], (void **)&location);
 		double value1, value2, value3;
 		JsNumberToDouble(arguments[2], &value1);
 		JsNumberToDouble(arguments[3], &value2);
@@ -2212,9 +2313,10 @@ namespace {
 		return JS_INVALID_REFERENCE;
 	}
 
-	JsValueRef CALLBACK krom_set_float4_compute(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount, void *callbackState) {
-		Kore::ComputeConstantLocation* location;
-		JsGetExternalData(arguments[1], (void**)&location);
+	JsValueRef CALLBACK krom_set_float4_compute(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount,
+	                                            void *callbackState) {
+		Kore::ComputeConstantLocation *location;
+		JsGetExternalData(arguments[1], (void **)&location);
 		double value1, value2, value3, value4;
 		JsNumberToDouble(arguments[2], &value1);
 		JsNumberToDouble(arguments[3], &value2);
@@ -2224,66 +2326,88 @@ namespace {
 		return JS_INVALID_REFERENCE;
 	}
 
-	JsValueRef CALLBACK krom_set_floats_compute(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount, void *callbackState) {
-		Kore::ComputeConstantLocation* location;
-		JsGetExternalData(arguments[1], (void**)&location);
+	JsValueRef CALLBACK krom_set_floats_compute(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount,
+	                                            void *callbackState) {
+		Kore::ComputeConstantLocation *location;
+		JsGetExternalData(arguments[1], (void **)&location);
 
-		Kore::u8* data;
+		Kore::u8 *data;
 		unsigned bufferLength;
 		JsGetArrayBufferStorage(arguments[2], &data, &bufferLength);
 
-		float* from = (float*)data;
+		float *from = (float *)data;
 
 		Kore::Compute::setFloats(*location, from, int(bufferLength / 4));
 
 		return JS_INVALID_REFERENCE;
 	}
 
-	JsValueRef CALLBACK krom_set_matrix_compute(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount, void *callbackState) {
-		Kore::ComputeConstantLocation* location;
-		JsGetExternalData(arguments[1], (void**)&location);
+	JsValueRef CALLBACK krom_set_matrix_compute(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount,
+	                                            void *callbackState) {
+		Kore::ComputeConstantLocation *location;
+		JsGetExternalData(arguments[1], (void **)&location);
 
-		Kore::u8* data;
+		Kore::u8 *data;
 		unsigned bufferLength;
 		JsGetArrayBufferStorage(arguments[2], &data, &bufferLength);
 
-		float* from = (float*)data;
+		float *from = (float *)data;
 		Kore::mat4 m;
-		m.Set(0, 0, from[0]); m.Set(1, 0, from[1]); m.Set(2, 0, from[2]); m.Set(3, 0, from[3]);
-		m.Set(0, 1, from[4]); m.Set(1, 1, from[5]); m.Set(2, 1, from[6]); m.Set(3, 1, from[7]);
-		m.Set(0, 2, from[8]); m.Set(1, 2, from[9]); m.Set(2, 2, from[10]); m.Set(3, 2, from[11]);
-		m.Set(0, 3, from[12]); m.Set(1, 3, from[13]); m.Set(2, 3, from[14]); m.Set(3, 3, from[15]);
+		m.Set(0, 0, from[0]);
+		m.Set(1, 0, from[1]);
+		m.Set(2, 0, from[2]);
+		m.Set(3, 0, from[3]);
+		m.Set(0, 1, from[4]);
+		m.Set(1, 1, from[5]);
+		m.Set(2, 1, from[6]);
+		m.Set(3, 1, from[7]);
+		m.Set(0, 2, from[8]);
+		m.Set(1, 2, from[9]);
+		m.Set(2, 2, from[10]);
+		m.Set(3, 2, from[11]);
+		m.Set(0, 3, from[12]);
+		m.Set(1, 3, from[13]);
+		m.Set(2, 3, from[14]);
+		m.Set(3, 3, from[15]);
 
 		Kore::Compute::setMatrix(*location, m);
 
 		return JS_INVALID_REFERENCE;
 	}
 
-	JsValueRef CALLBACK krom_set_matrix3_compute(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount, void *callbackState) {
-		Kore::ComputeConstantLocation* location;
-		JsGetExternalData(arguments[1], (void**)&location);
+	JsValueRef CALLBACK krom_set_matrix3_compute(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount,
+	                                             void *callbackState) {
+		Kore::ComputeConstantLocation *location;
+		JsGetExternalData(arguments[1], (void **)&location);
 
-		Kore::u8* data;
+		Kore::u8 *data;
 		unsigned bufferLength;
 		JsGetArrayBufferStorage(arguments[2], &data, &bufferLength);
 
-		float* from = (float*)data;
+		float *from = (float *)data;
 		Kore::mat3 m;
-		m.Set(0, 0, from[0]); m.Set(1, 0, from[1]); m.Set(2, 0, from[2]);
-		m.Set(0, 1, from[3]); m.Set(1, 1, from[4]); m.Set(2, 1, from[5]);
-		m.Set(0, 2, from[6]); m.Set(1, 2, from[7]); m.Set(2, 2, from[8]);
+		m.Set(0, 0, from[0]);
+		m.Set(1, 0, from[1]);
+		m.Set(2, 0, from[2]);
+		m.Set(0, 1, from[3]);
+		m.Set(1, 1, from[4]);
+		m.Set(2, 1, from[5]);
+		m.Set(0, 2, from[6]);
+		m.Set(1, 2, from[7]);
+		m.Set(2, 2, from[8]);
 
 		Kore::Compute::setMatrix(*location, m);
 
 		return JS_INVALID_REFERENCE;
 	}
 
-	JsValueRef CALLBACK krom_set_texture_compute(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount, void *callbackState) {
-		Kore::ComputeTextureUnit* unit;
-		JsGetExternalData(arguments[1], (void**)&unit);
+	JsValueRef CALLBACK krom_set_texture_compute(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount,
+	                                             void *callbackState) {
+		Kore::ComputeTextureUnit *unit;
+		JsGetExternalData(arguments[1], (void **)&unit);
 
-		Kore::Graphics4::Texture* texture;
-		JsGetExternalData(arguments[2], (void**)&texture);
+		Kore::Graphics4::Texture *texture;
+		JsGetExternalData(arguments[2], (void **)&texture);
 
 		int access;
 		JsNumberToInt(arguments[3], &access);
@@ -2293,12 +2417,13 @@ namespace {
 		return JS_INVALID_REFERENCE;
 	}
 
-	JsValueRef CALLBACK krom_set_render_target_compute(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount, void *callbackState) {
-		Kore::ComputeTextureUnit* unit;
-		JsGetExternalData(arguments[1], (void**)&unit);
+	JsValueRef CALLBACK krom_set_render_target_compute(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount,
+	                                                   void *callbackState) {
+		Kore::ComputeTextureUnit *unit;
+		JsGetExternalData(arguments[1], (void **)&unit);
 
-		Kore::Graphics4::RenderTarget* renderTarget;
-		JsGetExternalData(arguments[2], (void**)&renderTarget);
+		Kore::Graphics4::RenderTarget *renderTarget;
+		JsGetExternalData(arguments[2], (void **)&renderTarget);
 
 		int access;
 		JsNumberToInt(arguments[3], &access);
@@ -2308,42 +2433,46 @@ namespace {
 		return JS_INVALID_REFERENCE;
 	}
 
-	JsValueRef CALLBACK krom_set_sampled_texture_compute(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount, void *callbackState) {
-		Kore::ComputeTextureUnit* unit;
-		JsGetExternalData(arguments[1], (void**)&unit);
+	JsValueRef CALLBACK krom_set_sampled_texture_compute(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount,
+	                                                     void *callbackState) {
+		Kore::ComputeTextureUnit *unit;
+		JsGetExternalData(arguments[1], (void **)&unit);
 
-		Kore::Graphics4::Texture* texture;
-		JsGetExternalData(arguments[2], (void**)&texture);
+		Kore::Graphics4::Texture *texture;
+		JsGetExternalData(arguments[2], (void **)&texture);
 		Kore::Compute::setSampledTexture(*unit, texture);
 
 		return JS_INVALID_REFERENCE;
 	}
 
-	JsValueRef CALLBACK krom_set_sampled_render_target_compute(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount, void *callbackState) {
-		Kore::ComputeTextureUnit* unit;
-		JsGetExternalData(arguments[1], (void**)&unit);
+	JsValueRef CALLBACK krom_set_sampled_render_target_compute(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount,
+	                                                           void *callbackState) {
+		Kore::ComputeTextureUnit *unit;
+		JsGetExternalData(arguments[1], (void **)&unit);
 
-		Kore::Graphics4::RenderTarget* renderTarget;
-		JsGetExternalData(arguments[2], (void**)&renderTarget);
+		Kore::Graphics4::RenderTarget *renderTarget;
+		JsGetExternalData(arguments[2], (void **)&renderTarget);
 		Kore::Compute::setSampledTexture(*unit, renderTarget);
 
 		return JS_INVALID_REFERENCE;
 	}
 
-	JsValueRef CALLBACK krom_set_sampled_depth_texture_compute(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount, void *callbackState) {
-		Kore::ComputeTextureUnit* unit;
-		JsGetExternalData(arguments[1], (void**)&unit);
+	JsValueRef CALLBACK krom_set_sampled_depth_texture_compute(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount,
+	                                                           void *callbackState) {
+		Kore::ComputeTextureUnit *unit;
+		JsGetExternalData(arguments[1], (void **)&unit);
 
-		Kore::Graphics4::RenderTarget* renderTarget;
-		JsGetExternalData(arguments[2], (void**)&renderTarget);
+		Kore::Graphics4::RenderTarget *renderTarget;
+		JsGetExternalData(arguments[2], (void **)&renderTarget);
 		Kore::Compute::setSampledDepthTexture(*unit, renderTarget);
-		
+
 		return JS_INVALID_REFERENCE;
 	}
 
-	JsValueRef CALLBACK krom_set_texture_parameters_compute(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount, void *callbackState) {
-		Kore::ComputeTextureUnit* unit;
-		JsGetExternalData(arguments[1], (void**)&unit);
+	JsValueRef CALLBACK krom_set_texture_parameters_compute(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount,
+	                                                        void *callbackState) {
+		Kore::ComputeTextureUnit *unit;
+		JsGetExternalData(arguments[1], (void **)&unit);
 
 		int u, v, min, max, mip;
 		JsNumberToInt(arguments[2], &u);
@@ -2361,9 +2490,10 @@ namespace {
 		return JS_INVALID_REFERENCE;
 	}
 
-	JsValueRef CALLBACK krom_set_texture_3d_parameters_compute(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount, void *callbackState) {
-		Kore::ComputeTextureUnit* unit;
-		JsGetExternalData(arguments[1], (void**)&unit);
+	JsValueRef CALLBACK krom_set_texture_3d_parameters_compute(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount,
+	                                                           void *callbackState) {
+		Kore::ComputeTextureUnit *unit;
+		JsGetExternalData(arguments[1], (void **)&unit);
 
 		int u, v, w, min, max, mip;
 		JsNumberToInt(arguments[2], &u);
@@ -2383,35 +2513,46 @@ namespace {
 		return JS_INVALID_REFERENCE;
 	}
 
-	JsValueRef CALLBACK krom_set_shader_compute(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount, void *callbackState) {
-		Kore::ComputeShader* shader;
-		JsGetExternalData(arguments[1], (void**)&shader);
+	JsValueRef CALLBACK krom_max_bound_textures(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount,
+	                                            void *callbackState) {
+		JsValueRef value;
+		JsIntToNumber(Kore::Graphics4::maxBoundTextures(), &value);
+		return value;
+	}
+
+	JsValueRef CALLBACK krom_set_shader_compute(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount,
+	                                            void *callbackState) {
+		Kore::ComputeShader *shader;
+		JsGetExternalData(arguments[1], (void **)&shader);
 		Kore::Compute::setShader(shader);
 		return JS_INVALID_REFERENCE;
 	}
 
-	JsValueRef CALLBACK krom_create_shader_compute(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount, void *callbackState) {
-		Kore::u8* content;
+	JsValueRef CALLBACK krom_create_shader_compute(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount,
+	                                               void *callbackState) {
+		Kore::u8 *content;
 		unsigned bufferLength;
 		JsGetArrayBufferStorage(arguments[1], &content, &bufferLength);
 
-		Kore::ComputeShader* shader = new Kore::ComputeShader(content, (int)bufferLength);
+		Kore::ComputeShader *shader = new Kore::ComputeShader(content, (int)bufferLength);
 
 		JsValueRef value;
 		JsCreateExternalObject(shader, nullptr, &value);
 		return value;
 	}
 
-	JsValueRef CALLBACK krom_delete_shader_compute(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount, void *callbackState) {
-		Kore::ComputeShader* shader;
-		JsGetExternalData(arguments[1], (void**)&shader);
+	JsValueRef CALLBACK krom_delete_shader_compute(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount,
+	                                               void *callbackState) {
+		Kore::ComputeShader *shader;
+		JsGetExternalData(arguments[1], (void **)&shader);
 		delete shader;
 		return JS_INVALID_REFERENCE;
 	}
 
-	JsValueRef CALLBACK krom_get_constant_location_compute(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount, void *callbackState) {
-		Kore::ComputeShader* shader;
-		JsGetExternalData(arguments[1], (void**)&shader);
+	JsValueRef CALLBACK krom_get_constant_location_compute(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount,
+	                                                       void *callbackState) {
+		Kore::ComputeShader *shader;
+		JsGetExternalData(arguments[1], (void **)&shader);
 
 		size_t length;
 		JsCopyString(arguments[2], tempString, tempStringSize, &length);
@@ -2425,9 +2566,10 @@ namespace {
 		return value;
 	}
 
-	JsValueRef CALLBACK krom_get_texture_unit_compute(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount, void *callbackState) {
-		Kore::ComputeShader* shader;
-		JsGetExternalData(arguments[1], (void**)&shader);
+	JsValueRef CALLBACK krom_get_texture_unit_compute(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount,
+	                                                  void *callbackState) {
+		Kore::ComputeShader *shader;
+		JsGetExternalData(arguments[1], (void **)&shader);
 
 		size_t length;
 		JsCopyString(arguments[2], tempString, tempStringSize, &length);
@@ -2450,10 +2592,11 @@ namespace {
 		return JS_INVALID_REFERENCE;
 	}
 
-#define addFunction(name, funcName) JsPropertyIdRef name##Id;\
-	JsValueRef name##Func;\
-	JsCreateFunction(funcName, nullptr, &name##Func);\
-	JsCreatePropertyId(#name, strlen(#name), &name##Id);\
+#define addFunction(name, funcName)                                                                                                                            \
+	JsPropertyIdRef name##Id;                                                                                                                                  \
+	JsValueRef name##Func;                                                                                                                                     \
+	JsCreateFunction(funcName, nullptr, &name##Func);                                                                                                          \
+	JsCreatePropertyId(#name, strlen(#name), &name##Id);                                                                                                       \
 	JsSetProperty(krom, name##Id, name##Func, false)
 
 #define createId(name) JsCreatePropertyId(#name, strlen(#name), &name##_id)
@@ -2614,7 +2757,7 @@ namespace {
 	JsSourceContext cookie = 1234;
 	JsValueRef script, source;
 
-	void initKrom(char* scriptfile) {
+	void initKrom(char *scriptfile) {
 #ifdef KORE_WINDOWS
 		AttachProcess(GetModuleHandle(nullptr));
 #else
@@ -2634,23 +2777,20 @@ namespace {
 
 		bindFunctions();
 
-		JsCreateExternalArrayBuffer((void*)scriptfile, serialized ? serializedLength : (unsigned int)strlen(scriptfile), nullptr, nullptr, &script);
+		JsCreateExternalArrayBuffer((void *)scriptfile, serialized ? serializedLength : (unsigned int)strlen(scriptfile), nullptr, nullptr, &script);
 		JsCreateString("krom.js", strlen("krom.js"), &source);
 	}
 
-	void startKrom(char* scriptfile) {
+	void startKrom(char *scriptfile) {
 		JsValueRef result;
 		if (serialized) {
 			JsRunSerialized(
-				script,
-				[](JsSourceContext sourceContext, JsValueRef* scriptBuffer, JsParseScriptAttributes* parseAttributes) {
-					fprintf(stderr, "krom.bin does not match this Krom version");
-					return false;
-				},
-				cookie,
-				source,
-				&result
-			);
+			    script,
+			    [](JsSourceContext sourceContext, JsValueRef *scriptBuffer, JsParseScriptAttributes *parseAttributes) {
+				    fprintf(stderr, "krom.bin does not match this Krom version");
+				    return false;
+			    },
+			    cookie, source, &result);
 		}
 		else {
 			JsRun(script, cookie, source, JsParseScriptAttributeNone, &result);
@@ -2695,12 +2835,13 @@ namespace {
 				JsCopyString(sourceObj, buf, 2047, &length);
 				buf[length] = 0;
 				sendLogMessage("%s", buf);
-			
+
 				JsValueRef columnObj;
 				JsGetProperty(meta, getId("column"), &columnObj);
 				int column;
 				JsNumberToInt(columnObj, &column);
-				for (int i = 0; i < column; i++) if (buf[i] != '\t') buf[i] = ' ';
+				for (int i = 0; i < column; i++)
+					if (buf[i] != '\t') buf[i] = ' ';
 				buf[column] = '^';
 				buf[column + 1] = 0;
 				sendLogMessage("%s", buf);
@@ -2717,7 +2858,7 @@ namespace {
 		}
 	}
 
-	void serializeScript(char* code, char* outpath) {
+	void serializeScript(char *code, char *outpath) {
 #ifdef KORE_WINDOWS
 		AttachProcess(GetModuleHandle(nullptr));
 #else
@@ -2729,13 +2870,13 @@ namespace {
 		JsSetCurrentContext(context);
 
 		JsValueRef codeObj, bufferObj;
-		JsCreateExternalArrayBuffer((void*)code, (unsigned int)strlen(code), nullptr, nullptr, &codeObj);
+		JsCreateExternalArrayBuffer((void *)code, (unsigned int)strlen(code), nullptr, nullptr, &codeObj);
 		JsSerialize(codeObj, &bufferObj, JsParseScriptAttributeNone);
-		Kore::u8* buffer;
+		Kore::u8 *buffer;
 		unsigned bufferLength;
 		JsGetArrayBufferStorage(bufferObj, &buffer, &bufferLength);
-		
-		FILE* file = fopen(outpath, "wb");
+
+		FILE *file = fopen(outpath, "wb");
 		if (file == nullptr) return;
 		fwrite(buffer, 1, (int)bufferLength, file);
 		fclose(file);
@@ -2748,7 +2889,7 @@ namespace {
 
 	void initAudioBuffer() {
 		for (int i = 0; i < Kore::Audio2::buffer.dataSize; i++) {
-			*(float*)&Kore::Audio2::buffer.data[i] = 0;
+			*(float *)&Kore::Audio2::buffer.data[i] = 0;
 		}
 	}
 
@@ -2761,7 +2902,7 @@ namespace {
 	void update() {
 		mutex.lock();
 		JsSetCurrentContext(context);
-		
+
 		if (enableSound) {
 			Kore::Audio2::update();
 
@@ -2776,9 +2917,9 @@ namespace {
 			}
 			audioMutex.unlock();
 		}
-		
+
 		Kore::Graphics4::begin();
-		
+
 		runJS();
 
 		JsSetCurrentContext(JS_INVALID_REFERENCE);
@@ -2788,11 +2929,11 @@ namespace {
 
 		unsigned int nextIdleTick;
 		JsIdle(&nextIdleTick);
-		
+
 		Kore::Graphics4::swapBuffers();
 	}
 
-	void dropFiles(wchar_t* filePath) {
+	void dropFiles(wchar_t *filePath) {
 		mutex.lock();
 		JsSetCurrentContext(context);
 
@@ -2800,10 +2941,10 @@ namespace {
 		JsGetUndefinedValue(&args[0]);
 		size_t len = wcslen(filePath);
 		if (sizeof(wchar_t) == 2) {
-			JsCreateStringUtf16((const uint16_t*)filePath, len, &args[1]);
+			JsCreateStringUtf16((const uint16_t *)filePath, len, &args[1]);
 		}
 		else {
-			uint16_t* str = new uint16_t[len + 1];
+			uint16_t *str = new uint16_t[len + 1];
 			for (int i = 0; i < len; i++) str[i] = filePath[i];
 			str[len] = 0;
 			JsCreateStringUtf16(str, len, &args[1]);
@@ -2818,7 +2959,7 @@ namespace {
 
 	char cutCopyString[4096];
 
-	char* copy() {
+	char *copy() {
 		mutex.lock();
 		JsSetCurrentContext(context);
 
@@ -2841,7 +2982,7 @@ namespace {
 		return cutCopyString;
 	}
 
-	char* cut() {
+	char *cut() {
 		mutex.lock();
 		JsSetCurrentContext(context);
 
@@ -2864,7 +3005,7 @@ namespace {
 		return cutCopyString;
 	}
 
-	void paste(char* data) {
+	void paste(char *data) {
 		mutex.lock();
 		JsSetCurrentContext(context);
 
@@ -3172,7 +3313,7 @@ namespace {
 		return true;
 	}
 
-	std::string replaceAll(std::string str, const std::string& from, const std::string& to) {
+	std::string replaceAll(std::string str, const std::string &from, const std::string &to) {
 		size_t start_pos = 0;
 		while ((start_pos = str.find(from, start_pos)) != std::string::npos) {
 			str.replace(start_pos, from.length(), to);
@@ -3195,34 +3336,27 @@ namespace {
 		std::string internal_name;
 		std::string parent;
 		std::string interfaces;
-		std::map<std::string, Func*> methods;
-		std::map<std::string, Func*> functions;
+		std::map<std::string, Func *> methods;
+		std::map<std::string, Func *> functions;
 	};
 
-	std::map<std::string, Klass*> classes;
+	std::map<std::string, Klass *> classes;
 
-	enum ParseMode {
-		ParseRegular,
-		ParseMethods,
-		ParseMethod,
-		ParseFunction,
-		ParseConstructor
-	};
+	enum ParseMode { ParseRegular, ParseMethods, ParseMethod, ParseFunction, ParseConstructor };
 
-	void patchCode(const char* newScript) {
+	void patchCode(const char *newScript) {
 		JsSetCurrentContext(context);
 
-		JsCreateExternalArrayBuffer((void*)newScript, serialized ? serializedLength : (unsigned int)strlen(newScript), nullptr, nullptr, &script);
+		JsCreateExternalArrayBuffer((void *)newScript, serialized ? serializedLength : (unsigned int)strlen(newScript), nullptr, nullptr, &script);
 		JsCreateString("krom.js", strlen("krom.js"), &source);
 		JsValueRef result;
 		JsRun(script, cookie, source, JsParseScriptAttributeNone, &result);
-		
 	}
 	void parseCode() {
 		int types = 0;
 		ParseMode mode = ParseRegular;
-		Klass* currentClass = nullptr;
-		Func* currentFunction = nullptr;
+		Klass *currentClass = nullptr;
+		Func *currentFunction = nullptr;
 		std::string currentBody;
 		int brackets = 1;
 
@@ -3264,7 +3398,7 @@ namespace {
 						currentClass = classes[internal_name];
 						currentClass->name = name;
 					}
-					//constructor
+					// constructor
 					if (line.find(" = function(") != std::string::npos) {
 						if (currentClass->methods.find(internal_name) == currentClass->methods.end()) {
 							currentFunction = new Func;
@@ -3408,7 +3542,6 @@ namespace {
 						sendLogMessage("Patching method %s in class %s.", currentFunction->name.c_str(), currentClass->name.c_str());
 
 						patchCode(script.c_str());
-
 					}
 					mode = ParseMethods;
 				}
@@ -3460,9 +3593,8 @@ namespace {
 					}
 					else if (currentFunction->body != currentBody) {
 
-						std::map<std::string, Func*>::iterator it;
-						for (it = currentClass->methods.begin(); it != currentClass->methods.end(); it++)
-						{
+						std::map<std::string, Func *>::iterator it;
+						for (it = currentClass->methods.begin(); it != currentClass->methods.end(); it++) {
 							it->second->body = "invalidate it";
 						}
 
@@ -3481,8 +3613,6 @@ namespace {
 						script += replaceAll(currentFunction->body, "\"", "\\\"");
 						script += "\");";
 
-
-
 						sendLogMessage("Patching constructor in class %s.", currentFunction->name.c_str());
 
 						script += currentClass->internal_name;
@@ -3493,7 +3623,6 @@ namespace {
 							script += ".__super__ = " + currentClass->parent + ";";
 							script += currentClass->internal_name;
 							script += ".prototype = $extend(" + currentClass->parent + ".prototype , {__class__: " + currentClass->internal_name + "});";
-
 						}
 						if (currentClass->interfaces != "") {
 							script += currentClass->internal_name;
@@ -3512,9 +3641,9 @@ namespace {
 	}
 }
 
-extern "C" void watchDirectories(char* path1, char* path2);
+extern "C" void watchDirectories(char *path1, char *path2);
 
-extern "C" void filechanged(char* path) {
+extern "C" void filechanged(char *path) {
 	std::string strpath = path;
 	if (endsWith(strpath, ".png")) {
 		std::string name = strpath.substr(strpath.find_last_of('/') + 1);
@@ -3537,7 +3666,7 @@ extern "C" void filechanged(char* path) {
 
 //__declspec(dllimport) extern "C" void __stdcall Sleep(unsigned long milliseconds);
 
-int kickstart(int argc, char** argv) {
+int kickstart(int argc, char **argv) {
 	_argc = argc;
 	_argv = argv;
 	std::string bindir(argv[0]);
@@ -3548,7 +3677,7 @@ int kickstart(int argc, char** argv) {
 #endif
 	assetsdir = argc > 1 ? argv[1] : bindir;
 	shadersdir = argc > 2 ? argv[2] : bindir;
-	
+
 	int optionIndex = 3;
 	if (shadersdir.rfind("--", 0) == 0) {
 		shadersdir = bindir;
@@ -3586,9 +3715,9 @@ int kickstart(int argc, char** argv) {
 			readStdoutPath = true;
 		}
 		else if (readConsolePid) {
-			#ifdef KORE_WINDOWS
+#ifdef KORE_WINDOWS
 			AttachConsole(atoi(argv[i]));
-			#endif
+#endif
 			readConsolePid = false;
 		}
 		else if (strcmp(argv[i], "--consolepid") == 0) {
@@ -3613,7 +3742,7 @@ int kickstart(int argc, char** argv) {
 		exit(1);
 	}
 
-	char* code = new char[reader.size() + 1];
+	char *code = new char[reader.size() + 1];
 	memcpy(code, reader.readAll(), reader.size());
 	code[reader.size()] = 0;
 	reader.close();
@@ -3642,14 +3771,15 @@ int kickstart(int argc, char** argv) {
 			Message message = receiveMessage();
 			if (message.size > 0 && message.data[0] == DEBUGGER_MESSAGE_START) {
 				if (message.data[1] != KROM_DEBUG_API) {
-					const char* outdated;
+					const char *outdated;
 					if (message.data[1] < KROM_DEBUG_API) {
 						outdated = "your IDE";
 					}
 					else if (KROM_DEBUG_API < message.data[1]) {
 						outdated = "Krom";
 					}
-					sendLogMessage("Krom uses Debug API version %i but your IDE targets Debug API version %i. Please update %s.", KROM_DEBUG_API, message.data[1], outdated);
+					sendLogMessage("Krom uses Debug API version %i but your IDE targets Debug API version %i. Please update %s.", KROM_DEBUG_API,
+					               message.data[1], outdated);
 					exit(1);
 				}
 				break;
@@ -3663,7 +3793,7 @@ int kickstart(int argc, char** argv) {
 	}
 
 	startKrom(code);
-	
+
 	Kore::System::start();
 
 	if (enableSound) {
