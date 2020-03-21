@@ -23,3 +23,17 @@ jobs:
       run: nodejs_bin/copysysbin.sh
     - name: Compile
       run: nodejs_bin/node Kinc/make.js --noshaders --compile
+    - name: Get Krom_bin
+      run: git clone https://github.com/Kode/Krom_bin.git
+    - name: Copy binary
+      run: cp build/build/Release/Krom.app/Contents/MacOS/Krom Krom_bin/Krom.app/Contents/MacOS/Krom
+    - name: Set name
+      run: git config --global user.name "Robbot"
+    - name: Set email
+      run: git config --global user.email "robbot2019@robdangero.us"
+    - name: Commit binary
+      run: git -C Krom_bin commit -a -m "Update macOS binary to $GITHUB_SHA."
+    - name: Push binary
+      run: git -C Krom_bin push https://Kode-Robbot:$ROBBOT_PASS@github.com/Kode/Krom_bin.git master --tags
+      env:
+        ROBBOT_PASS: ${{ secrets.ROBBOT_PASS }}
