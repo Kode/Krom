@@ -1,6 +1,7 @@
 let project = new Project('Krom');
 
 project.cpp11 = true;
+project.linkTimeOptimization = false;
 project.addFile('Sources/**');
 
 await project.addProject('Chakra/Build');
