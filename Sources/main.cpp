@@ -286,13 +286,24 @@ namespace {
 		}
 		JsValueRef stringValue;
 		JsConvertValueToString(arguments[1], &stringValue);
-		size_t length;
-		JsCopyString(stringValue, nullptr, 0, &length);
-		if (length > 511) return JS_INVALID_REFERENCE;
+
+		const wchar_t *str = nullptr;
+		size_t strLength = 0;
+		JsStringToPointer(stringValue, &str, &strLength);
+
+		size_t done = 0;
 		char message[512];
-		JsCopyString(stringValue, message, 511, &length);
-		message[length] = 0;
-		sendLogMessage(message);
+		while (done < strLength) {
+			size_t i;
+			for (i = 0; i < 511; ++i) {
+				message[i] = str[done++];
+				if (done >= strLength) {
+					break;
+				}
+			}
+			message[i] = 0;
+			sendLogMessage(message);
+		}
 		return JS_INVALID_REFERENCE;
 	}
 
