@@ -68,6 +68,9 @@
 #include <unistd.h>
 #endif
 
+CHAKRA_API
+JsStringToPointer(_In_ JsValueRef value, _Outptr_result_buffer_(*stringLength) const wchar_t **stringValue, _Out_ size_t *stringLength);
+
 const int KROM_API = 3;
 const int KROM_DEBUG_API = 1;
 
