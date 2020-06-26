@@ -71,8 +71,8 @@
 CHAKRA_API
 JsStringToPointer(_In_ JsValueRef value, _Outptr_result_buffer_(*stringLength) const wchar_t **stringValue, _Out_ size_t *stringLength);
 
-const int KROM_API = 3;
-const int KROM_DEBUG_API = 1;
+const int KROM_API = 4;
+const int KROM_DEBUG_API = 2;
 
 bool AttachProcess(HANDLE hmod);
 
@@ -298,9 +298,11 @@ namespace {
 		char message[512];
 		while (done < strLength) {
 			size_t i;
-			for (i = 0; i < 511; ++i) {
+			for (i = 0; i < 510; ++i) {
 				message[i] = str[done++];
 				if (done >= strLength) {
+					message[++i] = '\n';
+					++i;
 					break;
 				}
 			}
