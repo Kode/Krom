@@ -2053,7 +2053,7 @@ namespace {
 		JsIntToNumber(texture->stride(), &stride);
 		JsSetProperty(arguments[1], getId("stride"), stride, false);
 
-		int byteLength = formatByteSize(texture->format) * texture->width * texture->height * texture->depth;
+		int byteLength = texture->stride() * texture->height * texture->depth;
 		JsValueRef value;
 		JsCreateExternalArrayBuffer(tex, byteLength, nullptr, nullptr, &value);
 		return value;
