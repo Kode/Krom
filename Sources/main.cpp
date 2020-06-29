@@ -71,7 +71,7 @@
 CHAKRA_API
 JsStringToPointer(_In_ JsValueRef value, _Outptr_result_buffer_(*stringLength) const wchar_t **stringValue, _Out_ size_t *stringLength);
 
-const int KROM_API = 4;
+const int KROM_API = 5;
 const int KROM_DEBUG_API = 2;
 
 bool AttachProcess(HANDLE hmod);
@@ -2048,6 +2048,10 @@ namespace {
 		Kore::Graphics4::Texture *texture;
 		JsGetExternalData(arguments[1], (void **)&texture);
 		Kore::u8 *tex = texture->lock();
+
+		JsValueRef stride;
+		JsIntToNumber(texture->stride(), &stride);
+		JsSetProperty(arguments[1], getId("stride"), stride, false);
 
 		int byteLength = formatByteSize(texture->format) * texture->width * texture->height * texture->depth;
 		JsValueRef value;
