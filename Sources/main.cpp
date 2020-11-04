@@ -71,7 +71,7 @@
 CHAKRA_API
 JsStringToPointer(_In_ JsValueRef value, _Outptr_result_buffer_(*stringLength) const wchar_t **stringValue, _Out_ size_t *stringLength);
 
-const int KROM_API = 5;
+const int KROM_API = 6;
 const int KROM_DEBUG_API = 2;
 
 bool AttachProcess(HANDLE hmod);
@@ -598,7 +598,11 @@ namespace {
 	                                            void *callbackState) {
 		Kore::Graphics4::VertexBuffer *buffer;
 		JsGetExternalData(arguments[1], (void **)&buffer);
-		float *vertices = buffer->lock();
+		int start, count;
+		JsNumberToInt(arguments[2], &start);
+		JsNumberToInt(arguments[3], &count);
+
+		float *vertices = buffer->lock(start, count);
 		JsValueRef value;
 		JsCreateExternalArrayBuffer(vertices, buffer->count() * buffer->stride(), nullptr, nullptr, &value);
 		JsValueRef array;
@@ -610,7 +614,10 @@ namespace {
 	                                              void *callbackState) {
 		Kore::Graphics4::VertexBuffer *buffer;
 		JsGetExternalData(arguments[1], (void **)&buffer);
-		buffer->unlock();
+		int count;
+		JsNumberToInt(arguments[2], &count);
+
+		buffer->unlock(count);
 		return JS_INVALID_REFERENCE;
 	}
 
