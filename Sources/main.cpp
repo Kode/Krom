@@ -34,20 +34,20 @@
 #include <Kore/Audio1/Sound.h>
 #include <Kore/Audio1/SoundStream.h>
 #include <Kore/Audio2/Audio.h>
-#include <Kore/Compute/Compute.h>
 #include <Kore/Display.h>
 #include <Kore/Graphics4/Shader.h>
 #include <Kore/Input/Gamepad.h>
 #include <Kore/Input/Keyboard.h>
 #include <Kore/Input/Mouse.h>
 #include <Kore/Input/Pen.h>
-#include <Kore/Log.h>
-#include <Kore/Math/Random.h>
 #include <Kore/System.h>
-#include <Kore/Threads/Mutex.h>
-#include <Kore/Threads/Thread.h>
 
+#include <kinc/compute/compute.h>
 #include <kinc/io/filereader.h>
+#include <kinc/log.h>
+#include <kinc/math/random.h>
+#include <kinc/threads/mutex.h>
+#include <kinc/threads/thread.h>
 
 #include "debug.h"
 #include "debug_server.h"
@@ -128,8 +128,8 @@ namespace {
 	std::map<std::string, bool> shaderChanges;
 	std::map<std::string, std::string> shaderFileNames;
 
-	Kore::Mutex mutex;
-	Kore::Mutex audioMutex;
+	kinc_mutex_t mutex;
+	kinc_mutex_t audioMutex;
 	int audioSamples = 0;
 	int audioReadLocation = 0;
 
@@ -174,7 +174,7 @@ namespace {
 	void sendLogMessageArgs(const char *format, va_list args) {
 		char msg[4096];
 		vsnprintf(msg, sizeof(msg) - 2, format, args);
-		Kore::log(Kore::Info, "%s", msg);
+		kinc_log(KINC_LOG_LEVEL_INFO, "%s", msg);
 
 		if (debugMode) {
 			std::vector<int> message;
@@ -241,14 +241,14 @@ namespace {
 		frame.samplesPerPixel = samplesPerPixel;
 		Kore::System::init(title, width, height, &win, &frame);
 
-		mutex.create();
-		audioMutex.create();
+		kinc_mutex_init(&mutex);
+		kinc_mutex_init(&audioMutex);
 		if (enableSound) {
 			Kore::Audio2::audioCallback = updateAudio;
 			Kore::Audio2::init();
 			initAudioBuffer();
 		}
-		Kore::Random::init((int)(Kore::System::time() * 1000));
+		kinc_random_init((int)(Kore::System::time() * 1000));
 
 		Kore::System::setCallback(update);
 		Kore::System::setDropFilesCallback(dropFiles);
@@ -1447,42 +1447,6 @@ namespace {
 		return JS_INVALID_REFERENCE;
 	}
 
-	Kore::Graphics4::TextureAddressing convertTextureAddressing(int index) {
-		switch (index) {
-		default:
-		case 0: // Repeat
-			return Kore::Graphics4::Repeat;
-		case 1: // Mirror
-			return Kore::Graphics4::Mirror;
-		case 2: // Clamp
-			return Kore::Graphics4::Clamp;
-		}
-	}
-
-	Kore::Graphics4::TextureFilter convertTextureFilter(int index) {
-		switch (index) {
-		default:
-		case 0: // PointFilter
-			return Kore::Graphics4::PointFilter;
-		case 1: // LinearFilter
-			return Kore::Graphics4::LinearFilter;
-		case 2: // AnisotropicFilter
-			return Kore::Graphics4::AnisotropicFilter;
-		}
-	}
-
-	Kore::Graphics4::MipmapFilter convertMipmapFilter(int index) {
-		switch (index) {
-		default:
-		case 0: // NoMipFilter
-			return Kore::Graphics4::NoMipFilter;
-		case 1: // PointMipFilter
-			return Kore::Graphics4::PointMipFilter;
-		case 2: // LinearMipFilter
-			return Kore::Graphics4::LinearMipFilter;
-		}
-	}
-
 	JsValueRef CALLBACK krom_set_texture_parameters(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount,
 	                                                void *callbackState) {
 		Kore::Graphics4::TextureUnit *unit;
@@ -1493,11 +1457,11 @@ namespace {
 		JsNumberToInt(arguments[4], &min);
 		JsNumberToInt(arguments[5], &max);
 		JsNumberToInt(arguments[6], &mip);
-		Kore::Graphics4::setTextureAddressing(*unit, Kore::Graphics4::U, convertTextureAddressing(u));
-		Kore::Graphics4::setTextureAddressing(*unit, Kore::Graphics4::V, convertTextureAddressing(v));
-		Kore::Graphics4::setTextureMinificationFilter(*unit, convertTextureFilter(min));
-		Kore::Graphics4::setTextureMagnificationFilter(*unit, convertTextureFilter(max));
-		Kore::Graphics4::setTextureMipmapFilter(*unit, convertMipmapFilter(mip));
+		Kore::Graphics4::setTextureAddressing(*unit, Kore::Graphics4::U, (Kore::Graphics4::TextureAddressing)u);
+		Kore::Graphics4::setTextureAddressing(*unit, Kore::Graphics4::V, (Kore::Graphics4::TextureAddressing)v);
+		Kore::Graphics4::setTextureMinificationFilter(*unit, (Kore::Graphics4::TextureFilter)min);
+		Kore::Graphics4::setTextureMagnificationFilter(*unit, (Kore::Graphics4::TextureFilter)max);
+		Kore::Graphics4::setTextureMipmapFilter(*unit, (Kore::Graphics4::MipmapFilter)mip);
 		return JS_INVALID_REFERENCE;
 	}
 
@@ -1512,12 +1476,12 @@ namespace {
 		JsNumberToInt(arguments[5], &min);
 		JsNumberToInt(arguments[6], &max);
 		JsNumberToInt(arguments[7], &mip);
-		Kore::Graphics4::setTexture3DAddressing(*unit, Kore::Graphics4::U, convertTextureAddressing(u));
-		Kore::Graphics4::setTexture3DAddressing(*unit, Kore::Graphics4::V, convertTextureAddressing(v));
-		Kore::Graphics4::setTexture3DAddressing(*unit, Kore::Graphics4::W, convertTextureAddressing(w));
-		Kore::Graphics4::setTexture3DMinificationFilter(*unit, convertTextureFilter(min));
-		Kore::Graphics4::setTexture3DMagnificationFilter(*unit, convertTextureFilter(max));
-		Kore::Graphics4::setTexture3DMipmapFilter(*unit, convertMipmapFilter(mip));
+		Kore::Graphics4::setTexture3DAddressing(*unit, Kore::Graphics4::U, (Kore::Graphics4::TextureAddressing)u);
+		Kore::Graphics4::setTexture3DAddressing(*unit, Kore::Graphics4::V, (Kore::Graphics4::TextureAddressing)v);
+		Kore::Graphics4::setTexture3DAddressing(*unit, Kore::Graphics4::W, (Kore::Graphics4::TextureAddressing)w);
+		Kore::Graphics4::setTexture3DMinificationFilter(*unit, (Kore::Graphics4::TextureFilter)min);
+		Kore::Graphics4::setTexture3DMagnificationFilter(*unit, (Kore::Graphics4::TextureFilter)max);
+		Kore::Graphics4::setTexture3DMipmapFilter(*unit, (Kore::Graphics4::MipmapFilter)mip);
 		return JS_INVALID_REFERENCE;
 	}
 
@@ -2289,73 +2253,73 @@ namespace {
 
 	JsValueRef CALLBACK krom_set_bool_compute(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount,
 	                                          void *callbackState) {
-		Kore::ComputeConstantLocation *location;
+		kinc_compute_constant_location_t *location;
 		JsGetExternalData(arguments[1], (void **)&location);
 		int value;
 		JsNumberToInt(arguments[2], &value);
-		Kore::Compute::setBool(*location, value != 0);
+		kinc_compute_set_bool(*location, value != 0);
 		return JS_INVALID_REFERENCE;
 	}
 
 	JsValueRef CALLBACK krom_set_int_compute(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount,
 	                                         void *callbackState) {
-		Kore::ComputeConstantLocation *location;
+		kinc_compute_constant_location_t *location;
 		JsGetExternalData(arguments[1], (void **)&location);
 		int value;
 		JsNumberToInt(arguments[2], &value);
-		Kore::Compute::setInt(*location, value);
+		kinc_compute_set_int(*location, value);
 		return JS_INVALID_REFERENCE;
 	}
 
 	JsValueRef CALLBACK krom_set_float_compute(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount,
 	                                           void *callbackState) {
-		Kore::ComputeConstantLocation *location;
+		kinc_compute_constant_location_t *location;
 		JsGetExternalData(arguments[1], (void **)&location);
 		double value;
 		JsNumberToDouble(arguments[2], &value);
-		Kore::Compute::setFloat(*location, value);
+		kinc_compute_set_float(*location, value);
 		return JS_INVALID_REFERENCE;
 	}
 
 	JsValueRef CALLBACK krom_set_float2_compute(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount,
 	                                            void *callbackState) {
-		Kore::ComputeConstantLocation *location;
+		kinc_compute_constant_location_t *location;
 		JsGetExternalData(arguments[1], (void **)&location);
 		double value1, value2;
 		JsNumberToDouble(arguments[2], &value1);
 		JsNumberToDouble(arguments[3], &value2);
-		Kore::Compute::setFloat2(*location, value1, value2);
+		kinc_compute_set_float2(*location, value1, value2);
 		return JS_INVALID_REFERENCE;
 	}
 
 	JsValueRef CALLBACK krom_set_float3_compute(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount,
 	                                            void *callbackState) {
-		Kore::ComputeConstantLocation *location;
+		kinc_compute_constant_location_t *location;
 		JsGetExternalData(arguments[1], (void **)&location);
 		double value1, value2, value3;
 		JsNumberToDouble(arguments[2], &value1);
 		JsNumberToDouble(arguments[3], &value2);
 		JsNumberToDouble(arguments[4], &value3);
-		Kore::Compute::setFloat3(*location, value1, value2, value3);
+		kinc_compute_set_float3(*location, value1, value2, value3);
 		return JS_INVALID_REFERENCE;
 	}
 
 	JsValueRef CALLBACK krom_set_float4_compute(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount,
 	                                            void *callbackState) {
-		Kore::ComputeConstantLocation *location;
+		kinc_compute_constant_location_t *location;
 		JsGetExternalData(arguments[1], (void **)&location);
 		double value1, value2, value3, value4;
 		JsNumberToDouble(arguments[2], &value1);
 		JsNumberToDouble(arguments[3], &value2);
 		JsNumberToDouble(arguments[4], &value3);
 		JsNumberToDouble(arguments[5], &value4);
-		Kore::Compute::setFloat4(*location, value1, value2, value3, value4);
+		kinc_compute_set_float4(*location, value1, value2, value3, value4);
 		return JS_INVALID_REFERENCE;
 	}
 
 	JsValueRef CALLBACK krom_set_floats_compute(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount,
 	                                            void *callbackState) {
-		Kore::ComputeConstantLocation *location;
+		kinc_compute_constant_location_t *location;
 		JsGetExternalData(arguments[1], (void **)&location);
 
 		Kore::u8 *data;
@@ -2364,14 +2328,14 @@ namespace {
 
 		float *from = (float *)data;
 
-		Kore::Compute::setFloats(*location, from, int(bufferLength / 4));
+		kinc_compute_set_floats(*location, from, int(bufferLength / 4));
 
 		return JS_INVALID_REFERENCE;
 	}
 
 	JsValueRef CALLBACK krom_set_matrix_compute(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount,
 	                                            void *callbackState) {
-		Kore::ComputeConstantLocation *location;
+		kinc_compute_constant_location_t *location;
 		JsGetExternalData(arguments[1], (void **)&location);
 
 		Kore::u8 *data;
@@ -2379,32 +2343,32 @@ namespace {
 		JsGetArrayBufferStorage(arguments[2], &data, &bufferLength);
 
 		float *from = (float *)data;
-		Kore::mat4 m;
-		m.Set(0, 0, from[0]);
-		m.Set(1, 0, from[1]);
-		m.Set(2, 0, from[2]);
-		m.Set(3, 0, from[3]);
-		m.Set(0, 1, from[4]);
-		m.Set(1, 1, from[5]);
-		m.Set(2, 1, from[6]);
-		m.Set(3, 1, from[7]);
-		m.Set(0, 2, from[8]);
-		m.Set(1, 2, from[9]);
-		m.Set(2, 2, from[10]);
-		m.Set(3, 2, from[11]);
-		m.Set(0, 3, from[12]);
-		m.Set(1, 3, from[13]);
-		m.Set(2, 3, from[14]);
-		m.Set(3, 3, from[15]);
+		kinc_matrix4x4_t m;
+		kinc_matrix4x4_set(&m, 0, 0, from[0]);
+		kinc_matrix4x4_set(&m, 1, 0, from[1]);
+		kinc_matrix4x4_set(&m, 2, 0, from[2]);
+		kinc_matrix4x4_set(&m, 3, 0, from[3]);
+		kinc_matrix4x4_set(&m, 0, 1, from[4]);
+		kinc_matrix4x4_set(&m, 1, 1, from[5]);
+		kinc_matrix4x4_set(&m, 2, 1, from[6]);
+		kinc_matrix4x4_set(&m, 3, 1, from[7]);
+		kinc_matrix4x4_set(&m, 0, 2, from[8]);
+		kinc_matrix4x4_set(&m, 1, 2, from[9]);
+		kinc_matrix4x4_set(&m, 2, 2, from[10]);
+		kinc_matrix4x4_set(&m, 3, 2, from[11]);
+		kinc_matrix4x4_set(&m, 0, 3, from[12]);
+		kinc_matrix4x4_set(&m, 1, 3, from[13]);
+		kinc_matrix4x4_set(&m, 2, 3, from[14]);
+		kinc_matrix4x4_set(&m, 3, 3, from[15]);
 
-		Kore::Compute::setMatrix(*location, m);
+		kinc_compute_set_matrix4(*location, &m);
 
 		return JS_INVALID_REFERENCE;
 	}
 
 	JsValueRef CALLBACK krom_set_matrix3_compute(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount,
 	                                             void *callbackState) {
-		Kore::ComputeConstantLocation *location;
+		kinc_compute_constant_location_t *location;
 		JsGetExternalData(arguments[1], (void **)&location);
 
 		Kore::u8 *data;
@@ -2412,25 +2376,25 @@ namespace {
 		JsGetArrayBufferStorage(arguments[2], &data, &bufferLength);
 
 		float *from = (float *)data;
-		Kore::mat3 m;
-		m.Set(0, 0, from[0]);
-		m.Set(1, 0, from[1]);
-		m.Set(2, 0, from[2]);
-		m.Set(0, 1, from[3]);
-		m.Set(1, 1, from[4]);
-		m.Set(2, 1, from[5]);
-		m.Set(0, 2, from[6]);
-		m.Set(1, 2, from[7]);
-		m.Set(2, 2, from[8]);
+		kinc_matrix3x3_t m;
+		kinc_matrix3x3_set(&m, 0, 0, from[0]);
+		kinc_matrix3x3_set(&m, 1, 0, from[1]);
+		kinc_matrix3x3_set(&m, 2, 0, from[2]);
+		kinc_matrix3x3_set(&m, 0, 1, from[3]);
+		kinc_matrix3x3_set(&m, 1, 1, from[4]);
+		kinc_matrix3x3_set(&m, 2, 1, from[5]);
+		kinc_matrix3x3_set(&m, 0, 2, from[6]);
+		kinc_matrix3x3_set(&m, 1, 2, from[7]);
+		kinc_matrix3x3_set(&m, 2, 2, from[8]);
 
-		Kore::Compute::setMatrix(*location, m);
+		kinc_compute_set_matrix3(*location, &m);
 
 		return JS_INVALID_REFERENCE;
 	}
 
 	JsValueRef CALLBACK krom_set_texture_compute(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount,
 	                                             void *callbackState) {
-		Kore::ComputeTextureUnit *unit;
+		kinc_compute_texture_unit *unit;
 		JsGetExternalData(arguments[1], (void **)&unit);
 
 		Kore::Graphics4::Texture *texture;
@@ -2439,14 +2403,14 @@ namespace {
 		int access;
 		JsNumberToInt(arguments[3], &access);
 
-		Kore::Compute::setTexture(*unit, texture, (Kore::Compute::Access)access);
+		kinc_compute_set_texture(*unit, &texture->kincTexture, (kinc_compute_access_t)access);
 
 		return JS_INVALID_REFERENCE;
 	}
 
 	JsValueRef CALLBACK krom_set_render_target_compute(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount,
 	                                                   void *callbackState) {
-		Kore::ComputeTextureUnit *unit;
+		kinc_compute_texture_unit *unit;
 		JsGetExternalData(arguments[1], (void **)&unit);
 
 		Kore::Graphics4::RenderTarget *renderTarget;
@@ -2455,50 +2419,50 @@ namespace {
 		int access;
 		JsNumberToInt(arguments[3], &access);
 
-		Kore::Compute::setTexture(*unit, renderTarget, (Kore::Compute::Access)access);
+		kinc_compute_set_render_target(*unit, &renderTarget->kincRenderTarget, (kinc_compute_access_t)access);
 
 		return JS_INVALID_REFERENCE;
 	}
 
 	JsValueRef CALLBACK krom_set_sampled_texture_compute(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount,
 	                                                     void *callbackState) {
-		Kore::ComputeTextureUnit *unit;
+		kinc_compute_texture_unit *unit;
 		JsGetExternalData(arguments[1], (void **)&unit);
 
 		Kore::Graphics4::Texture *texture;
 		JsGetExternalData(arguments[2], (void **)&texture);
-		Kore::Compute::setSampledTexture(*unit, texture);
+		kinc_compute_set_sampled_texture(*unit, &texture->kincTexture);
 
 		return JS_INVALID_REFERENCE;
 	}
 
 	JsValueRef CALLBACK krom_set_sampled_render_target_compute(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount,
 	                                                           void *callbackState) {
-		Kore::ComputeTextureUnit *unit;
+		kinc_compute_texture_unit *unit;
 		JsGetExternalData(arguments[1], (void **)&unit);
 
 		Kore::Graphics4::RenderTarget *renderTarget;
 		JsGetExternalData(arguments[2], (void **)&renderTarget);
-		Kore::Compute::setSampledTexture(*unit, renderTarget);
+		kinc_compute_set_sampled_render_target(*unit, &renderTarget->kincRenderTarget);
 
 		return JS_INVALID_REFERENCE;
 	}
 
 	JsValueRef CALLBACK krom_set_sampled_depth_texture_compute(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount,
 	                                                           void *callbackState) {
-		Kore::ComputeTextureUnit *unit;
+		kinc_compute_texture_unit *unit;
 		JsGetExternalData(arguments[1], (void **)&unit);
 
 		Kore::Graphics4::RenderTarget *renderTarget;
 		JsGetExternalData(arguments[2], (void **)&renderTarget);
-		Kore::Compute::setSampledDepthTexture(*unit, renderTarget);
+		kinc_compute_set_sampled_depth_from_render_target(*unit, &renderTarget->kincRenderTarget);
 
 		return JS_INVALID_REFERENCE;
 	}
 
 	JsValueRef CALLBACK krom_set_texture_parameters_compute(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount,
 	                                                        void *callbackState) {
-		Kore::ComputeTextureUnit *unit;
+		kinc_compute_texture_unit *unit;
 		JsGetExternalData(arguments[1], (void **)&unit);
 
 		int u, v, min, max, mip;
@@ -2508,18 +2472,18 @@ namespace {
 		JsNumberToInt(arguments[5], &max);
 		JsNumberToInt(arguments[6], &mip);
 
-		Kore::Compute::setTextureAddressing(*unit, Kore::Graphics4::U, convertTextureAddressing(u));
-		Kore::Compute::setTextureAddressing(*unit, Kore::Graphics4::V, convertTextureAddressing(v));
-		Kore::Compute::setTextureMinificationFilter(*unit, convertTextureFilter(min));
-		Kore::Compute::setTextureMagnificationFilter(*unit, convertTextureFilter(max));
-		Kore::Compute::setTextureMipmapFilter(*unit, convertMipmapFilter(mip));
+		kinc_compute_set_texture_addressing(*unit, KINC_G4_TEXTURE_DIRECTION_U, (kinc_g4_texture_addressing_t)u);
+		kinc_compute_set_texture_addressing(*unit, KINC_G4_TEXTURE_DIRECTION_V, (kinc_g4_texture_addressing_t)v);
+		kinc_compute_set_texture_minification_filter(*unit, (kinc_g4_texture_filter_t)min);
+		kinc_compute_set_texture_magnification_filter(*unit, (kinc_g4_texture_filter_t)max);
+		kinc_compute_set_texture_mipmap_filter(*unit, (kinc_g4_mipmap_filter_t)mip);
 
 		return JS_INVALID_REFERENCE;
 	}
 
 	JsValueRef CALLBACK krom_set_texture_3d_parameters_compute(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount,
 	                                                           void *callbackState) {
-		Kore::ComputeTextureUnit *unit;
+		kinc_compute_texture_unit *unit;
 		JsGetExternalData(arguments[1], (void **)&unit);
 
 		int u, v, w, min, max, mip;
@@ -2530,12 +2494,12 @@ namespace {
 		JsNumberToInt(arguments[6], &max);
 		JsNumberToInt(arguments[7], &mip);
 
-		Kore::Compute::setTexture3DAddressing(*unit, Kore::Graphics4::U, convertTextureAddressing(u));
-		Kore::Compute::setTexture3DAddressing(*unit, Kore::Graphics4::V, convertTextureAddressing(v));
-		Kore::Compute::setTexture3DAddressing(*unit, Kore::Graphics4::W, convertTextureAddressing(w));
-		Kore::Compute::setTexture3DMinificationFilter(*unit, convertTextureFilter(min));
-		Kore::Compute::setTexture3DMagnificationFilter(*unit, convertTextureFilter(max));
-		Kore::Compute::setTexture3DMipmapFilter(*unit, convertMipmapFilter(mip));
+		kinc_compute_set_texture3d_addressing(*unit, KINC_G4_TEXTURE_DIRECTION_U, (kinc_g4_texture_addressing_t)u);
+		kinc_compute_set_texture3d_addressing(*unit, KINC_G4_TEXTURE_DIRECTION_V, (kinc_g4_texture_addressing_t)v);
+		kinc_compute_set_texture3d_addressing(*unit, KINC_G4_TEXTURE_DIRECTION_W, (kinc_g4_texture_addressing_t)w);
+		kinc_compute_set_texture3d_minification_filter(*unit, (kinc_g4_texture_filter_t)min);
+		kinc_compute_set_texture3d_magnification_filter(*unit, (kinc_g4_texture_filter_t)max);
+		kinc_compute_set_texture3d_mipmap_filter(*unit, (kinc_g4_mipmap_filter_t)mip);
 
 		return JS_INVALID_REFERENCE;
 	}
@@ -2549,9 +2513,9 @@ namespace {
 
 	JsValueRef CALLBACK krom_set_shader_compute(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount,
 	                                            void *callbackState) {
-		Kore::ComputeShader *shader;
+		kinc_compute_shader_t *shader;
 		JsGetExternalData(arguments[1], (void **)&shader);
-		Kore::Compute::setShader(shader);
+		kinc_compute_set_shader(shader);
 		return JS_INVALID_REFERENCE;
 	}
 
@@ -2561,7 +2525,8 @@ namespace {
 		unsigned bufferLength;
 		JsGetArrayBufferStorage(arguments[1], &content, &bufferLength);
 
-		Kore::ComputeShader *shader = new Kore::ComputeShader(content, (int)bufferLength);
+		kinc_compute_shader_t *shader = (kinc_compute_shader_t *)malloc(sizeof(kinc_compute_shader_t));
+		kinc_compute_shader_init(shader, content, (int)bufferLength);
 
 		JsValueRef value;
 		JsCreateExternalObject(shader, nullptr, &value);
@@ -2570,42 +2535,47 @@ namespace {
 
 	JsValueRef CALLBACK krom_delete_shader_compute(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount,
 	                                               void *callbackState) {
-		Kore::ComputeShader *shader;
+		kinc_compute_shader_t *shader;
 		JsGetExternalData(arguments[1], (void **)&shader);
-		delete shader;
+		kinc_compute_shader_destroy(shader);
+		free(shader);
 		return JS_INVALID_REFERENCE;
 	}
 
 	JsValueRef CALLBACK krom_get_constant_location_compute(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount,
 	                                                       void *callbackState) {
-		Kore::ComputeShader *shader;
+		kinc_compute_shader_t *shader;
 		JsGetExternalData(arguments[1], (void **)&shader);
 
 		size_t length;
 		JsCopyString(arguments[2], tempString, tempStringSize, &length);
 		tempString[length] = 0;
 
-		Kore::ComputeConstantLocation location = shader->getConstantLocation(tempString);
+		kinc_compute_constant_location_t location = kinc_compute_shader_get_constant_location(shader, tempString);
+		kinc_compute_constant_location_t *heapLocation = (kinc_compute_constant_location_t *)malloc(sizeof(kinc_compute_constant_location_t));
+		memcpy(heapLocation, &location, sizeof(kinc_compute_constant_location_t));
 
 		JsValueRef value;
-		JsCreateExternalObject(new Kore::ComputeConstantLocation(location), nullptr, &value);
+		JsCreateExternalObject(heapLocation, nullptr, &value);
 
 		return value;
 	}
 
 	JsValueRef CALLBACK krom_get_texture_unit_compute(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount,
 	                                                  void *callbackState) {
-		Kore::ComputeShader *shader;
+		kinc_compute_shader_t *shader;
 		JsGetExternalData(arguments[1], (void **)&shader);
 
 		size_t length;
 		JsCopyString(arguments[2], tempString, tempStringSize, &length);
 		tempString[length] = 0;
 
-		Kore::ComputeTextureUnit unit = shader->getTextureUnit(tempString);
+		kinc_compute_texture_unit_t unit = kinc_compute_shader_get_texture_unit(shader, tempString);
+		kinc_compute_texture_unit_t *heapUnit = (kinc_compute_texture_unit_t *)malloc(sizeof(kinc_compute_texture_unit_t));
+		memcpy(heapUnit, &unit, sizeof(kinc_compute_texture_unit_t));
 
 		JsValueRef value;
-		JsCreateExternalObject(new Kore::ComputeTextureUnit(unit), nullptr, &value);
+		JsCreateExternalObject(heapUnit, nullptr, &value);
 
 		return value;
 	}
@@ -2615,7 +2585,7 @@ namespace {
 		JsNumberToInt(arguments[1], &x);
 		JsNumberToInt(arguments[2], &y);
 		JsNumberToInt(arguments[3], &z);
-		Kore::Compute::compute(x, y, z);
+		kinc_compute(x, y, z);
 		return JS_INVALID_REFERENCE;
 	}
 
@@ -2921,19 +2891,19 @@ namespace {
 	}
 
 	void updateAudio(int samples) {
-		audioMutex.lock();
+		kinc_mutex_lock(&audioMutex);
 		audioSamples += samples;
-		audioMutex.unlock();
+		kinc_mutex_unlock(&audioMutex);
 	}
 
 	void update() {
-		mutex.lock();
+		kinc_mutex_lock(&mutex);
 		JsSetCurrentContext(context);
 
 		if (enableSound) {
 			Kore::Audio2::update();
 
-			audioMutex.lock();
+			kinc_mutex_lock(&audioMutex);
 			if (audioSamples > 0) {
 				JsValueRef args[2];
 				JsGetUndefinedValue(&args[0]);
@@ -2942,7 +2912,7 @@ namespace {
 				JsCallFunction(audioFunction, args, 2, &result);
 				audioSamples = 0;
 			}
-			audioMutex.unlock();
+			kinc_mutex_unlock(&audioMutex);
 		}
 
 		Kore::Graphics4::begin();
@@ -2950,7 +2920,7 @@ namespace {
 		runJS();
 
 		JsSetCurrentContext(JS_INVALID_REFERENCE);
-		mutex.unlock();
+		kinc_mutex_unlock(&mutex);
 
 		Kore::Graphics4::end();
 
@@ -2961,7 +2931,7 @@ namespace {
 	}
 
 	void dropFiles(wchar_t *filePath) {
-		mutex.lock();
+		kinc_mutex_lock(&mutex);
 		JsSetCurrentContext(context);
 
 		JsValueRef args[2];
@@ -2981,13 +2951,13 @@ namespace {
 		JsCallFunction(dropFilesFunction, args, 2, &result);
 
 		JsSetCurrentContext(JS_INVALID_REFERENCE);
-		mutex.unlock();
+		kinc_mutex_unlock(&mutex);
 	}
 
 	char cutCopyString[4096];
 
 	char *copy() {
-		mutex.lock();
+		kinc_mutex_lock(&mutex);
 		JsSetCurrentContext(context);
 
 		JsValueRef args[1];
@@ -3004,13 +2974,13 @@ namespace {
 		cutCopyString[length] = 0;
 
 		JsSetCurrentContext(JS_INVALID_REFERENCE);
-		mutex.unlock();
+		kinc_mutex_unlock(&mutex);
 
 		return cutCopyString;
 	}
 
 	char *cut() {
-		mutex.lock();
+		kinc_mutex_lock(&mutex);
 		JsSetCurrentContext(context);
 
 		JsValueRef args[1];
@@ -3027,13 +2997,13 @@ namespace {
 		cutCopyString[length] = 0;
 
 		JsSetCurrentContext(JS_INVALID_REFERENCE);
-		mutex.unlock();
+		kinc_mutex_unlock(&mutex);
 
 		return cutCopyString;
 	}
 
 	void paste(char *data) {
-		mutex.lock();
+		kinc_mutex_lock(&mutex);
 		JsSetCurrentContext(context);
 
 		JsValueRef args[2];
@@ -3043,11 +3013,11 @@ namespace {
 		JsCallFunction(pasteFunction, args, 2, &result);
 
 		JsSetCurrentContext(JS_INVALID_REFERENCE);
-		mutex.unlock();
+		kinc_mutex_unlock(&mutex);
 	}
 
 	void foreground() {
-		mutex.lock();
+		kinc_mutex_lock(&mutex);
 		JsSetCurrentContext(context);
 
 		JsValueRef args[1];
@@ -3056,11 +3026,11 @@ namespace {
 		JsCallFunction(foregroundFunction, args, 1, &result);
 
 		JsSetCurrentContext(JS_INVALID_REFERENCE);
-		mutex.unlock();
+		kinc_mutex_unlock(&mutex);
 	}
 
 	void resume() {
-		mutex.lock();
+		kinc_mutex_lock(&mutex);
 		JsSetCurrentContext(context);
 
 		JsValueRef args[1];
@@ -3069,11 +3039,11 @@ namespace {
 		JsCallFunction(resumeFunction, args, 1, &result);
 
 		JsSetCurrentContext(JS_INVALID_REFERENCE);
-		mutex.unlock();
+		kinc_mutex_unlock(&mutex);
 	}
 
 	void pause() {
-		mutex.lock();
+		kinc_mutex_lock(&mutex);
 		JsSetCurrentContext(context);
 
 		JsValueRef args[1];
@@ -3082,11 +3052,11 @@ namespace {
 		JsCallFunction(pauseFunction, args, 1, &result);
 
 		JsSetCurrentContext(JS_INVALID_REFERENCE);
-		mutex.unlock();
+		kinc_mutex_unlock(&mutex);
 	}
 
 	void background() {
-		mutex.lock();
+		kinc_mutex_lock(&mutex);
 		JsSetCurrentContext(context);
 
 		JsValueRef args[1];
@@ -3095,11 +3065,11 @@ namespace {
 		JsCallFunction(backgroundFunction, args, 1, &result);
 
 		JsSetCurrentContext(JS_INVALID_REFERENCE);
-		mutex.unlock();
+		kinc_mutex_unlock(&mutex);
 	}
 
 	void shutdown() {
-		mutex.lock();
+		kinc_mutex_lock(&mutex);
 		JsSetCurrentContext(context);
 
 		JsValueRef args[1];
@@ -3108,11 +3078,11 @@ namespace {
 		JsCallFunction(shutdownFunction, args, 1, &result);
 
 		JsSetCurrentContext(JS_INVALID_REFERENCE);
-		mutex.unlock();
+		kinc_mutex_unlock(&mutex);
 	}
 
 	void keyDown(Kore::KeyCode code) {
-		mutex.lock();
+		kinc_mutex_lock(&mutex);
 		JsSetCurrentContext(context);
 
 		JsValueRef args[2];
@@ -3122,11 +3092,11 @@ namespace {
 		JsCallFunction(keyboardDownFunction, args, 2, &result);
 
 		JsSetCurrentContext(JS_INVALID_REFERENCE);
-		mutex.unlock();
+		kinc_mutex_unlock(&mutex);
 	}
 
 	void keyUp(Kore::KeyCode code) {
-		mutex.lock();
+		kinc_mutex_lock(&mutex);
 		JsSetCurrentContext(context);
 
 		JsValueRef args[2];
@@ -3136,11 +3106,11 @@ namespace {
 		JsCallFunction(keyboardUpFunction, args, 2, &result);
 
 		JsSetCurrentContext(JS_INVALID_REFERENCE);
-		mutex.unlock();
+		kinc_mutex_unlock(&mutex);
 	}
 
 	void keyPress(wchar_t character) {
-		mutex.lock();
+		kinc_mutex_lock(&mutex);
 		JsSetCurrentContext(context);
 
 		JsValueRef args[2];
@@ -3150,11 +3120,11 @@ namespace {
 		JsCallFunction(keyboardPressFunction, args, 2, &result);
 
 		JsSetCurrentContext(JS_INVALID_REFERENCE);
-		mutex.unlock();
+		kinc_mutex_unlock(&mutex);
 	}
 
 	void mouseMove(int window, int x, int y, int mx, int my) {
-		mutex.lock();
+		kinc_mutex_lock(&mutex);
 		JsSetCurrentContext(context);
 
 		JsValueRef args[5];
@@ -3167,11 +3137,11 @@ namespace {
 		JsCallFunction(mouseMoveFunction, args, 5, &result);
 
 		JsSetCurrentContext(JS_INVALID_REFERENCE);
-		mutex.unlock();
+		kinc_mutex_unlock(&mutex);
 	}
 
 	void mouseDown(int window, int button, int x, int y) {
-		mutex.lock();
+		kinc_mutex_lock(&mutex);
 		JsSetCurrentContext(context);
 
 		JsValueRef args[4];
@@ -3183,11 +3153,11 @@ namespace {
 		JsCallFunction(mouseDownFunction, args, 4, &result);
 
 		JsSetCurrentContext(JS_INVALID_REFERENCE);
-		mutex.unlock();
+		kinc_mutex_unlock(&mutex);
 	}
 
 	void mouseUp(int window, int button, int x, int y) {
-		mutex.lock();
+		kinc_mutex_lock(&mutex);
 		JsSetCurrentContext(context);
 
 		JsValueRef args[4];
@@ -3199,11 +3169,11 @@ namespace {
 		JsCallFunction(mouseUpFunction, args, 4, &result);
 
 		JsSetCurrentContext(JS_INVALID_REFERENCE);
-		mutex.unlock();
+		kinc_mutex_unlock(&mutex);
 	}
 
 	void mouseWheel(int window, int delta) {
-		mutex.lock();
+		kinc_mutex_lock(&mutex);
 		JsSetCurrentContext(context);
 
 		JsValueRef args[2];
@@ -3213,11 +3183,11 @@ namespace {
 		JsCallFunction(mouseWheelFunction, args, 2, &result);
 
 		JsSetCurrentContext(JS_INVALID_REFERENCE);
-		mutex.unlock();
+		kinc_mutex_unlock(&mutex);
 	}
 
 	void penDown(int window, int x, int y, float pressure) {
-		mutex.lock();
+		kinc_mutex_lock(&mutex);
 		JsSetCurrentContext(context);
 
 		JsValueRef args[4];
@@ -3229,11 +3199,11 @@ namespace {
 		JsCallFunction(penDownFunction, args, 4, &result);
 
 		JsSetCurrentContext(JS_INVALID_REFERENCE);
-		mutex.unlock();
+		kinc_mutex_unlock(&mutex);
 	}
 
 	void penUp(int window, int x, int y, float pressure) {
-		mutex.lock();
+		kinc_mutex_lock(&mutex);
 		JsSetCurrentContext(context);
 
 		JsValueRef args[4];
@@ -3245,11 +3215,11 @@ namespace {
 		JsCallFunction(penUpFunction, args, 4, &result);
 
 		JsSetCurrentContext(JS_INVALID_REFERENCE);
-		mutex.unlock();
+		kinc_mutex_unlock(&mutex);
 	}
 
 	void penMove(int window, int x, int y, float pressure) {
-		mutex.lock();
+		kinc_mutex_lock(&mutex);
 		JsSetCurrentContext(context);
 
 		JsValueRef args[4];
@@ -3261,11 +3231,11 @@ namespace {
 		JsCallFunction(penMoveFunction, args, 4, &result);
 
 		JsSetCurrentContext(JS_INVALID_REFERENCE);
-		mutex.unlock();
+		kinc_mutex_unlock(&mutex);
 	}
 
 	void gamepadAxis(int gamepad, int axis, float value) {
-		mutex.lock();
+		kinc_mutex_lock(&mutex);
 		JsSetCurrentContext(context);
 
 		JsValueRef args[4];
@@ -3277,11 +3247,11 @@ namespace {
 		JsCallFunction(gamepadAxisFunction, args, 4, &result);
 
 		JsSetCurrentContext(JS_INVALID_REFERENCE);
-		mutex.unlock();
+		kinc_mutex_unlock(&mutex);
 	}
 
 	void gamepadButton(int gamepad, int button, float value) {
-		mutex.lock();
+		kinc_mutex_lock(&mutex);
 		JsSetCurrentContext(context);
 
 		JsValueRef args[4];
@@ -3293,7 +3263,7 @@ namespace {
 		JsCallFunction(gamepadButtonFunction, args, 4, &result);
 
 		JsSetCurrentContext(JS_INVALID_REFERENCE);
-		mutex.unlock();
+		kinc_mutex_unlock(&mutex);
 	}
 
 	void gamepad1Axis(int axis, float value) {
@@ -3784,7 +3754,7 @@ int kickstart(int argc, char **argv) {
 		parseCode();
 	}
 
-	Kore::threadsInit();
+	kinc_threads_init();
 
 	if (watch) {
 		watchDirectories(argv[1], argv[2]);
@@ -3825,7 +3795,7 @@ int kickstart(int argc, char **argv) {
 
 	if (enableSound) {
 		Kore::Audio2::shutdown();
-		mutex.lock(); // Prevent audio thread from running
+		kinc_mutex_lock(&mutex); // Prevent audio thread from running
 	}
 
 	exit(0); // TODO
