@@ -34,20 +34,21 @@
 #include <Kore/Audio1/Sound.h>
 #include <Kore/Audio1/SoundStream.h>
 #include <Kore/Audio2/Audio.h>
-#include <Kore/Display.h>
 #include <Kore/Graphics4/Shader.h>
 #include <Kore/Input/Gamepad.h>
 #include <Kore/Input/Keyboard.h>
 #include <Kore/Input/Mouse.h>
 #include <Kore/Input/Pen.h>
-#include <Kore/System.h>
 
 #include <kinc/compute/compute.h>
+#include <kinc/display.h>
 #include <kinc/io/filereader.h>
 #include <kinc/log.h>
 #include <kinc/math/random.h>
+#include <kinc/system.h>
 #include <kinc/threads/mutex.h>
 #include <kinc/threads/thread.h>
+#include <kinc/window.h>
 
 #include "debug.h"
 #include "debug_server.h"
@@ -227,19 +228,19 @@ namespace {
 			exit(1);
 		}
 
-		Kore::WindowOptions win;
+		kinc_window_options_t win;
 		win.title = title;
 		win.width = width;
 		win.height = height;
 		win.x = -1;
 		win.y = -1;
 		win.visible = !nowindow;
-		win.mode = Kore::WindowMode(windowMode);
-		win.windowFeatures = windowFeatures;
-		Kore::FramebufferOptions frame;
-		frame.verticalSync = vSync;
-		frame.samplesPerPixel = samplesPerPixel;
-		Kore::System::init(title, width, height, &win, &frame);
+		win.mode = (kinc_window_mode_t)windowMode;
+		win.window_features = windowFeatures;
+		kinc_framebuffer_options_t frame;
+		frame.vertical_sync = vSync;
+		frame.samples_per_pixel = samplesPerPixel;
+		kinc_init(title, width, height, &win, &frame);
 
 		kinc_mutex_init(&mutex);
 		kinc_mutex_init(&audioMutex);
@@ -248,18 +249,18 @@ namespace {
 			Kore::Audio2::init();
 			initAudioBuffer();
 		}
-		kinc_random_init((int)(Kore::System::time() * 1000));
+		kinc_random_init((int)(kinc_time() * 1000));
 
-		Kore::System::setCallback(update);
-		Kore::System::setDropFilesCallback(dropFiles);
-		Kore::System::setCopyCallback(copy);
-		Kore::System::setCutCallback(cut);
-		Kore::System::setPasteCallback(paste);
-		Kore::System::setForegroundCallback(foreground);
-		Kore::System::setResumeCallback(resume);
-		Kore::System::setPauseCallback(pause);
-		Kore::System::setBackgroundCallback(background);
-		Kore::System::setShutdownCallback(shutdown);
+		kinc_set_update_callback(update);
+		kinc_set_drop_files_callback(dropFiles);
+		kinc_set_copy_callback(copy);
+		kinc_set_cut_callback(cut);
+		kinc_set_paste_callback(paste);
+		kinc_set_foreground_callback(foreground);
+		kinc_set_resume_callback(resume);
+		kinc_set_pause_callback(pause);
+		kinc_set_background_callback(background);
+		kinc_set_shutdown_callback(shutdown);
 
 		Kore::Keyboard::the()->KeyDown = keyDown;
 		Kore::Keyboard::the()->KeyUp = keyUp;
@@ -1638,7 +1639,7 @@ namespace {
 
 	JsValueRef CALLBACK krom_get_time(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount, void *callbackState) {
 		JsValueRef obj;
-		JsDoubleToNumber(Kore::System::time(), &obj);
+		JsDoubleToNumber(kinc_time(), &obj);
 		return obj;
 	}
 
@@ -1646,7 +1647,7 @@ namespace {
 		int windowId;
 		JsNumberToInt(arguments[1], &windowId);
 		JsValueRef obj;
-		JsIntToNumber(Kore::System::windowWidth(windowId), &obj);
+		JsIntToNumber(kinc_window_width(windowId), &obj);
 		return obj;
 	}
 
@@ -1654,7 +1655,7 @@ namespace {
 		int windowId;
 		JsNumberToInt(arguments[1], &windowId);
 		JsValueRef obj;
-		JsIntToNumber(Kore::System::windowHeight(windowId), &obj);
+		JsIntToNumber(kinc_window_height(windowId), &obj);
 		return obj;
 	}
 
@@ -1666,31 +1667,31 @@ namespace {
 		size_t length;
 		JsCopyString(arguments[2], title, 255, &length);
 		title[length] = 0;
-		Kore::Window::get(windowId)->setTitle(title);
+		kinc_window_set_title(windowId, title);
 		return JS_INVALID_REFERENCE;
 	}
 
 	JsValueRef CALLBACK krom_screen_dpi(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount, void *callbackState) {
 		JsValueRef obj;
-		JsIntToNumber(Kore::Display::primary()->pixelsPerInch(), &obj);
+		JsIntToNumber(kinc_display_current_mode(kinc_primary_display()).pixels_per_inch, &obj);
 		return obj;
 	}
 
 	JsValueRef CALLBACK krom_system_id(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount, void *callbackState) {
 		JsValueRef value;
-		JsCreateString(Kore::System::systemId(), strlen(Kore::System::systemId()), &value);
+		JsCreateString(kinc_system_id(), strlen(kinc_system_id()), &value);
 		return value;
 	}
 
 	JsValueRef CALLBACK krom_request_shutdown(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount,
 	                                          void *callbackState) {
-		Kore::System::stop();
+		kinc_stop();
 		return JS_INVALID_REFERENCE;
 	}
 
 	JsValueRef CALLBACK krom_display_count(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount, void *callbackState) {
 		JsValueRef value;
-		JsIntToNumber(Kore::Display::count(), &value);
+		JsIntToNumber(kinc_count_displays(), &value);
 		return value;
 	}
 
@@ -1698,7 +1699,7 @@ namespace {
 		int index;
 		JsNumberToInt(arguments[1], &index);
 		JsValueRef value;
-		JsIntToNumber(Kore::Display::get(index)->width(), &value);
+		JsIntToNumber(kinc_display_current_mode(kinc_primary_display()).width, &value);
 		return value;
 	}
 
@@ -1706,7 +1707,7 @@ namespace {
 		int index;
 		JsNumberToInt(arguments[1], &index);
 		JsValueRef value;
-		JsIntToNumber(Kore::Display::get(index)->height(), &value);
+		JsIntToNumber(kinc_display_current_mode(kinc_primary_display()).height, &value);
 		return value;
 	}
 
@@ -1714,7 +1715,7 @@ namespace {
 		int index;
 		JsNumberToInt(arguments[1], &index);
 		JsValueRef value;
-		JsIntToNumber(Kore::Display::get(index)->x(), &value);
+		JsIntToNumber(kinc_display_current_mode(kinc_primary_display()).x, &value);
 		return value;
 	}
 
@@ -1722,7 +1723,7 @@ namespace {
 		int index;
 		JsNumberToInt(arguments[1], &index);
 		JsValueRef value;
-		JsIntToNumber(Kore::Display::get(index)->y(), &value);
+		JsIntToNumber(kinc_display_current_mode(kinc_primary_display()).y, &value);
 		return value;
 	}
 
@@ -1731,7 +1732,7 @@ namespace {
 		int index;
 		JsNumberToInt(arguments[1], &index);
 		JsValueRef value;
-		JsBoolToBoolean(Kore::Display::get(index) == Kore::Display::primary(), &value);
+		JsBoolToBoolean(index == kinc_primary_display(), &value);
 		return value;
 	}
 
@@ -2224,9 +2225,10 @@ namespace {
 		return value;
 	}
 
+	// TODO: Remove this if possible
 	JsValueRef CALLBACK krom_save_path(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount, void *callbackState) {
 		JsValueRef value;
-		JsCreateString(Kore::System::savePath(), strlen(Kore::System::savePath()), &value);
+		JsCreateString(kinc_internal_save_path(), strlen(kinc_internal_save_path()), &value);
 		return value;
 	}
 
@@ -3791,7 +3793,7 @@ int kickstart(int argc, char **argv) {
 
 	startKrom(code);
 
-	Kore::System::start();
+	kinc_start();
 
 	if (enableSound) {
 		Kore::Audio2::shutdown();
