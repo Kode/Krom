@@ -35,13 +35,13 @@
 #include <Kore/Audio1/SoundStream.h>
 #include <Kore/Audio2/Audio.h>
 #include <Kore/Graphics4/Shader.h>
-#include <Kore/Input/Gamepad.h>
-#include <Kore/Input/Keyboard.h>
-#include <Kore/Input/Mouse.h>
-#include <Kore/Input/Pen.h>
 
 #include <kinc/compute/compute.h>
 #include <kinc/display.h>
+#include <kinc/input/gamepad.h>
+#include <kinc/input/keyboard.h>
+#include <kinc/input/mouse.h>
+#include <kinc/input/pen.h>
 #include <kinc/io/filereader.h>
 #include <kinc/log.h>
 #include <kinc/math/random.h>
@@ -146,9 +146,9 @@ namespace {
 	void pause();
 	void background();
 	void shutdown();
-	void keyDown(Kore::KeyCode code);
-	void keyUp(Kore::KeyCode code);
-	void keyPress(wchar_t character);
+	void keyDown(int code);
+	void keyUp(int code);
+	void keyPress(unsigned int character);
 	void mouseMove(int window, int x, int y, int mx, int my);
 	void mouseDown(int window, int button, int x, int y);
 	void mouseUp(int window, int button, int x, int y);
@@ -156,14 +156,8 @@ namespace {
 	void penDown(int window, int x, int y, float pressure);
 	void penUp(int window, int x, int y, float pressure);
 	void penMove(int window, int x, int y, float pressure);
-	void gamepad1Axis(int axis, float value);
-	void gamepad1Button(int button, float value);
-	void gamepad2Axis(int axis, float value);
-	void gamepad2Button(int button, float value);
-	void gamepad3Axis(int axis, float value);
-	void gamepad3Button(int button, float value);
-	void gamepad4Axis(int axis, float value);
-	void gamepad4Button(int button, float value);
+	void gamepadAxis(int pad, int axis, float value);
+	void gamepadButton(int pad, int button, float value);
 
 	const int tempStringSize = 1024 * 1024 - 1;
 	char tempString[tempStringSize + 1];
@@ -262,24 +256,18 @@ namespace {
 		kinc_set_background_callback(background);
 		kinc_set_shutdown_callback(shutdown);
 
-		Kore::Keyboard::the()->KeyDown = keyDown;
-		Kore::Keyboard::the()->KeyUp = keyUp;
-		Kore::Keyboard::the()->KeyPress = keyPress;
-		Kore::Mouse::the()->Move = mouseMove;
-		Kore::Mouse::the()->Press = mouseDown;
-		Kore::Mouse::the()->Release = mouseUp;
-		Kore::Mouse::the()->Scroll = mouseWheel;
-		Kore::Pen::the()->Press = penDown;
-		Kore::Pen::the()->Release = penUp;
-		Kore::Pen::the()->Move = penMove;
-		Kore::Gamepad::get(0)->Axis = gamepad1Axis;
-		Kore::Gamepad::get(0)->Button = gamepad1Button;
-		Kore::Gamepad::get(1)->Axis = gamepad2Axis;
-		Kore::Gamepad::get(1)->Button = gamepad2Button;
-		Kore::Gamepad::get(2)->Axis = gamepad3Axis;
-		Kore::Gamepad::get(2)->Button = gamepad3Button;
-		Kore::Gamepad::get(3)->Axis = gamepad4Axis;
-		Kore::Gamepad::get(3)->Button = gamepad4Button;
+		kinc_keyboard_key_down_callback = keyDown;
+		kinc_keyboard_key_up_callback = keyUp;
+		kinc_keyboard_key_press_callback = keyPress;
+		kinc_mouse_move_callback = mouseMove;
+		kinc_mouse_press_callback = mouseDown;
+		kinc_mouse_release_callback = mouseUp;
+		kinc_mouse_scroll_callback = mouseWheel;
+		kinc_pen_press_callback = penDown;
+		kinc_pen_release_callback = penUp;
+		kinc_pen_move_callback = penMove;
+		kinc_gamepad_axis_callback = gamepadAxis;
+		kinc_gamepad_button_callback = gamepadButton;
 
 		return JS_INVALID_REFERENCE;
 	}
@@ -448,32 +436,37 @@ namespace {
 	}
 
 	JsValueRef CALLBACK krom_lock_mouse(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount, void *callbackState) {
-		Kore::Mouse::the()->lock(0);
+		kinc_mouse_lock(0);
 		return JS_INVALID_REFERENCE;
 	}
 
 	JsValueRef CALLBACK krom_unlock_mouse(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount, void *callbackState) {
-		Kore::Mouse::the()->unlock(0);
+		kinc_mouse_unlock(0);
 		return JS_INVALID_REFERENCE;
 	}
 
 	JsValueRef CALLBACK krom_can_lock_mouse(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount, void *callbackState) {
 		JsValueRef value;
-		JsBoolToBoolean(Kore::Mouse::the()->canLock(0), &value);
+		JsBoolToBoolean(kinc_mouse_can_lock(0), &value);
 		return value;
 	}
 
 	JsValueRef CALLBACK krom_is_mouse_locked(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount,
 	                                         void *callbackState) {
 		JsValueRef value;
-		JsBoolToBoolean(Kore::Mouse::the()->isLocked(0), &value);
+		JsBoolToBoolean(kinc_mouse_is_locked(0), &value);
 		return value;
 	}
 
 	JsValueRef CALLBACK krom_show_mouse(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount, void *callbackState) {
 		bool value;
 		JsBooleanToBool(arguments[1], &value);
-		Kore::Mouse::the()->show(value);
+		if (value) {
+			kinc_mouse_show();
+		}
+		else {
+			kinc_mouse_hide();
+		}
 		return JS_INVALID_REFERENCE;
 	}
 
@@ -3083,7 +3076,7 @@ namespace {
 		kinc_mutex_unlock(&mutex);
 	}
 
-	void keyDown(Kore::KeyCode code) {
+	void keyDown(int code) {
 		kinc_mutex_lock(&mutex);
 		JsSetCurrentContext(context);
 
@@ -3097,7 +3090,7 @@ namespace {
 		kinc_mutex_unlock(&mutex);
 	}
 
-	void keyUp(Kore::KeyCode code) {
+	void keyUp(int code) {
 		kinc_mutex_lock(&mutex);
 		JsSetCurrentContext(context);
 
@@ -3111,7 +3104,7 @@ namespace {
 		kinc_mutex_unlock(&mutex);
 	}
 
-	void keyPress(wchar_t character) {
+	void keyPress(unsigned int character) {
 		kinc_mutex_lock(&mutex);
 		JsSetCurrentContext(context);
 
@@ -3266,38 +3259,6 @@ namespace {
 
 		JsSetCurrentContext(JS_INVALID_REFERENCE);
 		kinc_mutex_unlock(&mutex);
-	}
-
-	void gamepad1Axis(int axis, float value) {
-		gamepadAxis(0, axis, value);
-	}
-
-	void gamepad1Button(int button, float value) {
-		gamepadButton(0, button, value);
-	}
-
-	void gamepad2Axis(int axis, float value) {
-		gamepadAxis(1, axis, value);
-	}
-
-	void gamepad2Button(int button, float value) {
-		gamepadButton(1, button, value);
-	}
-
-	void gamepad3Axis(int axis, float value) {
-		gamepadAxis(2, axis, value);
-	}
-
-	void gamepad3Button(int button, float value) {
-		gamepadButton(2, button, value);
-	}
-
-	void gamepad4Axis(int axis, float value) {
-		gamepadAxis(3, axis, value);
-	}
-
-	void gamepad4Button(int button, float value) {
-		gamepadButton(3, button, value);
 	}
 
 	bool startsWith(std::string str, std::string start) {
