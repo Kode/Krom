@@ -27,15 +27,14 @@
 
 #include <Kore/Graphics4/Graphics.h>
 #include <Kore/Graphics4/PipelineState.h>
+#include <Kore/Graphics4/Shader.h>
 #include <Kore/IO/FileReader.h>
 #include <Kore/IO/FileWriter.h>
 
-#include <Kore/Audio1/Audio.h>
-#include <Kore/Audio1/Sound.h>
-#include <Kore/Audio1/SoundStream.h>
-#include <Kore/Audio2/Audio.h>
-#include <Kore/Graphics4/Shader.h>
-
+#include <kinc/audio1/audio.h>
+#include <kinc/audio1/sound.h>
+#include <kinc/audio1/soundstream.h>
+#include <kinc/audio2/audio.h>
 #include <kinc/compute/compute.h>
 #include <kinc/display.h>
 #include <kinc/input/gamepad.h>
@@ -135,8 +134,7 @@ namespace {
 	int audioReadLocation = 0;
 
 	void update();
-	void initAudioBuffer();
-	void updateAudio(int samples);
+	void updateAudio(kinc_a2_buffer_t *buffer, int samples);
 	void dropFiles(wchar_t *filePath);
 	char *cut();
 	char *copy();
@@ -239,9 +237,8 @@ namespace {
 		kinc_mutex_init(&mutex);
 		kinc_mutex_init(&audioMutex);
 		if (enableSound) {
-			Kore::Audio2::audioCallback = updateAudio;
-			Kore::Audio2::init();
-			initAudioBuffer();
+			kinc_a2_set_callback(updateAudio);
+			kinc_a2_init();
 		}
 		kinc_random_init((int)(kinc_time() * 1000));
 
@@ -1277,7 +1274,7 @@ namespace {
 		JsCopyString(arguments[1], filename, 255, &length);
 		filename[length] = 0;
 
-		Kore::Sound *sound = new Kore::Sound(filename);
+		kinc_a1_sound_t *sound = kinc_a1_sound_create(filename);
 
 		JsValueRef array;
 		JsCreateArrayBuffer(sound->size * 2 * sizeof(float), &array);
@@ -1313,9 +1310,10 @@ namespace {
 			audioReadLocation += 4;
 			if (audioReadLocation >= bufferLength) audioReadLocation = 0;
 
-			*(float *)&Kore::Audio2::buffer.data[Kore::Audio2::buffer.writeLocation] = value;
-			Kore::Audio2::buffer.writeLocation += 4;
-			if (Kore::Audio2::buffer.writeLocation >= Kore::Audio2::buffer.dataSize) Kore::Audio2::buffer.writeLocation = 0;
+			// TODO: This is madness
+			// *(float *)&Kore::Audio2::buffer.data[Kore::Audio2::buffer.writeLocation] = value;
+			// Kore::Audio2::buffer.writeLocation += 4;
+			// if (Kore::Audio2::buffer.writeLocation >= Kore::Audio2::buffer.dataSize) Kore::Audio2::buffer.writeLocation = 0;
 		}
 
 		return JS_INVALID_REFERENCE;
@@ -2879,13 +2877,7 @@ namespace {
 		JsDisposeRuntime(runtime);
 	}
 
-	void initAudioBuffer() {
-		for (int i = 0; i < Kore::Audio2::buffer.dataSize; i++) {
-			*(float *)&Kore::Audio2::buffer.data[i] = 0;
-		}
-	}
-
-	void updateAudio(int samples) {
+	void updateAudio(kinc_a2_buffer_t *buffer, int samples) {
 		kinc_mutex_lock(&audioMutex);
 		audioSamples += samples;
 		kinc_mutex_unlock(&audioMutex);
@@ -2896,7 +2888,7 @@ namespace {
 		JsSetCurrentContext(context);
 
 		if (enableSound) {
-			Kore::Audio2::update();
+			kinc_a2_update();
 
 			kinc_mutex_lock(&audioMutex);
 			if (audioSamples > 0) {
@@ -3757,7 +3749,7 @@ int kickstart(int argc, char **argv) {
 	kinc_start();
 
 	if (enableSound) {
-		Kore::Audio2::shutdown();
+		kinc_a2_shutdown();
 		kinc_mutex_lock(&mutex); // Prevent audio thread from running
 	}
 
