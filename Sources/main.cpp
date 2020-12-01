@@ -28,8 +28,6 @@
 #include <Kore/Graphics4/Graphics.h>
 #include <Kore/Graphics4/PipelineState.h>
 #include <Kore/Graphics4/Shader.h>
-#include <Kore/IO/FileReader.h>
-#include <Kore/IO/FileWriter.h>
 
 #include <kinc/audio1/audio.h>
 #include <kinc/audio1/sound.h>
@@ -42,6 +40,7 @@
 #include <kinc/input/mouse.h>
 #include <kinc/input/pen.h>
 #include <kinc/io/filereader.h>
+#include <kinc/io/filewriter.h>
 #include <kinc/log.h>
 #include <kinc/math/random.h>
 #include <kinc/system.h>
@@ -1325,19 +1324,19 @@ namespace {
 		JsCopyString(arguments[1], filename, 255, &length);
 		filename[length] = 0;
 
-		Kore::FileReader reader;
-		if (!reader.open(filename)) return JS_INVALID_REFERENCE;
+		kinc_file_reader_t reader;
+		if (!kinc_file_reader_open(&reader, filename, KINC_FILE_TYPE_ASSET)) return JS_INVALID_REFERENCE;
 
 		JsValueRef array;
-		JsCreateArrayBuffer(reader.size(), &array);
+		JsCreateArrayBuffer(kinc_file_reader_size(&reader), &array);
 
 		Kore::u8 *contents;
 		unsigned contentsLength;
 		JsGetArrayBufferStorage(array, &contents, &contentsLength);
 
-		memcpy(contents, reader.readAll(), reader.size());
+		kinc_file_reader_read(&reader, contents, kinc_file_reader_size(&reader));
 
-		reader.close();
+		kinc_file_reader_close(&reader);
 
 		return array;
 	}
@@ -1736,9 +1735,11 @@ namespace {
 		unsigned bufferLength;
 		JsGetArrayBufferStorage(arguments[2], &buffer, &bufferLength);
 
-		Kore::FileWriter writer;
-		if (!writer.open(tempString)) return JS_INVALID_REFERENCE;
-		writer.write(buffer, (int)bufferLength);
+		kinc_file_writer_t writer;
+		if (!kinc_file_writer_open(&writer, tempString)) return JS_INVALID_REFERENCE;
+		kinc_file_writer_write(&writer, buffer, (int)bufferLength);
+		kinc_file_writer_close(&writer);
+
 		return JS_INVALID_REFERENCE;
 	}
 
@@ -1747,18 +1748,19 @@ namespace {
 		JsCopyString(arguments[1], tempString, tempStringSize, &length);
 		tempString[length] = 0;
 
-		Kore::FileReader reader;
-		if (!reader.open(tempString, Kore::FileReader::Save)) return JS_INVALID_REFERENCE;
+		kinc_file_reader_t reader;
+		if (!kinc_file_reader_open(&reader, tempString, KINC_FILE_TYPE_SAVE)) return JS_INVALID_REFERENCE;
 
 		JsValueRef buffer;
-		JsCreateArrayBuffer(reader.size(), &buffer);
+		JsCreateArrayBuffer(kinc_file_reader_size(&reader), &buffer);
 
 		Kore::u8 *bufferData;
 		unsigned bufferLength;
 		JsGetArrayBufferStorage(buffer, &bufferData, &bufferLength);
 
-		memcpy(bufferData, reader.readAll(), reader.size());
-		reader.close();
+		kinc_file_reader_read(&reader, bufferData, kinc_file_reader_size(&reader));
+		kinc_file_reader_close(&reader);
+
 		return buffer;
 	}
 
@@ -3683,21 +3685,22 @@ int kickstart(int argc, char **argv) {
 	kromjs = assetsdir + "/krom.js";
 	kinc_internal_set_files_location(&assetsdir[0u]);
 
-	Kore::FileReader reader;
-	if (!writebin && reader.open("krom.bin")) {
+	kinc_file_reader_t reader;
+	if (!writebin && kinc_file_reader_open(&reader, "krom.bin", KINC_FILE_TYPE_ASSET)) {
 		serialized = true;
-		serializedLength = reader.size();
+		serializedLength = kinc_file_reader_size(&reader);
+		kinc_file_reader_close(&reader);
 	}
 
-	if (!serialized && !reader.open("krom.js")) {
+	if (!serialized && !kinc_file_reader_open(&reader, "krom.js", KINC_FILE_TYPE_ASSET)) {
 		fprintf(stderr, "could not load krom.js. aborting.\n");
 		exit(1);
 	}
 
-	char *code = new char[reader.size() + 1];
-	memcpy(code, reader.readAll(), reader.size());
-	code[reader.size()] = 0;
-	reader.close();
+	char *code = new char[kinc_file_reader_size(&reader) + 1];
+	kinc_file_reader_read(&reader, code, kinc_file_reader_size(&reader));
+	code[kinc_file_reader_size(&reader)] = 0;
+	kinc_file_reader_close(&reader);
 
 	if (writebin) {
 		std::string krombin = assetsdir + "/krom.bin";
