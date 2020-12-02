@@ -25,16 +25,18 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include <Kore/Graphics4/Graphics.h>
-#include <Kore/Graphics4/PipelineState.h>
-#include <Kore/Graphics4/Shader.h>
-
 #include <kinc/audio1/audio.h>
 #include <kinc/audio1/sound.h>
 #include <kinc/audio1/soundstream.h>
 #include <kinc/audio2/audio.h>
 #include <kinc/compute/compute.h>
 #include <kinc/display.h>
+#include <kinc/graphics4/graphics.h>
+#include <kinc/graphics4/indexbuffer.h>
+#include <kinc/graphics4/pipeline.h>
+#include <kinc/graphics4/shader.h>
+#include <kinc/graphics4/texture.h>
+#include <kinc/graphics4/vertexbuffer.h>
 #include <kinc/input/gamepad.h>
 #include <kinc/input/keyboard.h>
 #include <kinc/input/mouse.h>
@@ -304,7 +306,7 @@ namespace {
 		double depth;
 		JsNumberToDouble(arguments[3], &depth);
 		JsNumberToInt(arguments[4], &stencil);
-		Kore::Graphics4::clear(flags, color, depth, stencil);
+		kinc_g4_clear(flags, color, depth, stencil);
 		return JS_INVALID_REFERENCE;
 	}
 
@@ -478,64 +480,47 @@ namespace {
 		int count;
 		JsNumberToInt(arguments[1], &count);
 		JsValueRef ib;
-		JsCreateExternalObject(new Kore::Graphics4::IndexBuffer(count), nullptr, &ib);
+		kinc_g4_index_buffer_t *buffer = (kinc_g4_index_buffer_t *)malloc(sizeof(kinc_g4_index_buffer_t));
+		kinc_g4_index_buffer_init(buffer, count, KINC_G4_INDEX_BUFFER_FORMAT_32BIT);
+		JsCreateExternalObject(buffer, nullptr, &ib);
 		return ib;
 	}
 
 	JsValueRef CALLBACK krom_delete_indexbuffer(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount,
 	                                            void *callbackState) {
-		Kore::Graphics4::IndexBuffer *buffer;
+		kinc_g4_index_buffer_t *buffer;
 		JsGetExternalData(arguments[1], (void **)&buffer);
-		delete buffer;
+		kinc_g4_index_buffer_destroy(buffer);
+		free(buffer);
 		return JS_INVALID_REFERENCE;
 	}
 
 	JsValueRef CALLBACK krom_lock_index_buffer(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount,
 	                                           void *callbackState) {
-		Kore::Graphics4::IndexBuffer *buffer;
+		kinc_g4_index_buffer_t *buffer;
 		JsGetExternalData(arguments[1], (void **)&buffer);
-		int *indices = buffer->lock();
+		int *indices = kinc_g4_index_buffer_lock(buffer);
 		JsValueRef value;
-		JsCreateExternalArrayBuffer(indices, buffer->count() * sizeof(int), nullptr, nullptr, &value);
+		JsCreateExternalArrayBuffer(indices, kinc_g4_index_buffer_count(buffer) * sizeof(int), nullptr, nullptr, &value);
 		JsValueRef array;
-		JsCreateTypedArray(JsArrayTypeUint32, value, 0, buffer->count(), &array);
+		JsCreateTypedArray(JsArrayTypeUint32, value, 0, kinc_g4_index_buffer_count(buffer), &array);
 		return array;
 	}
 
 	JsValueRef CALLBACK krom_unlock_index_buffer(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount,
 	                                             void *callbackState) {
-		Kore::Graphics4::IndexBuffer *buffer;
+		kinc_g4_index_buffer_t *buffer;
 		JsGetExternalData(arguments[1], (void **)&buffer);
-		buffer->unlock();
+		kinc_g4_index_buffer_unlock(buffer);
 		return JS_INVALID_REFERENCE;
 	}
 
 	JsValueRef CALLBACK krom_set_indexbuffer(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount,
 	                                         void *callbackState) {
-		Kore::Graphics4::IndexBuffer *buffer;
+		kinc_g4_index_buffer_t *buffer;
 		JsGetExternalData(arguments[1], (void **)&buffer);
-		Kore::Graphics4::setIndexBuffer(*buffer);
+		kinc_g4_set_index_buffer(buffer);
 		return JS_INVALID_REFERENCE;
-	}
-
-	Kore::Graphics4::VertexData convertVertexData(int num) {
-		switch (num) {
-		case 0:
-			return Kore::Graphics4::Float1VertexData;
-		case 1:
-			return Kore::Graphics4::Float2VertexData;
-		case 2:
-			return Kore::Graphics4::Float3VertexData;
-		case 3:
-			return Kore::Graphics4::Float4VertexData;
-		case 4:
-			return Kore::Graphics4::Float4x4VertexData;
-		case 5:
-			return Kore::Graphics4::Short2NormVertexData;
-		case 6:
-			return Kore::Graphics4::Short4NormVertexData;
-		}
-		return Kore::Graphics4::Float1VertexData;
 	}
 
 	JsValueRef CALLBACK krom_create_vertexbuffer(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount,
@@ -548,7 +533,8 @@ namespace {
 		JsValueRef one;
 		JsIntToNumber(1, &one);
 
-		Kore::Graphics4::VertexStructure structure;
+		kinc_g4_vertex_structure_t structure;
+		kinc_g4_vertex_structure_init(&structure);
 		for (int i = 0; i < length; ++i) {
 			JsValueRef index, element;
 			JsIntToNumber(i, &index);
@@ -563,14 +549,15 @@ namespace {
 			JsGetProperty(element, getId("data"), &dataObj);
 			int data;
 			JsNumberToInt(dataObj, &data);
-			structure.add(name, convertVertexData(data));
+			kinc_g4_vertex_structure_add(&structure, name, (kinc_g4_vertex_data_t)data);
 		}
 
 		int value1, value3, value4;
 		JsNumberToInt(arguments[1], &value1);
 		JsNumberToInt(arguments[3], &value3);
 		JsNumberToInt(arguments[4], &value4);
-		Kore::Graphics4::VertexBuffer *buffer = new Kore::Graphics4::VertexBuffer(value1, structure, (Kore::Graphics4::Usage)value3, value4);
+		kinc_g4_vertex_buffer_t *buffer = (kinc_g4_vertex_buffer_t *)malloc(sizeof(kinc_g4_vertex_buffer_t));
+		kinc_g4_vertex_buffer_init(buffer, value1, &structure, (kinc_g4_usage_t)value3, value4);
 		JsValueRef obj;
 		JsCreateExternalObject(buffer, nullptr, &obj);
 		return obj;
@@ -578,50 +565,51 @@ namespace {
 
 	JsValueRef CALLBACK krom_delete_vertexbuffer(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount,
 	                                             void *callbackState) {
-		Kore::Graphics4::VertexBuffer *buffer;
+		kinc_g4_vertex_buffer_t *buffer;
 		JsGetExternalData(arguments[1], (void **)&buffer);
-		delete buffer;
+		kinc_g4_vertex_buffer_destroy(buffer);
+		free(buffer);
 		return JS_INVALID_REFERENCE;
 	}
 
 	JsValueRef CALLBACK krom_lock_vertex_buffer(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount,
 	                                            void *callbackState) {
-		Kore::Graphics4::VertexBuffer *buffer;
+		kinc_g4_vertex_buffer_t *buffer;
 		JsGetExternalData(arguments[1], (void **)&buffer);
 		int start, count;
 		JsNumberToInt(arguments[2], &start);
 		JsNumberToInt(arguments[3], &count);
 
-		float *vertices = buffer->lock(start, count);
+		float *vertices = kinc_g4_vertex_buffer_lock(buffer, start, count);
 		JsValueRef value;
-		JsCreateExternalArrayBuffer(vertices, buffer->count() * buffer->stride(), nullptr, nullptr, &value);
+		JsCreateExternalArrayBuffer(vertices, kinc_g4_vertex_buffer_count(buffer) * kinc_g4_vertex_buffer_stride(buffer), nullptr, nullptr, &value);
 		JsValueRef array;
-		JsCreateTypedArray(JsArrayTypeFloat32, value, 0, buffer->count() * buffer->stride() / 4, &array);
+		JsCreateTypedArray(JsArrayTypeFloat32, value, 0, kinc_g4_vertex_buffer_count(buffer) * kinc_g4_vertex_buffer_stride(buffer) / 4, &array);
 		return array;
 	}
 
 	JsValueRef CALLBACK krom_unlock_vertex_buffer(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount,
 	                                              void *callbackState) {
-		Kore::Graphics4::VertexBuffer *buffer;
+		kinc_g4_vertex_buffer_t *buffer;
 		JsGetExternalData(arguments[1], (void **)&buffer);
 		int count;
 		JsNumberToInt(arguments[2], &count);
 
-		buffer->unlock(count);
+		kinc_g4_vertex_buffer_unlock(buffer, count);
 		return JS_INVALID_REFERENCE;
 	}
 
 	JsValueRef CALLBACK krom_set_vertexbuffer(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount,
 	                                          void *callbackState) {
-		Kore::Graphics4::VertexBuffer *buffer;
+		kinc_g4_vertex_buffer_t *buffer;
 		JsGetExternalData(arguments[1], (void **)&buffer);
-		Kore::Graphics4::setVertexBuffer(*buffer);
+		kinc_g4_set_vertex_buffer(buffer);
 		return JS_INVALID_REFERENCE;
 	}
 
 	JsValueRef CALLBACK krom_set_vertexbuffers(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount,
 	                                           void *callbackState) {
-		Kore::Graphics4::VertexBuffer *vertexBuffers[8] = {nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr};
+		kinc_g4_vertex_buffer_t *vertexBuffers[8] = {nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr};
 		JsValueRef lengthObj;
 		JsGetProperty(arguments[1], getId("length"), &lengthObj);
 		int length;
@@ -631,11 +619,11 @@ namespace {
 			JsIntToNumber(i, &index);
 			JsGetIndexedProperty(arguments[1], index, &obj);
 			JsGetProperty(obj, getId("buffer"), &bufObj);
-			Kore::Graphics4::VertexBuffer *buffer;
+			kinc_g4_vertex_buffer_t *buffer;
 			JsGetExternalData(bufObj, (void **)&buffer);
 			vertexBuffers[i] = buffer;
 		}
-		Kore::Graphics4::setVertexBuffers(vertexBuffers, length);
+		kinc_g4_set_vertex_buffers(vertexBuffers, length);
 		return JS_INVALID_REFERENCE;
 	}
 
@@ -644,10 +632,12 @@ namespace {
 		int start, count;
 		JsNumberToInt(arguments[1], &start);
 		JsNumberToInt(arguments[2], &count);
-		if (count < 0)
-			Kore::Graphics4::drawIndexedVertices();
-		else
-			Kore::Graphics4::drawIndexedVertices(start, count);
+		if (count < 0) {
+			kinc_g4_draw_indexed_vertices();
+		}
+		else {
+			kinc_g4_draw_indexed_vertices_from_to(start, count);
+		}
 		return JS_INVALID_REFERENCE;
 	}
 
@@ -657,10 +647,12 @@ namespace {
 		JsNumberToInt(arguments[1], &instanceCount);
 		JsNumberToInt(arguments[2], &start);
 		JsNumberToInt(arguments[3], &count);
-		if (count < 0)
-			Kore::Graphics4::drawIndexedVerticesInstanced(instanceCount);
-		else
-			Kore::Graphics4::drawIndexedVerticesInstanced(instanceCount, start, count);
+		if (count < 0) {
+			kinc_g4_draw_indexed_vertices_instanced(instanceCount);
+		}
+		else {
+			kinc_g4_draw_indexed_vertices_instanced_from_to(instanceCount, start, count);
+		}
 		return JS_INVALID_REFERENCE;
 	}
 
@@ -676,7 +668,8 @@ namespace {
 		Kore::u8 *content;
 		unsigned bufferLength;
 		JsGetArrayBufferStorage(arguments[1], &content, &bufferLength);
-		Kore::Graphics4::Shader *shader = new Kore::Graphics4::Shader(content, (int)bufferLength, Kore::Graphics4::VertexShader);
+		kinc_g4_shader_t *shader = (kinc_g4_shader_t *)malloc(sizeof(kinc_g4_shader_t));
+		kinc_g4_shader_init(shader, content, bufferLength, KINC_G4_SHADER_TYPE_VERTEX);
 
 		JsValueRef value;
 		JsCreateExternalObject(shader, nullptr, &value);
@@ -689,7 +682,8 @@ namespace {
 		size_t length;
 		JsCopyString(arguments[1], tempStringVS, tempStringSize, &length);
 		tempStringVS[length] = 0;
-		Kore::Graphics4::Shader *shader = new Kore::Graphics4::Shader(tempStringVS, Kore::Graphics4::VertexShader);
+		kinc_g4_shader_t *shader = (kinc_g4_shader_t *)malloc(sizeof(kinc_g4_shader_t));
+		kinc_g4_shader_init_from_source(shader, tempStringVS, KINC_G4_SHADER_TYPE_VERTEX);
 
 		JsValueRef value;
 		JsCreateExternalObject(shader, nullptr, &value);
@@ -704,7 +698,8 @@ namespace {
 		Kore::u8 *content;
 		unsigned bufferLength;
 		JsGetArrayBufferStorage(arguments[1], &content, &bufferLength);
-		Kore::Graphics4::Shader *shader = new Kore::Graphics4::Shader(content, (int)bufferLength, Kore::Graphics4::FragmentShader);
+		kinc_g4_shader_t *shader = (kinc_g4_shader_t *)malloc(sizeof(kinc_g4_shader_t));
+		kinc_g4_shader_init(shader, content, bufferLength, KINC_G4_SHADER_TYPE_FRAGMENT);
 
 		JsValueRef value;
 		JsCreateExternalObject(shader, nullptr, &value);
@@ -717,7 +712,8 @@ namespace {
 		size_t length;
 		JsCopyString(arguments[1], tempStringFS, tempStringSize, &length);
 		tempStringFS[length] = 0;
-		Kore::Graphics4::Shader *shader = new Kore::Graphics4::Shader(tempStringFS, Kore::Graphics4::FragmentShader);
+		kinc_g4_shader_t *shader = (kinc_g4_shader_t *)malloc(sizeof(kinc_g4_shader_t));
+		kinc_g4_shader_init_from_source(shader, tempStringVS, KINC_G4_SHADER_TYPE_FRAGMENT);
 
 		JsValueRef value;
 		JsCreateExternalObject(shader, nullptr, &value);
@@ -732,7 +728,8 @@ namespace {
 		Kore::u8 *content;
 		unsigned bufferLength;
 		JsGetArrayBufferStorage(arguments[1], &content, &bufferLength);
-		Kore::Graphics4::Shader *shader = new Kore::Graphics4::Shader(content, (int)bufferLength, Kore::Graphics4::GeometryShader);
+		kinc_g4_shader_t *shader = (kinc_g4_shader_t *)malloc(sizeof(kinc_g4_shader_t));
+		kinc_g4_shader_init(shader, content, bufferLength, KINC_G4_SHADER_TYPE_GEOMETRY);
 
 		JsValueRef value;
 		JsCreateExternalObject(shader, nullptr, &value);
@@ -745,7 +742,8 @@ namespace {
 		Kore::u8 *content;
 		unsigned bufferLength;
 		JsGetArrayBufferStorage(arguments[1], &content, &bufferLength);
-		Kore::Graphics4::Shader *shader = new Kore::Graphics4::Shader(content, (int)bufferLength, Kore::Graphics4::TessellationControlShader);
+		kinc_g4_shader_t *shader = (kinc_g4_shader_t *)malloc(sizeof(kinc_g4_shader_t));
+		kinc_g4_shader_init(shader, content, bufferLength, KINC_G4_SHADER_TYPE_TESSELLATION_CONTROL);
 
 		JsValueRef value;
 		JsCreateExternalObject(shader, nullptr, &value);
@@ -758,7 +756,8 @@ namespace {
 		Kore::u8 *content;
 		unsigned bufferLength;
 		JsGetArrayBufferStorage(arguments[1], &content, &bufferLength);
-		Kore::Graphics4::Shader *shader = new Kore::Graphics4::Shader(content, (int)bufferLength, Kore::Graphics4::TessellationEvaluationShader);
+		kinc_g4_shader_t *shader = (kinc_g4_shader_t *)malloc(sizeof(kinc_g4_shader_t));
+		kinc_g4_shader_init(shader, content, bufferLength, KINC_G4_SHADER_TYPE_TESSELLATION_EVALUATION);
 
 		JsValueRef value;
 		JsCreateExternalObject(shader, nullptr, &value);
@@ -767,15 +766,17 @@ namespace {
 	}
 
 	JsValueRef CALLBACK krom_delete_shader(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount, void *callbackState) {
-		Kore::Graphics4::Shader *shader;
+		kinc_g4_shader_t *shader;
 		JsGetExternalData(arguments[1], (void **)&shader);
-		delete shader;
+		kinc_g4_shader_destroy(shader);
+		free(shader);
 		return JS_INVALID_REFERENCE;
 	}
 
 	JsValueRef CALLBACK krom_create_pipeline(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount,
 	                                         void *callbackState) {
-		Kore::Graphics4::PipelineState *pipeline = new Kore::Graphics4::PipelineState;
+		kinc_g4_pipeline_t *pipeline = (kinc_g4_pipeline_t *)malloc(sizeof(kinc_g4_pipeline_t));
+		kinc_g4_pipeline_init(pipeline);
 		JsValueRef pipelineObj;
 		JsCreateExternalObject(pipeline, nullptr, &pipelineObj);
 		return pipelineObj;
@@ -783,9 +784,10 @@ namespace {
 
 	JsValueRef CALLBACK krom_delete_pipeline(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount,
 	                                         void *callbackState) {
-		Kore::Graphics4::PipelineState *pipeline;
+		kinc_g4_pipeline_t *pipeline;
 		JsGetExternalData(arguments[1], (void **)&pipeline);
-		delete pipeline;
+		kinc_g4_pipeline_destroy(pipeline);
+		free(pipeline);
 		return JS_INVALID_REFERENCE;
 	}
 
@@ -802,7 +804,7 @@ namespace {
 
 		JsValueRef structsfield;
 		JsGetIndexedProperty(projobj, one, &structsfield);
-		Kore::Graphics4::VertexStructure **structures;
+		kinc_g4_vertex_structure_t **structures;
 		JsGetExternalData(structsfield, (void **)&structures);
 
 		JsValueRef sizefield;
@@ -812,52 +814,52 @@ namespace {
 
 		JsValueRef vsfield;
 		JsGetIndexedProperty(projobj, three, &vsfield);
-		Kore::Graphics4::Shader *vs;
+		kinc_g4_shader_t *vs;
 		JsGetExternalData(vsfield, (void **)&vs);
 
 		JsValueRef fsfield;
 		JsGetIndexedProperty(projobj, four, &fsfield);
-		Kore::Graphics4::Shader *fs;
+		kinc_g4_shader_t *fs;
 		JsGetExternalData(fsfield, (void **)&fs);
 
-		Kore::Graphics4::PipelineState *pipeline = new Kore::Graphics4::PipelineState;
-		pipeline->vertexShader = vs;
-		pipeline->fragmentShader = fs;
+		kinc_g4_pipeline_t *pipeline = (kinc_g4_pipeline_t *)malloc(sizeof(kinc_g4_pipeline_t));
+		pipeline->vertex_shader = vs;
+		pipeline->fragment_shader = fs;
 
 		JsValueRef gsfield;
 		JsGetIndexedProperty(projobj, five, &gsfield);
 		JsValueType type;
 		JsGetValueType(gsfield, &type);
 		if (type == JsUndefined && type != JsNull) {
-			Kore::Graphics4::Shader *gs;
+			kinc_g4_shader_t *gs;
 			JsGetExternalData(gsfield, (void **)&gs);
-			pipeline->geometryShader = gs;
+			pipeline->geometry_shader = gs;
 		}
 
 		JsValueRef tcsfield;
 		JsGetIndexedProperty(projobj, six, &tcsfield);
 		JsGetValueType(tcsfield, &type);
 		if (type == JsUndefined && type != JsNull) {
-			Kore::Graphics4::Shader *tcs;
+			kinc_g4_shader_t *tcs;
 			JsGetExternalData(tcsfield, (void **)&tcs);
-			pipeline->tessellationControlShader = tcs;
+			pipeline->tessellation_control_shader = tcs;
 		}
 
 		JsValueRef tesfield;
 		JsGetIndexedProperty(projobj, six, &tesfield);
 		JsGetValueType(tesfield, &type);
 		if (type == JsUndefined && type != JsNull) {
-			Kore::Graphics4::Shader *tes;
+			kinc_g4_shader_t *tes;
 			JsGetExternalData(tesfield, (void **)&tes);
-			pipeline->tessellationEvaluationShader = tes;
+			pipeline->tessellation_evaluation_shader = tes;
 		}
 
 		for (int i = 0; i < size; ++i) {
-			pipeline->inputLayout[i] = structures[i];
+			pipeline->input_layout[i] = structures[i];
 		}
-		pipeline->inputLayout[size] = nullptr;
+		pipeline->input_layout[size] = nullptr;
 
-		pipeline->compile();
+		kinc_g4_pipeline_compile(pipeline);
 
 		JsValueRef pipelineObj;
 		JsCreateExternalObject(pipeline, nullptr, &pipelineObj);
@@ -884,11 +886,15 @@ namespace {
 		JsValueRef one;
 		JsIntToNumber(1, &one);
 
-		Kore::Graphics4::PipelineState *pipeline;
+		kinc_g4_pipeline_t *pipeline;
 		JsGetExternalData(progobj, (void **)&pipeline);
 
-		Kore::Graphics4::VertexStructure s0, s1, s2, s3;
-		Kore::Graphics4::VertexStructure *structures[4] = {&s0, &s1, &s2, &s3};
+		kinc_g4_vertex_structure_t s0, s1, s2, s3;
+		kinc_g4_vertex_structure_init(&s0);
+		kinc_g4_vertex_structure_init(&s1);
+		kinc_g4_vertex_structure_init(&s2);
+		kinc_g4_vertex_structure_init(&s3);
+		kinc_g4_vertex_structure_t *structures[4] = {&s0, &s1, &s2, &s3};
 
 		int size;
 		JsNumberToInt(arguments[6], &size);
@@ -923,7 +929,7 @@ namespace {
 				size_t length;
 				JsCopyString(str, name, 255, &length);
 				name[length] = 0;
-				structures[i1]->add(name, convertVertexData(data));
+				kinc_g4_vertex_structure_add(structures[i1], name, (kinc_g4_vertex_data_t)data);
 			}
 		}
 
@@ -941,7 +947,7 @@ namespace {
 
 		JsSetIndexedProperty(progobj, two, arguments[6]);
 
-		Kore::Graphics4::Shader *vertexShader;
+		kinc_g4_shader_t *vertexShader;
 		JsGetExternalData(arguments[7], (void **)&vertexShader);
 		JsValueRef vsObj;
 		JsCreateExternalObject(vertexShader, nullptr, &vsObj);
@@ -950,7 +956,7 @@ namespace {
 		JsGetProperty(arguments[7], getId("name"), &vsname);
 		JsSetProperty(progobj, getId("vsname"), vsname, false);
 
-		Kore::Graphics4::Shader *fragmentShader;
+		kinc_g4_shader_t *fragmentShader;
 		JsGetExternalData(arguments[8], (void **)&fragmentShader);
 		JsValueRef fsObj;
 		JsCreateExternalObject(fragmentShader, nullptr, &fsObj);
@@ -959,13 +965,13 @@ namespace {
 		JsGetProperty(arguments[8], getId("name"), &fsname);
 		JsSetProperty(progobj, getId("fsname"), fsname, false);
 
-		pipeline->vertexShader = vertexShader;
-		pipeline->fragmentShader = fragmentShader;
+		pipeline->vertex_shader = vertexShader;
+		pipeline->fragment_shader = fragmentShader;
 
 		JsValueType gsType;
 		JsGetValueType(arguments[9], &gsType);
 		if (gsType != JsNull && gsType != JsUndefined) {
-			Kore::Graphics4::Shader *geometryShader;
+			kinc_g4_shader_t *geometryShader;
 			JsGetExternalData(arguments[9], (void **)&geometryShader);
 			JsValueRef gsObj;
 			JsCreateExternalObject(geometryShader, nullptr, &gsObj);
@@ -973,13 +979,13 @@ namespace {
 			JsValueRef gsname;
 			JsGetProperty(arguments[9], getId("name"), &gsname);
 			JsSetProperty(progobj, getId("gsname"), gsname, false);
-			pipeline->geometryShader = geometryShader;
+			pipeline->geometry_shader = geometryShader;
 		}
 
 		JsValueType tcsType;
 		JsGetValueType(arguments[10], &tcsType);
 		if (tcsType != JsNull && tcsType != JsUndefined) {
-			Kore::Graphics4::Shader *tessellationControlShader;
+			kinc_g4_shader_t *tessellationControlShader;
 			JsGetExternalData(arguments[10], (void **)&tessellationControlShader);
 			JsValueRef tcsObj;
 			JsCreateExternalObject(tessellationControlShader, nullptr, &tcsObj);
@@ -987,13 +993,13 @@ namespace {
 			JsValueRef tcsname;
 			JsGetProperty(arguments[10], getId("name"), &tcsname);
 			JsSetProperty(progobj, getId("tcsname"), tcsname, false);
-			pipeline->tessellationControlShader = tessellationControlShader;
+			pipeline->tessellation_control_shader = tessellationControlShader;
 		}
 
 		JsValueType tesType;
 		JsGetValueType(arguments[11], &tesType);
 		if (tesType != JsNull && tesType != JsUndefined) {
-			Kore::Graphics4::Shader *tessellationEvaluationShader;
+			kinc_g4_shader_t *tessellationEvaluationShader;
 			JsGetExternalData(arguments[11], (void **)&tessellationEvaluationShader);
 			JsValueRef tesObj;
 			JsCreateExternalObject(tessellationEvaluationShader, nullptr, &tesObj);
@@ -1001,44 +1007,44 @@ namespace {
 			JsValueRef tesname;
 			JsGetProperty(arguments[11], getId("name"), &tesname);
 			JsSetProperty(progobj, getId("tesname"), tesname, false);
-			pipeline->tessellationEvaluationShader = tessellationEvaluationShader;
+			pipeline->tessellation_evaluation_shader = tessellationEvaluationShader;
 		}
 
 		for (int i = 0; i < size; ++i) {
-			pipeline->inputLayout[i] = structures[i];
+			pipeline->input_layout[i] = structures[i];
 		}
-		pipeline->inputLayout[size] = nullptr;
+		pipeline->input_layout[size] = nullptr;
 
 		getPipeInt(cullMode);
-		pipeline->cullMode = (Kore::Graphics4::CullMode)cullMode;
+		pipeline->cull_mode = (kinc_g4_cull_mode_t)cullMode;
 		getPipeBool(depthWrite);
-		pipeline->depthWrite = depthWrite;
+		pipeline->depth_write = depthWrite;
 		getPipeInt(depthMode);
-		pipeline->depthMode = (Kore::Graphics4::ZCompareMode)depthMode;
+		pipeline->depth_mode = (kinc_g4_compare_mode_t)depthMode;
 
 		getPipeInt(stencilMode);
-		pipeline->stencilMode = (Kore::Graphics4::ZCompareMode)stencilMode;
+		pipeline->stencil_mode = (kinc_g4_compare_mode_t)stencilMode;
 		getPipeInt(stencilBothPass);
-		pipeline->stencilBothPass = (Kore::Graphics4::StencilAction)stencilBothPass;
+		pipeline->stencil_both_pass = (kinc_g4_stencil_action_t)stencilBothPass;
 		getPipeInt(stencilDepthFail);
-		pipeline->stencilDepthFail = (Kore::Graphics4::StencilAction)stencilDepthFail;
+		pipeline->stencil_depth_fail = (kinc_g4_stencil_action_t)stencilDepthFail;
 		getPipeInt(stencilFail);
-		pipeline->stencilFail = (Kore::Graphics4::StencilAction)stencilFail;
+		pipeline->stencil_fail = (kinc_g4_stencil_action_t)stencilFail;
 		getPipeInt(stencilReferenceValue);
-		pipeline->stencilReferenceValue = stencilReferenceValue;
+		pipeline->stencil_reference_value = stencilReferenceValue;
 		getPipeInt(stencilReadMask);
-		pipeline->stencilReadMask = stencilReadMask;
+		pipeline->stencil_read_mask = stencilReadMask;
 		getPipeInt(stencilWriteMask);
-		pipeline->stencilWriteMask = stencilWriteMask;
+		pipeline->stencil_write_mask = stencilWriteMask;
 
 		getPipeInt(blendSource);
-		pipeline->blendSource = (Kore::Graphics4::BlendingOperation)blendSource;
+		pipeline->blend_source = (kinc_g4_blending_operation_t)blendSource;
 		getPipeInt(blendDestination);
-		pipeline->blendDestination = (Kore::Graphics4::BlendingOperation)blendDestination;
+		pipeline->blend_destination = (kinc_g4_blending_operation_t)blendDestination;
 		getPipeInt(alphaBlendSource);
-		pipeline->alphaBlendSource = (Kore::Graphics4::BlendingOperation)alphaBlendSource;
+		pipeline->alpha_blend_source = (kinc_g4_blending_operation_t)alphaBlendSource;
 		getPipeInt(alphaBlendDestination);
-		pipeline->alphaBlendDestination = (Kore::Graphics4::BlendingOperation)alphaBlendDestination;
+		pipeline->alpha_blend_destination = (kinc_g4_blending_operation_t)alphaBlendDestination;
 
 		JsValueRef maskRed, maskGreen, maskBlue, maskAlpha;
 		JsGetProperty(arguments[12], getId("colorWriteMaskRed"), &maskRed);
@@ -1053,25 +1059,25 @@ namespace {
 
 			JsGetIndexedProperty(maskRed, index, &element);
 			JsBooleanToBool(element, &b);
-			pipeline->colorWriteMaskRed[i] = b;
+			pipeline->color_write_mask_red[i] = b;
 
 			JsGetIndexedProperty(maskGreen, index, &element);
 			JsBooleanToBool(element, &b);
-			pipeline->colorWriteMaskGreen[i] = b;
+			pipeline->color_write_mask_green[i] = b;
 
 			JsGetIndexedProperty(maskBlue, index, &element);
 			JsBooleanToBool(element, &b);
-			pipeline->colorWriteMaskBlue[i] = b;
+			pipeline->color_write_mask_blue[i] = b;
 
 			JsGetIndexedProperty(maskAlpha, index, &element);
 			JsBooleanToBool(element, &b);
-			pipeline->colorWriteMaskAlpha[i] = b;
+			pipeline->color_write_mask_alpha[i] = b;
 		}
 
 		getPipeBool(conservativeRasterization);
-		pipeline->conservativeRasterization = conservativeRasterization;
+		pipeline->conservative_rasterization = conservativeRasterization;
 
-		pipeline->compile();
+		kinc_g4_pipeline_compile(pipeline);
 
 		return JS_INVALID_REFERENCE;
 	}
@@ -1080,7 +1086,7 @@ namespace {
 
 	JsValueRef CALLBACK krom_set_pipeline(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount, void *callbackState) {
 		JsValueRef progobj = arguments[1];
-		Kore::Graphics4::PipelineState *pipeline;
+		kinc_g4_pipeline_t *pipeline;
 		JsGetExternalData(progobj, (void **)&pipeline);
 
 		if (debugMode) {
@@ -1106,7 +1112,8 @@ namespace {
 				std::string filename = shaderFileNames[vsname];
 				std::ifstream input((shadersdir + "/" + filename).c_str(), std::ios::binary);
 				std::vector<char> buffer((std::istreambuf_iterator<char>(input)), (std::istreambuf_iterator<char>()));
-				Kore::Graphics4::Shader *vertexShader = new Kore::Graphics4::Shader(buffer.data(), (int)buffer.size(), Kore::Graphics4::VertexShader);
+				kinc_g4_shader_t *vertexShader = (kinc_g4_shader_t *)malloc(sizeof(kinc_g4_shader_t));
+				kinc_g4_shader_init(vertexShader, buffer.data(), (int)buffer.size(), KINC_G4_SHADER_TYPE_VERTEX);
 				JsValueRef three;
 				JsIntToNumber(3, &three);
 				JsValueRef vsObj;
@@ -1121,7 +1128,8 @@ namespace {
 				std::string filename = shaderFileNames[fsname];
 				std::ifstream input((shadersdir + "/" + filename).c_str(), std::ios::binary);
 				std::vector<char> buffer((std::istreambuf_iterator<char>(input)), (std::istreambuf_iterator<char>()));
-				Kore::Graphics4::Shader *fragmentShader = new Kore::Graphics4::Shader(buffer.data(), (int)buffer.size(), Kore::Graphics4::FragmentShader);
+				kinc_g4_shader_t *fragmentShader = (kinc_g4_shader_t *)malloc(sizeof(kinc_g4_shader_t));
+				kinc_g4_shader_init(fragmentShader, buffer.data(), (int)buffer.size(), KINC_G4_SHADER_TYPE_FRAGMENT);
 				JsValueRef four;
 				JsIntToNumber(4, &four);
 				JsValueRef vsObj;
@@ -1145,7 +1153,8 @@ namespace {
 					std::string filename = shaderFileNames[gsname];
 					std::ifstream input((shadersdir + "/" + filename).c_str(), std::ios::binary);
 					std::vector<char> buffer((std::istreambuf_iterator<char>(input)), (std::istreambuf_iterator<char>()));
-					Kore::Graphics4::Shader *geometryShader = new Kore::Graphics4::Shader(buffer.data(), (int)buffer.size(), Kore::Graphics4::GeometryShader);
+					kinc_g4_shader_t *geometryShader = (kinc_g4_shader_t *)malloc(sizeof(kinc_g4_shader_t));
+					kinc_g4_shader_init(geometryShader, buffer.data(), (int)buffer.size(), KINC_G4_SHADER_TYPE_GEOMETRY);
 					JsValueRef five;
 					JsIntToNumber(5, &five);
 					JsValueRef gsObj;
@@ -1170,8 +1179,8 @@ namespace {
 					std::string filename = shaderFileNames[tcsname];
 					std::ifstream input((shadersdir + "/" + filename).c_str(), std::ios::binary);
 					std::vector<char> buffer((std::istreambuf_iterator<char>(input)), (std::istreambuf_iterator<char>()));
-					Kore::Graphics4::Shader *tessellationControlShader =
-					    new Kore::Graphics4::Shader(buffer.data(), (int)buffer.size(), Kore::Graphics4::TessellationControlShader);
+					kinc_g4_shader_t *tessellationControlShader = (kinc_g4_shader_t *)malloc(sizeof(kinc_g4_shader_t));
+					kinc_g4_shader_init(tessellationControlShader, buffer.data(), (int)buffer.size(), KINC_G4_SHADER_TYPE_TESSELLATION_CONTROL);
 					JsValueRef six;
 					JsIntToNumber(6, &six);
 					JsValueRef tcsObj;
@@ -1196,8 +1205,8 @@ namespace {
 					std::string filename = shaderFileNames[tesname];
 					std::ifstream input((shadersdir + "/" + filename).c_str(), std::ios::binary);
 					std::vector<char> buffer((std::istreambuf_iterator<char>(input)), (std::istreambuf_iterator<char>()));
-					Kore::Graphics4::Shader *tessellationEvaluationShader =
-					    new Kore::Graphics4::Shader(buffer.data(), (int)buffer.size(), Kore::Graphics4::TessellationEvaluationShader);
+					kinc_g4_shader_t *tessellationEvaluationShader = (kinc_g4_shader_t *)malloc(sizeof(kinc_g4_shader_t));
+					kinc_g4_shader_init(tessellationEvaluationShader, buffer.data(), (int)buffer.size(), KINC_G4_SHADER_TYPE_TESSELLATION_EVALUATION);
 					JsValueRef seven;
 					JsIntToNumber(7, &seven);
 					JsValueRef tesObj;
@@ -1213,7 +1222,7 @@ namespace {
 			}
 		}
 
-		Kore::Graphics4::setPipeline(pipeline);
+		kinc_g4_set_pipeline(pipeline);
 		return JS_INVALID_REFERENCE;
 	}
 
@@ -1343,41 +1352,45 @@ namespace {
 
 	JsValueRef CALLBACK krom_get_constant_location(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount,
 	                                               void *callbackState) {
-		Kore::Graphics4::PipelineState *pipeline;
+		kinc_g4_pipeline_t *pipeline;
 		JsGetExternalData(arguments[1], (void **)&pipeline);
 
 		char name[256];
 		size_t length;
 		JsCopyString(arguments[2], name, 255, &length);
 		name[length] = 0;
-		Kore::Graphics4::ConstantLocation location = pipeline->getConstantLocation(name);
+		kinc_g4_constant_location_t location = kinc_g4_pipeline_get_constant_location(pipeline, name);
+		kinc_g4_constant_location_t *locationPtr = (kinc_g4_constant_location_t *)malloc(sizeof(kinc_g4_constant_location_t));
+		memcpy(locationPtr, &location, sizeof(location));
 
 		JsValueRef obj;
-		JsCreateExternalObject(new Kore::Graphics4::ConstantLocation(location), nullptr, &obj);
+		JsCreateExternalObject(locationPtr, nullptr, &obj);
 		return obj;
 	}
 
 	JsValueRef CALLBACK krom_get_texture_unit(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount,
 	                                          void *callbackState) {
-		Kore::Graphics4::PipelineState *pipeline;
+		kinc_g4_pipeline_t *pipeline;
 		JsGetExternalData(arguments[1], (void **)&pipeline);
 
 		char name[256];
 		size_t length;
 		JsCopyString(arguments[2], name, 255, &length);
 		name[length] = 0;
-		Kore::Graphics4::TextureUnit unit = pipeline->getTextureUnit(name);
+		kinc_g4_texture_unit_t unit = kinc_g4_pipeline_get_texture_unit(pipeline, name);
+		kinc_g4_texture_unit_t *unitPtr = (kinc_g4_texture_unit_t *)malloc(sizeof(kinc_g4_texture_unit_t));
+		memcpy(unitPtr, &unit, sizeof(unit));
 
 		JsValueRef obj;
-		JsCreateExternalObject(new Kore::Graphics4::TextureUnit(unit), nullptr, &obj);
+		JsCreateExternalObject(unitPtr, nullptr, &obj);
 		return obj;
 	}
 
 	JsValueRef CALLBACK krom_set_texture(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount, void *callbackState) {
-		Kore::Graphics4::TextureUnit *unit;
+		kinc_g4_texture_unit_t *unit;
 		JsGetExternalData(arguments[1], (void **)&unit);
 
-		Kore::Graphics4::Texture *texture;
+		kinc_g4_texture_t *texture;
 		bool imageChanged = false;
 		if (debugMode) {
 			JsValueRef filenameObj;
@@ -1397,31 +1410,31 @@ namespace {
 		if (!imageChanged) {
 			JsGetExternalData(arguments[2], (void **)&texture);
 		}
-		Kore::Graphics4::setTexture(*unit, texture);
+		kinc_g4_set_texture(*unit, texture);
 
 		return JS_INVALID_REFERENCE;
 	}
 
 	JsValueRef CALLBACK krom_set_render_target(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount,
 	                                           void *callbackState) {
-		Kore::Graphics4::TextureUnit *unit;
+		kinc_g4_texture_unit_t *unit;
 		JsGetExternalData(arguments[1], (void **)&unit);
 
-		Kore::Graphics4::RenderTarget *renderTarget;
+		kinc_g4_render_target_t *renderTarget;
 		JsGetExternalData(arguments[2], (void **)&renderTarget);
-		renderTarget->useColorAsTexture(*unit);
+		kinc_g4_render_target_use_color_as_texture(renderTarget, *unit);
 
 		return JS_INVALID_REFERENCE;
 	}
 
 	JsValueRef CALLBACK krom_set_texture_depth(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount,
 	                                           void *callbackState) {
-		Kore::Graphics4::TextureUnit *unit;
+		kinc_g4_texture_unit_t *unit;
 		JsGetExternalData(arguments[1], (void **)&unit);
 
-		Kore::Graphics4::RenderTarget *renderTarget;
+		kinc_g4_render_target_t *renderTarget;
 		JsGetExternalData(arguments[2], (void **)&renderTarget);
-		renderTarget->useDepthAsTexture(*unit);
+		kinc_g4_render_target_use_depth_as_texture(renderTarget, *unit);
 
 		return JS_INVALID_REFERENCE;
 	}
