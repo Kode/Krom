@@ -1263,14 +1263,17 @@ namespace {
 		JsGetValueType(rt, &rtType);
 
 		if (texType == JsObject) {
-			Kore::Graphics4::Texture *texture;
+			kinc_g4_texture_t *texture;
 			JsGetExternalData(tex, (void **)&texture);
-			delete texture;
+			kinc_g4_texture_destroy(texture);
+			free(texture);
+			// TODO: Maybe also free the image
 		}
 		else if (rtType == JsObject) {
-			Kore::Graphics4::RenderTarget *renderTarget;
+			kinc_g4_render_target_t *renderTarget;
 			JsGetExternalData(rt, (void **)&renderTarget);
-			delete renderTarget;
+			kinc_g4_render_target_destroy(renderTarget);
+			free(renderTarget);
 		}
 
 		return JS_INVALID_REFERENCE;
@@ -1441,19 +1444,19 @@ namespace {
 
 	JsValueRef CALLBACK krom_set_image_texture(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount,
 	                                           void *callbackState) {
-		Kore::Graphics4::TextureUnit *unit;
+		kinc_g4_texture_unit_t *unit;
 		JsGetExternalData(arguments[1], (void **)&unit);
 
-		Kore::Graphics4::Texture *texture;
+		kinc_g4_texture_t *texture;
 		JsGetExternalData(arguments[2], (void **)&texture);
-		Kore::Graphics4::setImageTexture(*unit, texture);
+		kinc_g4_set_image_texture(*unit, texture);
 
 		return JS_INVALID_REFERENCE;
 	}
 
 	JsValueRef CALLBACK krom_set_texture_parameters(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount,
 	                                                void *callbackState) {
-		Kore::Graphics4::TextureUnit *unit;
+		kinc_g4_texture_unit_t *unit;
 		JsGetExternalData(arguments[1], (void **)&unit);
 		int u, v, min, max, mip;
 		JsNumberToInt(arguments[2], &u);
@@ -1461,17 +1464,17 @@ namespace {
 		JsNumberToInt(arguments[4], &min);
 		JsNumberToInt(arguments[5], &max);
 		JsNumberToInt(arguments[6], &mip);
-		Kore::Graphics4::setTextureAddressing(*unit, Kore::Graphics4::U, (Kore::Graphics4::TextureAddressing)u);
-		Kore::Graphics4::setTextureAddressing(*unit, Kore::Graphics4::V, (Kore::Graphics4::TextureAddressing)v);
-		Kore::Graphics4::setTextureMinificationFilter(*unit, (Kore::Graphics4::TextureFilter)min);
-		Kore::Graphics4::setTextureMagnificationFilter(*unit, (Kore::Graphics4::TextureFilter)max);
-		Kore::Graphics4::setTextureMipmapFilter(*unit, (Kore::Graphics4::MipmapFilter)mip);
+		kinc_g4_set_texture_addressing(*unit, KINC_G4_TEXTURE_DIRECTION_U, (kinc_g4_texture_addressing_t)u);
+		kinc_g4_set_texture_addressing(*unit, KINC_G4_TEXTURE_DIRECTION_V, (kinc_g4_texture_addressing_t)v);
+		kinc_g4_set_texture_minification_filter(*unit, (kinc_g4_texture_filter_t)min);
+		kinc_g4_set_texture_magnification_filter(*unit, (kinc_g4_texture_filter_t)max);
+		kinc_g4_set_texture_mipmap_filter(*unit, (kinc_g4_mipmap_filter_t)mip);
 		return JS_INVALID_REFERENCE;
 	}
 
 	JsValueRef CALLBACK krom_set_texture_3d_parameters(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount,
 	                                                   void *callbackState) {
-		Kore::Graphics4::TextureUnit *unit;
+		kinc_g4_texture_unit_t *unit;
 		JsGetExternalData(arguments[1], (void **)&unit);
 		int u, v, w, min, max, mip;
 		JsNumberToInt(arguments[2], &u);
@@ -1480,97 +1483,97 @@ namespace {
 		JsNumberToInt(arguments[5], &min);
 		JsNumberToInt(arguments[6], &max);
 		JsNumberToInt(arguments[7], &mip);
-		Kore::Graphics4::setTexture3DAddressing(*unit, Kore::Graphics4::U, (Kore::Graphics4::TextureAddressing)u);
-		Kore::Graphics4::setTexture3DAddressing(*unit, Kore::Graphics4::V, (Kore::Graphics4::TextureAddressing)v);
-		Kore::Graphics4::setTexture3DAddressing(*unit, Kore::Graphics4::W, (Kore::Graphics4::TextureAddressing)w);
-		Kore::Graphics4::setTexture3DMinificationFilter(*unit, (Kore::Graphics4::TextureFilter)min);
-		Kore::Graphics4::setTexture3DMagnificationFilter(*unit, (Kore::Graphics4::TextureFilter)max);
-		Kore::Graphics4::setTexture3DMipmapFilter(*unit, (Kore::Graphics4::MipmapFilter)mip);
+		kinc_g4_set_texture3d_addressing(*unit, KINC_G4_TEXTURE_DIRECTION_U, (kinc_g4_texture_addressing_t)u);
+		kinc_g4_set_texture3d_addressing(*unit, KINC_G4_TEXTURE_DIRECTION_V, (kinc_g4_texture_addressing_t)v);
+		kinc_g4_set_texture3d_addressing(*unit, KINC_G4_TEXTURE_DIRECTION_W, (kinc_g4_texture_addressing_t)w);
+		kinc_g4_set_texture3d_minification_filter(*unit, (kinc_g4_texture_filter_t)min);
+		kinc_g4_set_texture3d_magnification_filter(*unit, (kinc_g4_texture_filter_t)max);
+		kinc_g4_set_texture3d_mipmap_filter(*unit, (kinc_g4_mipmap_filter_t)mip);
 		return JS_INVALID_REFERENCE;
 	}
 
 	JsValueRef CALLBACK krom_set_texture_compare_mode(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount,
 	                                                  void *callbackState) {
-		Kore::Graphics4::TextureUnit *unit;
+		kinc_g4_texture_unit_t *unit;
 		JsGetExternalData(arguments[1], (void **)&unit);
 		bool enabled;
 		JsBooleanToBool(arguments[2], &enabled);
-		Kore::Graphics4::setTextureCompareMode(*unit, enabled);
+		kinc_g4_set_texture_compare_mode(*unit, enabled);
 		return JS_INVALID_REFERENCE;
 	}
 
 	JsValueRef CALLBACK krom_set_cube_map_compare_mode(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount,
 	                                                   void *callbackState) {
-		Kore::Graphics4::TextureUnit *unit;
+		kinc_g4_texture_unit_t *unit;
 		JsGetExternalData(arguments[1], (void **)&unit);
 		bool enabled;
 		JsBooleanToBool(arguments[2], &enabled);
-		Kore::Graphics4::setCubeMapCompareMode(*unit, enabled);
+		kinc_g4_set_cubemap_compare_mode(*unit, enabled);
 		return JS_INVALID_REFERENCE;
 	}
 
 	JsValueRef CALLBACK krom_set_bool(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount, void *callbackState) {
-		Kore::Graphics4::ConstantLocation *location;
+		kinc_g4_constant_location_t *location;
 		JsGetExternalData(arguments[1], (void **)&location);
 		bool value;
 		JsBooleanToBool(arguments[2], &value);
-		Kore::Graphics4::setBool(*location, value);
+		kinc_g4_set_bool(*location, value);
 		return JS_INVALID_REFERENCE;
 	}
 
 	JsValueRef CALLBACK krom_set_int(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount, void *callbackState) {
-		Kore::Graphics4::ConstantLocation *location;
+		kinc_g4_constant_location_t *location;
 		JsGetExternalData(arguments[1], (void **)&location);
 		int value;
 		JsNumberToInt(arguments[2], &value);
-		Kore::Graphics4::setInt(*location, value);
+		kinc_g4_set_int(*location, value);
 		return JS_INVALID_REFERENCE;
 	}
 
 	JsValueRef CALLBACK krom_set_float(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount, void *callbackState) {
-		Kore::Graphics4::ConstantLocation *location;
+		kinc_g4_constant_location_t *location;
 		JsGetExternalData(arguments[1], (void **)&location);
 		double value;
 		JsNumberToDouble(arguments[2], &value);
-		Kore::Graphics4::setFloat(*location, value);
+		kinc_g4_set_float(*location, value);
 		return JS_INVALID_REFERENCE;
 	}
 
 	JsValueRef CALLBACK krom_set_float2(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount, void *callbackState) {
-		Kore::Graphics4::ConstantLocation *location;
+		kinc_g4_constant_location_t *location;
 		JsGetExternalData(arguments[1], (void **)&location);
 		double value1, value2;
 		JsNumberToDouble(arguments[2], &value1);
 		JsNumberToDouble(arguments[3], &value2);
-		Kore::Graphics4::setFloat2(*location, value1, value2);
+		kinc_g4_set_float2(*location, value1, value2);
 		return JS_INVALID_REFERENCE;
 	}
 
 	JsValueRef CALLBACK krom_set_float3(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount, void *callbackState) {
-		Kore::Graphics4::ConstantLocation *location;
+		kinc_g4_constant_location_t *location;
 		JsGetExternalData(arguments[1], (void **)&location);
 		double value1, value2, value3;
 		JsNumberToDouble(arguments[2], &value1);
 		JsNumberToDouble(arguments[3], &value2);
 		JsNumberToDouble(arguments[4], &value3);
-		Kore::Graphics4::setFloat3(*location, value1, value2, value3);
+		kinc_g4_set_float3(*location, value1, value2, value3);
 		return JS_INVALID_REFERENCE;
 	}
 
 	JsValueRef CALLBACK krom_set_float4(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount, void *callbackState) {
-		Kore::Graphics4::ConstantLocation *location;
+		kinc_g4_constant_location_t *location;
 		JsGetExternalData(arguments[1], (void **)&location);
 		double value1, value2, value3, value4;
 		JsNumberToDouble(arguments[2], &value1);
 		JsNumberToDouble(arguments[3], &value2);
 		JsNumberToDouble(arguments[4], &value3);
 		JsNumberToDouble(arguments[5], &value4);
-		Kore::Graphics4::setFloat4(*location, value1, value2, value3, value4);
+		kinc_g4_set_float4(*location, value1, value2, value3, value4);
 		return JS_INVALID_REFERENCE;
 	}
 
 	JsValueRef CALLBACK krom_set_floats(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount, void *callbackState) {
-		Kore::Graphics4::ConstantLocation *location;
+		kinc_g4_constant_location_t *location;
 		JsGetExternalData(arguments[1], (void **)&location);
 
 		Kore::u8 *data;
@@ -1579,12 +1582,12 @@ namespace {
 
 		float *from = (float *)data;
 
-		Kore::Graphics4::setFloats(*location, from, int(bufferLength / 4));
+		kinc_g4_set_floats(*location, from, int(bufferLength / 4));
 		return JS_INVALID_REFERENCE;
 	}
 
 	JsValueRef CALLBACK krom_set_matrix(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount, void *callbackState) {
-		Kore::Graphics4::ConstantLocation *location;
+		kinc_g4_constant_location_t *location;
 		JsGetExternalData(arguments[1], (void **)&location);
 
 		Kore::u8 *data;
@@ -1592,31 +1595,31 @@ namespace {
 		JsGetArrayBufferStorage(arguments[2], &data, &bufferLength);
 
 		float *from = (float *)data;
-		Kore::mat4 m;
-		m.Set(0, 0, from[0]);
-		m.Set(1, 0, from[1]);
-		m.Set(2, 0, from[2]);
-		m.Set(3, 0, from[3]);
-		m.Set(0, 1, from[4]);
-		m.Set(1, 1, from[5]);
-		m.Set(2, 1, from[6]);
-		m.Set(3, 1, from[7]);
-		m.Set(0, 2, from[8]);
-		m.Set(1, 2, from[9]);
-		m.Set(2, 2, from[10]);
-		m.Set(3, 2, from[11]);
-		m.Set(0, 3, from[12]);
-		m.Set(1, 3, from[13]);
-		m.Set(2, 3, from[14]);
-		m.Set(3, 3, from[15]);
+		kinc_matrix4x4_t m;
+		kinc_matrix4x4_set(&m, 0, 0, from[0]);
+		kinc_matrix4x4_set(&m, 1, 0, from[1]);
+		kinc_matrix4x4_set(&m, 2, 0, from[2]);
+		kinc_matrix4x4_set(&m, 3, 0, from[3]);
+		kinc_matrix4x4_set(&m, 0, 1, from[4]);
+		kinc_matrix4x4_set(&m, 1, 1, from[5]);
+		kinc_matrix4x4_set(&m, 2, 1, from[6]);
+		kinc_matrix4x4_set(&m, 3, 1, from[7]);
+		kinc_matrix4x4_set(&m, 0, 2, from[8]);
+		kinc_matrix4x4_set(&m, 1, 2, from[9]);
+		kinc_matrix4x4_set(&m, 2, 2, from[10]);
+		kinc_matrix4x4_set(&m, 3, 2, from[11]);
+		kinc_matrix4x4_set(&m, 0, 3, from[12]);
+		kinc_matrix4x4_set(&m, 1, 3, from[13]);
+		kinc_matrix4x4_set(&m, 2, 3, from[14]);
+		kinc_matrix4x4_set(&m, 3, 3, from[15]);
 
-		Kore::Graphics4::setMatrix(*location, m);
+		kinc_g4_set_matrix4(*location, &m);
 
 		return JS_INVALID_REFERENCE;
 	}
 
 	JsValueRef CALLBACK krom_set_matrix3(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount, void *callbackState) {
-		Kore::Graphics4::ConstantLocation *location;
+		kinc_g4_constant_location_t *location;
 		JsGetExternalData(arguments[1], (void **)&location);
 
 		Kore::u8 *data;
@@ -1624,18 +1627,18 @@ namespace {
 		JsGetArrayBufferStorage(arguments[2], &data, &bufferLength);
 
 		float *from = (float *)data;
-		Kore::mat3 m;
-		m.Set(0, 0, from[0]);
-		m.Set(1, 0, from[1]);
-		m.Set(2, 0, from[2]);
-		m.Set(0, 1, from[3]);
-		m.Set(1, 1, from[4]);
-		m.Set(2, 1, from[5]);
-		m.Set(0, 2, from[6]);
-		m.Set(1, 2, from[7]);
-		m.Set(2, 2, from[8]);
+		kinc_matrix3x3_t m;
+		kinc_matrix3x3_set(&m, 0, 0, from[0]);
+		kinc_matrix3x3_set(&m, 1, 0, from[1]);
+		kinc_matrix3x3_set(&m, 2, 0, from[2]);
+		kinc_matrix3x3_set(&m, 0, 1, from[3]);
+		kinc_matrix3x3_set(&m, 1, 1, from[4]);
+		kinc_matrix3x3_set(&m, 2, 1, from[5]);
+		kinc_matrix3x3_set(&m, 0, 2, from[6]);
+		kinc_matrix3x3_set(&m, 1, 2, from[7]);
+		kinc_matrix3x3_set(&m, 2, 2, from[8]);
 
-		Kore::Graphics4::setMatrix(*location, m);
+		kinc_g4_set_matrix3(*location, &m);
 
 		return JS_INVALID_REFERENCE;
 	}
@@ -1785,8 +1788,8 @@ namespace {
 		JsNumberToInt(arguments[3], &value3);
 		JsNumberToInt(arguments[4], &value4);
 		JsNumberToInt(arguments[5], &value5);
-		Kore::Graphics4::RenderTarget *renderTarget =
-		    new Kore::Graphics4::RenderTarget(value1, value2, value3, false, (Kore::Graphics4::RenderTargetFormat)value4, value5);
+		kinc_g4_render_target_t *renderTarget = (kinc_g4_render_target_t *)malloc(sizeof(kinc_g4_render_target_t));
+		kinc_g4_render_target_init(renderTarget, value1, value2, value3, false, (kinc_g4_render_target_format_t)value4, value5, 0);
 
 		JsValueRef value;
 		JsCreateExternalObject(renderTarget, nullptr, &value);
@@ -1808,8 +1811,8 @@ namespace {
 		JsNumberToInt(arguments[2], &value2);
 		JsNumberToInt(arguments[3], &value3);
 		JsNumberToInt(arguments[4], &value4);
-		Kore::Graphics4::RenderTarget *renderTarget =
-		    new Kore::Graphics4::RenderTarget(value1, value2, false, (Kore::Graphics4::RenderTargetFormat)value3, value4);
+		kinc_g4_render_target_t *renderTarget = (kinc_g4_render_target_t *)malloc(sizeof(kinc_g4_render_target_t));
+		kinc_g4_render_target_init_cube(renderTarget, value1, value2, false, (kinc_g4_render_target_format_t)value3, value4, 0);
 
 		JsValueRef value;
 		JsCreateExternalObject(renderTarget, nullptr, &value);
@@ -1855,7 +1858,7 @@ namespace {
 		JsNumberToInt(arguments[2], &value2);
 		JsNumberToInt(arguments[3], &value3);
 		JsNumberToInt(arguments[4], &value4);
-		Kore::Graphics4::Texture *texture = new Kore::Graphics4::Texture(value1, value2, value3, (Kore::Graphics4::Image::Format)value4, false);
+		Kore::Graphics4::Texture *texture = new Kore::Graphics4::Texture(value1, value2, value3, (kinc_image_format_t)value4, false);
 
 		JsValueRef tex;
 		JsCreateExternalObject(texture, nullptr, &tex);
@@ -1889,7 +1892,7 @@ namespace {
 		JsNumberToInt(arguments[4], &value4);
 		JsBooleanToBool(arguments[5], &value5);
 
-		Kore::Graphics4::Texture *texture = new Kore::Graphics4::Texture(content, value2, value3, (Kore::Graphics4::Image::Format)value4, value5);
+		Kore::Graphics4::Texture *texture = new Kore::Graphics4::Texture(content, value2, value3, (kinc_image_format_t)value4, value5);
 
 		JsValueRef value;
 		JsCreateExternalObject(texture, nullptr, &value);
@@ -1922,7 +1925,7 @@ namespace {
 		JsNumberToInt(arguments[5], &value5);
 		JsBooleanToBool(arguments[6], &value6);
 
-		Kore::Graphics4::Texture *texture = new Kore::Graphics4::Texture(content, value2, value3, value4, (Kore::Graphics4::Image::Format)value5, value6);
+		Kore::Graphics4::Texture *texture = new Kore::Graphics4::Texture(content, value2, value3, value4, (kinc_image_format_t)value5, value6);
 
 		JsValueRef value;
 		JsCreateExternalObject(texture, nullptr, &value);
@@ -1975,22 +1978,22 @@ namespace {
 		return value;
 	}
 
-	int formatByteSize(Kore::Graphics4::Image::Format format) {
+	int formatByteSize(kinc_image_format_t format) {
 		switch (format) {
-		case Kore::Graphics4::Image::RGBA128:
+		case KINC_IMAGE_FORMAT_RGBA128:
 			return 16;
-		case Kore::Graphics4::Image::RGBA64:
+		case KINC_IMAGE_FORMAT_RGBA64:
 			return 8;
-		case Kore::Graphics4::Image::RGB24:
+		case KINC_IMAGE_FORMAT_RGB24:
 			return 4;
-		case Kore::Graphics4::Image::A32:
+		case KINC_IMAGE_FORMAT_A32:
 			return 4;
-		case Kore::Graphics4::Image::A16:
+		case KINC_IMAGE_FORMAT_A16:
 			return 2;
-		case Kore::Graphics4::Image::Grey8:
+		case KINC_IMAGE_FORMAT_GREY8:
 			return 1;
-		case Kore::Graphics4::Image::BGRA32:
-		case Kore::Graphics4::Image::RGBA32:
+		case KINC_IMAGE_FORMAT_RGBA32:
+		case KINC_IMAGE_FORMAT_BGRA32:
 		default:
 			return 4;
 		}
@@ -1998,11 +2001,11 @@ namespace {
 
 	JsValueRef CALLBACK krom_get_texture_pixels(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount,
 	                                            void *callbackState) {
-		Kore::Graphics4::Texture *texture;
+		kinc_g4_texture *texture;
 		JsGetExternalData(arguments[1], (void **)&texture);
 
 		Kore::u8 *data = texture->getPixels();
-		int byteLength = formatByteSize(texture->format) * texture->width * texture->height * texture->depth;
+		int byteLength = formatByteSize(texture->format) * texture->tex_width * texture->tex_height * texture->tex_depth;
 		JsValueRef value;
 		JsCreateExternalArrayBuffer(data, byteLength, nullptr, nullptr, &value);
 		return value;
@@ -2010,42 +2013,42 @@ namespace {
 
 	JsValueRef CALLBACK krom_get_render_target_pixels(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount,
 	                                                  void *callbackState) {
-		Kore::Graphics4::RenderTarget *rt;
+		kinc_g4_render_target_t *rt;
 		JsGetExternalData(arguments[1], (void **)&rt);
 
 		Kore::u8 *content;
 		unsigned bufferLength;
 		JsGetArrayBufferStorage(arguments[2], &content, &bufferLength);
 
-		rt->getPixels(content);
+		kinc_g4_render_target_get_pixels(rt, content);
 
 		return JS_INVALID_REFERENCE;
 	}
 
 	JsValueRef CALLBACK krom_lock_texture(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount, void *callbackState) {
-		Kore::Graphics4::Texture *texture;
+		kinc_g4_texture_t *texture;
 		JsGetExternalData(arguments[1], (void **)&texture);
-		Kore::u8 *tex = texture->lock();
+		Kore::u8 *tex = kinc_g4_texture_lock(texture);
 
 		JsValueRef stride;
-		JsIntToNumber(texture->stride(), &stride);
+		JsIntToNumber(kinc_g4_texture_stride(texture), &stride);
 		JsSetProperty(arguments[1], getId("stride"), stride, false);
 
-		int byteLength = texture->stride() * texture->height * texture->depth;
+		int byteLength = kinc_g4_texture_stride(texture) * texture->tex_height * texture->tex_depth;
 		JsValueRef value;
 		JsCreateExternalArrayBuffer(tex, byteLength, nullptr, nullptr, &value);
 		return value;
 	}
 
 	JsValueRef CALLBACK krom_unlock_texture(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount, void *callbackState) {
-		Kore::Graphics4::Texture *texture;
+		kinc_g4_texture_t *texture;
 		JsGetExternalData(arguments[1], (void **)&texture);
-		texture->unlock();
+		kinc_g4_texture_unlock(texture);
 		return JS_INVALID_REFERENCE;
 	}
 
 	JsValueRef CALLBACK krom_clear_texture(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount, void *callbackState) {
-		Kore::Graphics4::Texture *texture;
+		kinc_g4_texture_t *texture;
 		JsGetExternalData(arguments[1], (void **)&texture);
 		int x, y, z, width, height, depth, color;
 		JsNumberToInt(arguments[2], &x);
@@ -2055,32 +2058,32 @@ namespace {
 		JsNumberToInt(arguments[6], &height);
 		JsNumberToInt(arguments[7], &depth);
 		JsNumberToInt(arguments[8], &color);
-		texture->clear(x, y, z, width, height, depth, color);
+		kinc_g4_texture_clear(texture, x, y, z, width, height, depth, color);
 		return JS_INVALID_REFERENCE;
 	}
 
 	JsValueRef CALLBACK krom_generate_texture_mipmaps(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount,
 	                                                  void *callbackState) {
-		Kore::Graphics4::Texture *texture;
+		kinc_g4_texture_t *texture;
 		JsGetExternalData(arguments[1], (void **)&texture);
 		int levels;
 		JsNumberToInt(arguments[2], &levels);
-		texture->generateMipmaps(levels);
+		kinc_g4_texture_generate_mipmaps(texture, levels);
 		return JS_INVALID_REFERENCE;
 	}
 
 	JsValueRef CALLBACK krom_generate_render_target_mipmaps(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount,
 	                                                        void *callbackState) {
-		Kore::Graphics4::RenderTarget *rt;
+		kinc_g4_render_target_t *rt;
 		JsGetExternalData(arguments[1], (void **)&rt);
 		int levels;
 		JsNumberToInt(arguments[2], &levels);
-		rt->generateMipmaps(levels);
+		kinc_g4_render_target_generate_mipmaps(rt, levels);
 		return JS_INVALID_REFERENCE;
 	}
 
 	JsValueRef CALLBACK krom_set_mipmaps(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount, void *callbackState) {
-		Kore::Graphics4::Texture *texture;
+		kinc_g4_texture_t *texture;
 		JsGetExternalData(arguments[1], (void **)&texture);
 
 		JsValueRef lengthObj;
@@ -2093,20 +2096,20 @@ namespace {
 			JsGetIndexedProperty(arguments[2], index, &element);
 			JsValueRef obj;
 			JsGetProperty(element, getId("texture_"), &obj);
-			Kore::Graphics4::Texture *mipmap;
+			kinc_g4_texture_t *mipmap;
 			JsGetExternalData(obj, (void **)&mipmap);
-			texture->setMipmap(mipmap, i + 1);
+			kinc_g4_texture_set_mipmap(texture, mipmap, i + 1);
 		}
 		return JS_INVALID_REFERENCE;
 	}
 
 	JsValueRef CALLBACK krom_set_depth_stencil_from(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount,
 	                                                void *callbackState) {
-		Kore::Graphics4::RenderTarget *renderTarget;
+		kinc_g4_render_target_t *renderTarget;
 		JsGetExternalData(arguments[1], (void **)&renderTarget);
-		Kore::Graphics4::RenderTarget *sourceTarget;
+		kinc_g4_render_target_t *sourceTarget;
 		JsGetExternalData(arguments[2], (void **)&sourceTarget);
-		renderTarget->setDepthStencilFrom(sourceTarget);
+		kinc_g4_render_target_set_depth_stencil_from(renderTarget, sourceTarget);
 		return JS_INVALID_REFERENCE;
 	}
 
@@ -2117,7 +2120,7 @@ namespace {
 		JsNumberToInt(arguments[3], &w);
 		JsNumberToInt(arguments[4], &h);
 
-		Kore::Graphics4::viewport(x, y, w, h);
+		kinc_g4_viewport(x, y, w, h);
 
 		return JS_INVALID_REFERENCE;
 	}
@@ -2129,21 +2132,21 @@ namespace {
 		JsNumberToInt(arguments[3], &w);
 		JsNumberToInt(arguments[4], &h);
 
-		Kore::Graphics4::scissor(x, y, w, h);
+		kinc_g4_scissor(x, y, w, h);
 
 		return JS_INVALID_REFERENCE;
 	}
 
 	JsValueRef CALLBACK krom_disable_scissor(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount,
 	                                         void *callbackState) {
-		Kore::Graphics4::disableScissor();
+		kinc_g4_disable_scissor();
 		return JS_INVALID_REFERENCE;
 	}
 
 	JsValueRef CALLBACK krom_render_targets_inverted_y(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount,
 	                                                   void *callbackState) {
 		JsValueRef value;
-		JsBoolToBoolean(Kore::Graphics4::renderTargetsInvertedY(), &value);
+		JsBoolToBoolean(kinc_g4_render_targets_inverted_y(), &value);
 		return value;
 	}
 
@@ -2151,22 +2154,22 @@ namespace {
 		JsValueType type;
 		JsGetValueType(arguments[1], &type);
 		if (type == JsNull || type == JsUndefined) {
-			Kore::Graphics4::restoreRenderTarget();
+			kinc_g4_restore_render_target();
 			return JS_INVALID_REFERENCE;
 		}
 		else {
 			JsValueRef rt;
 			JsGetProperty(arguments[1], getId("renderTarget_"), &rt);
-			Kore::Graphics4::RenderTarget *renderTarget;
+			kinc_g4_render_target_t *renderTarget;
 			JsGetExternalData(rt, (void **)&renderTarget);
 
 			JsValueType type2;
 			JsGetValueType(arguments[2], &type2);
 			if (type2 == JsNull || type2 == JsUndefined) {
-				Kore::Graphics4::setRenderTarget(renderTarget);
+				kinc_g4_set_render_targets(&renderTarget, 1);
 			}
 			else {
-				Kore::Graphics4::RenderTarget *renderTargets[8] = {renderTarget, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr};
+				kinc_g4_render_target_t *renderTargets[8] = {renderTarget, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr};
 				JsValueRef lengthObj;
 				JsGetProperty(arguments[2], getId("length"), &lengthObj);
 				int length;
@@ -2178,11 +2181,11 @@ namespace {
 					JsGetIndexedProperty(arguments[2], index, &element);
 					JsValueRef obj;
 					JsGetProperty(element, getId("renderTarget_"), &obj);
-					Kore::Graphics4::RenderTarget *art;
+					kinc_g4_render_target_t *art;
 					JsGetExternalData(obj, (void **)&art);
 					renderTargets[i + 1] = art;
 				}
-				Kore::Graphics4::setRenderTargets(renderTargets, length + 1);
+				kinc_g4_set_render_targets(renderTargets, length + 1);
 			}
 			return JS_INVALID_REFERENCE;
 		}
@@ -2191,11 +2194,11 @@ namespace {
 	JsValueRef CALLBACK krom_begin_face(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount, void *callbackState) {
 		JsValueRef rt;
 		JsGetProperty(arguments[1], getId("renderTarget_"), &rt);
-		Kore::Graphics4::RenderTarget *renderTarget;
+		kinc_g4_render_target_t *renderTarget;
 		JsGetExternalData(rt, (void **)&renderTarget);
 		int face;
 		JsNumberToInt(arguments[2], &face);
-		Kore::Graphics4::setRenderTargetFace(renderTarget, face);
+		kinc_g4_set_render_target_face(renderTarget, face);
 		return JS_INVALID_REFERENCE;
 	}
 
@@ -2405,29 +2408,29 @@ namespace {
 		kinc_compute_texture_unit *unit;
 		JsGetExternalData(arguments[1], (void **)&unit);
 
-		Kore::Graphics4::Texture *texture;
+		kinc_g4_texture_t *texture;
 		JsGetExternalData(arguments[2], (void **)&texture);
 
 		int access;
 		JsNumberToInt(arguments[3], &access);
 
-		kinc_compute_set_texture(*unit, &texture->kincTexture, (kinc_compute_access_t)access);
+		kinc_compute_set_texture(*unit, texture, (kinc_compute_access_t)access);
 
 		return JS_INVALID_REFERENCE;
 	}
 
 	JsValueRef CALLBACK krom_set_render_target_compute(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount,
 	                                                   void *callbackState) {
-		kinc_compute_texture_unit *unit;
+		kinc_compute_texture_unit_t *unit;
 		JsGetExternalData(arguments[1], (void **)&unit);
 
-		Kore::Graphics4::RenderTarget *renderTarget;
+		kinc_g4_render_target_t *renderTarget;
 		JsGetExternalData(arguments[2], (void **)&renderTarget);
 
 		int access;
 		JsNumberToInt(arguments[3], &access);
 
-		kinc_compute_set_render_target(*unit, &renderTarget->kincRenderTarget, (kinc_compute_access_t)access);
+		kinc_compute_set_render_target(*unit, renderTarget, (kinc_compute_access_t)access);
 
 		return JS_INVALID_REFERENCE;
 	}
@@ -2437,9 +2440,9 @@ namespace {
 		kinc_compute_texture_unit *unit;
 		JsGetExternalData(arguments[1], (void **)&unit);
 
-		Kore::Graphics4::Texture *texture;
+		kinc_g4_texture_t *texture;
 		JsGetExternalData(arguments[2], (void **)&texture);
-		kinc_compute_set_sampled_texture(*unit, &texture->kincTexture);
+		kinc_compute_set_sampled_texture(*unit, texture);
 
 		return JS_INVALID_REFERENCE;
 	}
@@ -2449,9 +2452,9 @@ namespace {
 		kinc_compute_texture_unit *unit;
 		JsGetExternalData(arguments[1], (void **)&unit);
 
-		Kore::Graphics4::RenderTarget *renderTarget;
+		kinc_g4_render_target_t *renderTarget;
 		JsGetExternalData(arguments[2], (void **)&renderTarget);
-		kinc_compute_set_sampled_render_target(*unit, &renderTarget->kincRenderTarget);
+		kinc_compute_set_sampled_render_target(*unit, renderTarget);
 
 		return JS_INVALID_REFERENCE;
 	}
@@ -2461,9 +2464,9 @@ namespace {
 		kinc_compute_texture_unit *unit;
 		JsGetExternalData(arguments[1], (void **)&unit);
 
-		Kore::Graphics4::RenderTarget *renderTarget;
+		kinc_g4_render_target_t *renderTarget;
 		JsGetExternalData(arguments[2], (void **)&renderTarget);
-		kinc_compute_set_sampled_depth_from_render_target(*unit, &renderTarget->kincRenderTarget);
+		kinc_compute_set_sampled_depth_from_render_target(*unit, renderTarget);
 
 		return JS_INVALID_REFERENCE;
 	}
@@ -2515,7 +2518,7 @@ namespace {
 	JsValueRef CALLBACK krom_max_bound_textures(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount,
 	                                            void *callbackState) {
 		JsValueRef value;
-		JsIntToNumber(Kore::Graphics4::maxBoundTextures(), &value);
+		JsIntToNumber(kinc_g4_max_bound_textures(), &value);
 		return value;
 	}
 
@@ -2917,19 +2920,19 @@ namespace {
 			kinc_mutex_unlock(&audioMutex);
 		}
 
-		Kore::Graphics4::begin();
+		kinc_g4_begin(0);
 
 		runJS();
 
 		JsSetCurrentContext(JS_INVALID_REFERENCE);
 		kinc_mutex_unlock(&mutex);
 
-		Kore::Graphics4::end();
+		kinc_g4_end(0);
 
 		unsigned int nextIdleTick;
 		JsIdle(&nextIdleTick);
 
-		Kore::Graphics4::swapBuffers();
+		kinc_g4_swap_buffers();
 	}
 
 	void dropFiles(wchar_t *filePath) {
