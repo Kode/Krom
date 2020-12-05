@@ -1,11 +1,11 @@
-#include "pch.h"
 #include "debug.h"
 #include "debug_server.h"
+#include "pch.h"
 
 #include <ChakraCore.h>
 #include <ChakraDebug.h>
 
-#include <Kore/Log.h>
+#include <kinc/log.h>
 
 #include <assert.h>
 #include <vector>
@@ -15,10 +15,10 @@
 #endif
 
 namespace {
-	void CHAKRA_CALLBACK debugCallback(JsDiagDebugEvent debugEvent, JsValueRef eventData, void* callbackState) {
-		if (debugEvent == JsDiagDebugEventBreakpoint || debugEvent == JsDiagDebugEventAsyncBreak || debugEvent == JsDiagDebugEventStepComplete
-			|| debugEvent == JsDiagDebugEventDebuggerStatement || debugEvent == JsDiagDebugEventRuntimeException) {
-			Kore::log(Kore::Info, "Debug callback: %i\n", debugEvent);
+	void CHAKRA_CALLBACK debugCallback(JsDiagDebugEvent debugEvent, JsValueRef eventData, void *callbackState) {
+		if (debugEvent == JsDiagDebugEventBreakpoint || debugEvent == JsDiagDebugEventAsyncBreak || debugEvent == JsDiagDebugEventStepComplete ||
+		    debugEvent == JsDiagDebugEventDebuggerStatement || debugEvent == JsDiagDebugEventRuntimeException) {
+			kinc_log(KINC_LOG_LEVEL_INFO, "Debug callback: %i", debugEvent);
 
 			int message = IDE_MESSAGE_BREAK;
 			sendMessage(&message, 1);
@@ -36,7 +36,7 @@ namespace {
 			}
 		}
 		else if (debugEvent == JsDiagDebugEventCompileError) {
-			Kore::log(Kore::Error, "Script compile error.");
+			kinc_log(KINC_LOG_LEVEL_ERROR, "Script compile error.");
 		}
 	}
 
