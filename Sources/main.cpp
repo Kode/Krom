@@ -1233,20 +1233,41 @@ namespace {
 		filename[length] = 0;
 		bool readable;
 		JsBooleanToBool(arguments[2], &readable);
-		Kore::Graphics4::Texture *texture = new Kore::Graphics4::Texture(filename, readable);
+
+		kinc_image_t image;
+		size_t size = kinc_image_size_from_file(filename);
+		void *memory = malloc(size);
+		kinc_image_init_from_file(&image, memory, filename);
+
+		kinc_g4_texture_t *texture = (kinc_g4_texture_t *)malloc(sizeof(kinc_g4_texture_t));
+		kinc_g4_texture_init_from_image(texture, &image);
 
 		JsValueRef obj;
 		JsCreateExternalObject(texture, nullptr, &obj);
 		JsValueRef width, height, realWidth, realHeight;
-		JsIntToNumber(texture->width, &width);
+		JsIntToNumber(image.width, &width);
 		JsSetProperty(obj, getId("width"), width, false);
-		JsIntToNumber(texture->height, &height);
+		JsIntToNumber(image.height, &height);
 		JsSetProperty(obj, getId("height"), height, false);
-		JsIntToNumber(texture->texWidth, &realWidth);
+		JsIntToNumber(texture->tex_width, &realWidth);
 		JsSetProperty(obj, getId("realWidth"), realWidth, false);
-		JsIntToNumber(texture->texHeight, &realHeight);
+		JsIntToNumber(texture->tex_height, &realHeight);
 		JsSetProperty(obj, getId("realHeight"), realHeight, false);
 		JsSetProperty(obj, getId("filename"), arguments[1], false);
+
+		if (readable) {
+			kinc_image_t *imagePtr = (kinc_image_t *)malloc(sizeof(kinc_image_t));
+			memcpy(imagePtr, &image, sizeof(image));
+
+			JsValueRef imageObject;
+			JsCreateExternalObject(imagePtr, nullptr, &imageObject);
+			JsSetProperty(obj, getId("image"), imageObject, false);
+		}
+		else {
+			kinc_image_destroy(&image);
+			free(memory);
+		}
+
 		return obj;
 	}
 
@@ -1267,7 +1288,18 @@ namespace {
 			JsGetExternalData(tex, (void **)&texture);
 			kinc_g4_texture_destroy(texture);
 			free(texture);
-			// TODO: Maybe also free the image
+
+			JsValueRef imageObj;
+			JsGetProperty(tex, getId("image"), &imageObj);
+			JsValueType type;
+			JsGetValueType(arguments[1], &type);
+			if (type != JsNull && type != JsUndefined) {
+				kinc_image_t *image;
+				JsGetExternalData(imageObj, (void **)&image);
+				free(image->data);
+				kinc_image_destroy(image);
+				free(image);
+			}
 		}
 		else if (rtType == JsObject) {
 			kinc_g4_render_target_t *renderTarget;
@@ -1404,7 +1436,17 @@ namespace {
 				if (imageChanges[tempString]) {
 					imageChanges[tempString] = false;
 					sendLogMessage("Image %s changed.", tempString);
-					texture = new Kore::Graphics4::Texture(tempString);
+
+					// TODO: Set all texture properties and free previous texture/image
+
+					kinc_image_t image;
+					size_t size = kinc_image_size_from_file(tempString);
+					void *memory = malloc(size);
+					kinc_image_init_from_file(&image, memory, tempString);
+
+					texture = (kinc_g4_texture_t *)malloc(sizeof(kinc_g4_texture_t));
+					kinc_g4_texture_init_from_image(texture, &image);
+
 					JsSetExternalData(arguments[2], texture);
 					imageChanged = true;
 				}
@@ -1832,19 +1874,19 @@ namespace {
 		JsNumberToInt(arguments[1], &value1);
 		JsNumberToInt(arguments[2], &value2);
 		JsNumberToInt(arguments[3], &value3);
-		Kore::Graphics4::Texture *texture = new Kore::Graphics4::Texture(value1, value2, (Kore::Graphics4::Image::Format)value3, false);
+
+		kinc_g4_texture_t *texture = (kinc_g4_texture_t *)malloc(sizeof(kinc_g4_texture_t));
+		kinc_g4_texture_init(texture, value1, value2, (kinc_image_format_t)value3);
 
 		JsValueRef value;
 		JsCreateExternalObject(texture, nullptr, &value);
 
-		JsValueRef width, height, realWidth, realHeight;
-		JsIntToNumber(texture->width, &width);
-		JsIntToNumber(texture->height, &height);
-		JsIntToNumber(texture->texWidth, &realWidth);
-		JsIntToNumber(texture->texHeight, &realHeight);
+		JsValueRef realWidth, realHeight;
+		JsIntToNumber(texture->tex_width, &realWidth);
+		JsIntToNumber(texture->tex_height, &realHeight);
 
-		JsSetProperty(value, getId("width"), width, false);
-		JsSetProperty(value, getId("height"), height, false);
+		JsSetProperty(value, getId("width"), arguments[1], false);
+		JsSetProperty(value, getId("height"), arguments[2], false);
 		JsSetProperty(value, getId("realWidth"), realWidth, false);
 		JsSetProperty(value, getId("realHeight"), realHeight, false);
 
@@ -1858,21 +1900,20 @@ namespace {
 		JsNumberToInt(arguments[2], &value2);
 		JsNumberToInt(arguments[3], &value3);
 		JsNumberToInt(arguments[4], &value4);
-		Kore::Graphics4::Texture *texture = new Kore::Graphics4::Texture(value1, value2, value3, (kinc_image_format_t)value4, false);
+
+		kinc_g4_texture_t *texture = (kinc_g4_texture_t *)malloc(sizeof(kinc_g4_texture_t));
+		kinc_g4_texture_init3d(texture, value1, value2, value3, (kinc_image_format_t)value4);
 
 		JsValueRef tex;
 		JsCreateExternalObject(texture, nullptr, &tex);
 
-		JsValueRef width, height, depth, realWidth, realHeight;
-		JsIntToNumber(texture->width, &width);
-		JsIntToNumber(texture->height, &height);
-		JsIntToNumber(texture->depth, &depth);
-		JsIntToNumber(texture->texWidth, &realWidth);
-		JsIntToNumber(texture->texHeight, &realHeight);
+		JsValueRef realWidth, realHeight;
+		JsIntToNumber(texture->tex_width, &realWidth);
+		JsIntToNumber(texture->tex_height, &realHeight);
 
-		JsSetProperty(tex, getId("width"), width, false);
-		JsSetProperty(tex, getId("height"), height, false);
-		JsSetProperty(tex, getId("depth"), depth, false);
+		JsSetProperty(tex, getId("width"), arguments[1], false);
+		JsSetProperty(tex, getId("height"), arguments[2], false);
+		JsSetProperty(tex, getId("depth"), arguments[3], false);
 		JsSetProperty(tex, getId("realWidth"), realWidth, false);
 		JsSetProperty(tex, getId("realHeight"), realHeight, false);
 
@@ -1886,27 +1927,46 @@ namespace {
 		JsGetArrayBufferStorage(arguments[1], &content, &bufferLength);
 
 		int value2, value3, value4;
-		bool value5;
+		bool readable;
 		JsNumberToInt(arguments[2], &value2);
 		JsNumberToInt(arguments[3], &value3);
 		JsNumberToInt(arguments[4], &value4);
-		JsBooleanToBool(arguments[5], &value5);
+		JsBooleanToBool(arguments[5], &readable);
 
-		Kore::Graphics4::Texture *texture = new Kore::Graphics4::Texture(content, value2, value3, (kinc_image_format_t)value4, value5);
+		void *data = malloc(bufferLength);
+		memcpy(data, content, bufferLength);
+
+		kinc_image_t image;
+		kinc_image_init_from_bytes(&image, data, value2, value3, (kinc_image_format_t)value4);
+
+		kinc_g4_texture_t *texture = (kinc_g4_texture_t *)malloc(sizeof(kinc_g4_texture_t));
+		kinc_g4_texture_init_from_image(texture, &image);
 
 		JsValueRef value;
 		JsCreateExternalObject(texture, nullptr, &value);
 
 		JsValueRef width, height, realWidth, realHeight;
-		JsIntToNumber(texture->width, &width);
-		JsIntToNumber(texture->height, &height);
-		JsIntToNumber(texture->texWidth, &realWidth);
-		JsIntToNumber(texture->texHeight, &realHeight);
+		JsIntToNumber(image.width, &width);
+		JsIntToNumber(image.height, &height);
+		JsIntToNumber(texture->tex_width, &realWidth);
+		JsIntToNumber(texture->tex_height, &realHeight);
 
 		JsSetProperty(value, getId("width"), width, false);
 		JsSetProperty(value, getId("height"), height, false);
 		JsSetProperty(value, getId("realWidth"), realWidth, false);
 		JsSetProperty(value, getId("realHeight"), realHeight, false);
+
+		if (readable) {
+			kinc_image_t *imagePtr = (kinc_image_t *)malloc(sizeof(kinc_image_t));
+			memcpy(imagePtr, &image, sizeof(image));
+
+			JsValueRef imageObject;
+			JsCreateExternalObject(imagePtr, nullptr, &imageObject);
+			JsSetProperty(value, getId("image"), imageObject, false);
+		}
+		else {
+			kinc_image_destroy(&image);
+		}
 
 		return value;
 	}
@@ -1918,30 +1978,49 @@ namespace {
 		JsGetArrayBufferStorage(arguments[1], &content, &bufferLength);
 
 		int value2, value3, value4, value5;
-		bool value6;
+		bool readable;
 		JsNumberToInt(arguments[2], &value2);
 		JsNumberToInt(arguments[3], &value3);
 		JsNumberToInt(arguments[4], &value4);
 		JsNumberToInt(arguments[5], &value5);
-		JsBooleanToBool(arguments[6], &value6);
+		JsBooleanToBool(arguments[6], &readable);
 
-		Kore::Graphics4::Texture *texture = new Kore::Graphics4::Texture(content, value2, value3, value4, (kinc_image_format_t)value5, value6);
+		void *data = malloc(bufferLength);
+		memcpy(data, content, bufferLength);
+
+		kinc_image_t image;
+		kinc_image_init_from_bytes3d(&image, data, value2, value3, value4, (kinc_image_format_t)value5);
+
+		kinc_g4_texture_t *texture = (kinc_g4_texture_t *)malloc(sizeof(kinc_g4_texture_t));
+		kinc_g4_texture_init_from_image3d(texture, &image);
 
 		JsValueRef value;
 		JsCreateExternalObject(texture, nullptr, &value);
 
 		JsValueRef width, height, depth, realWidth, realHeight;
-		JsIntToNumber(texture->width, &width);
-		JsIntToNumber(texture->height, &height);
-		JsIntToNumber(texture->depth, &depth);
-		JsIntToNumber(texture->texWidth, &realWidth);
-		JsIntToNumber(texture->texHeight, &realHeight);
+		JsIntToNumber(image.width, &width);
+		JsIntToNumber(image.height, &height);
+		JsIntToNumber(image.depth, &depth);
+		JsIntToNumber(texture->tex_width, &realWidth);
+		JsIntToNumber(texture->tex_height, &realHeight);
 
 		JsSetProperty(value, getId("width"), width, false);
 		JsSetProperty(value, getId("height"), height, false);
 		JsSetProperty(value, getId("depth"), depth, false);
 		JsSetProperty(value, getId("realWidth"), realWidth, false);
 		JsSetProperty(value, getId("realHeight"), realHeight, false);
+
+		if (readable) {
+			kinc_image_t *imagePtr = (kinc_image_t *)malloc(sizeof(kinc_image_t));
+			memcpy(imagePtr, &image, sizeof(image));
+
+			JsValueRef imageObject;
+			JsCreateExternalObject(imagePtr, nullptr, &imageObject);
+			JsSetProperty(value, getId("image"), imageObject, false);
+		}
+		else {
+			kinc_image_destroy(&image);
+		}
 
 		return value;
 	}
@@ -1959,21 +2038,40 @@ namespace {
 		bool readable;
 		JsBooleanToBool(arguments[3], &readable);
 
-		Kore::Graphics4::Texture *texture = new Kore::Graphics4::Texture(content, bufferLength, format, readable);
+		size_t size = kinc_image_size_from_encoded_bytes(content, bufferLength, format);
+		void *memory = malloc(size);
+		kinc_image_t image;
+		kinc_image_init_from_encoded_bytes(&image, memory, content, bufferLength, format);
+
+		kinc_g4_texture_t *texture = (kinc_g4_texture_t *)malloc(sizeof(kinc_g4_texture_t));
+		kinc_g4_texture_init_from_image(texture, &image);
 
 		JsValueRef value;
 		JsCreateExternalObject(texture, nullptr, &value);
 
 		JsValueRef width, height, realWidth, realHeight;
-		JsIntToNumber(texture->width, &width);
-		JsIntToNumber(texture->height, &height);
-		JsIntToNumber(texture->texWidth, &realWidth);
-		JsIntToNumber(texture->texHeight, &realHeight);
+		JsIntToNumber(image.width, &width);
+		JsIntToNumber(image.height, &height);
+		JsIntToNumber(texture->tex_width, &realWidth);
+		JsIntToNumber(texture->tex_height, &realHeight);
 
 		JsSetProperty(value, getId("width"), width, false);
 		JsSetProperty(value, getId("height"), height, false);
 		JsSetProperty(value, getId("realWidth"), realWidth, false);
 		JsSetProperty(value, getId("realHeight"), realHeight, false);
+
+		if (readable) {
+			kinc_image_t *imagePtr = (kinc_image_t *)malloc(sizeof(kinc_image_t));
+			memcpy(imagePtr, &image, sizeof(image));
+
+			JsValueRef imageObject;
+			JsCreateExternalObject(imagePtr, nullptr, &imageObject);
+			JsSetProperty(value, getId("image"), imageObject, false);
+		}
+		else {
+			kinc_image_destroy(&image);
+			free(memory);
+		}
 
 		return value;
 	}
@@ -2004,11 +2102,22 @@ namespace {
 		kinc_g4_texture *texture;
 		JsGetExternalData(arguments[1], (void **)&texture);
 
-		Kore::u8 *data = texture->getPixels();
-		int byteLength = formatByteSize(texture->format) * texture->tex_width * texture->tex_height * texture->tex_depth;
-		JsValueRef value;
-		JsCreateExternalArrayBuffer(data, byteLength, nullptr, nullptr, &value);
-		return value;
+		JsValueRef imageObj;
+		JsGetProperty(arguments[1], getId("image"), &imageObj);
+		JsValueType type;
+		JsGetValueType(arguments[1], &type);
+		if (type == JsNull || type == JsUndefined) {
+			return JS_INVALID_REFERENCE;
+		}
+		else {
+			kinc_image_t *image;
+			JsGetExternalData(imageObj, (void **)&image);
+			Kore::u8 *data = kinc_image_get_pixels(image);
+			int byteLength = formatByteSize(texture->format) * texture->tex_width * texture->tex_height * texture->tex_depth;
+			JsValueRef value;
+			JsCreateExternalArrayBuffer(data, byteLength, nullptr, nullptr, &value);
+			return value;
+		}
 	}
 
 	JsValueRef CALLBACK krom_get_render_target_pixels(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount,
@@ -2098,7 +2207,16 @@ namespace {
 			JsGetProperty(element, getId("texture_"), &obj);
 			kinc_g4_texture_t *mipmap;
 			JsGetExternalData(obj, (void **)&mipmap);
-			kinc_g4_texture_set_mipmap(texture, mipmap, i + 1);
+
+			JsValueRef imageObj;
+			JsGetProperty(obj, getId("image"), &imageObj);
+			JsValueType type;
+			JsGetValueType(obj, &type);
+			if (type != JsNull && type != JsUndefined) {
+				kinc_image_t *image;
+				JsGetExternalData(imageObj, (void **)&image);
+				kinc_g4_texture_set_mipmap(texture, image, i + 1);
+			}
 		}
 		return JS_INVALID_REFERENCE;
 	}
