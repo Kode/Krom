@@ -52,6 +52,7 @@
 
 #include "debug.h"
 #include "debug_server.h"
+#include "worker.h"
 
 #include <algorithm>
 #include <assert.h>
@@ -2903,6 +2904,7 @@ namespace {
 		JsSetCurrentContext(context);
 
 		bindFunctions();
+		bindWorkerClass();
 
 		JsCreateExternalArrayBuffer((void *)scriptfile, serialized ? serializedLength : (unsigned int)strlen(scriptfile), nullptr, nullptr, &script);
 		JsCreateString("krom.js", strlen("krom.js"), &source);
