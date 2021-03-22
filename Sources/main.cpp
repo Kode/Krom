@@ -2946,6 +2946,8 @@ namespace {
 		JsValueRef result;
 		JsCallFunction(updateFunction, &undef, 1, &result);
 
+		handleWorkerMessages();
+
 		bool except;
 		JsHasException(&except);
 		if (except) {

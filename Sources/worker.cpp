@@ -2,13 +2,54 @@
 
 #include <kinc/log.h>
 #include <kinc/io/filereader.h>
+#include <kinc/threads/event.h>
+#include <kinc/threads/mutex.h>
+#include <kinc/threads/thread.h>
 
 #include "worker.h"
 #include "pch.h"
 
 #include "debug_server.h"
 
-static void krom_worker_thread_func(void* param) {
+struct WorkerMessage {
+	char *message;
+	size_t length;
+};
+
+struct WorkerMessagePort {
+	WorkerMessage *workerMessages;
+	size_t workerMessageCount;
+	size_t workerMessageCapacity;
+	kinc_mutex_t workerMessageMutex;
+	JsValueRef workerMessageFunc;
+
+	WorkerMessage *ownerMessages;
+	size_t ownerMessageCount;
+	size_t ownerMessageCapacity;
+	kinc_mutex_t ownerMessageMutex;
+	kinc_event_t ownerMessageEvent;
+	JsValueRef ownerMessageFunc;
+
+	bool isTerminated;
+};
+
+struct WorkerData {
+	char fileName[256];
+	WorkerMessagePort *messagePort;
+};
+
+struct OwnedWorker {
+	kinc_thread_t *workerThread;
+	WorkerMessagePort *workerMessagePort;
+};
+
+struct ContextData {
+	OwnedWorker *workers;
+	size_t workersCount;
+	size_t workersCapacity;
+};
+
+static void worker_thread_func(void* param) {
 	WorkerData *workerData = (WorkerData *)param;
 	WorkerMessagePort *messagePort = workerData->messagePort;
 
@@ -51,38 +92,56 @@ static void krom_worker_thread_func(void* param) {
 	JsDisposeRuntime(runtime);
 }
 
-static void CALLBACK krom_worker_finalizer(void *data) {
+static void CALLBACK worker_finalizer(void *data) {
 	// TODO proper freeing of message port, stopping thread, releasing all references
 	WorkerMessagePort *messagePort = (WorkerMessagePort *)data;
 	kinc_log(KINC_LOG_LEVEL_INFO, "Finalizing thread %p", data);
 	free(messagePort);
 }
 
-static JsValueRef CALLBACK test_get(JsValueRef callee, bool isConstructCall, JsValueRef* arguments, unsigned short argumentCount, void* callbackState) {
+static JsValueRef CALLBACK owner_onmessage_get(JsValueRef callee, bool isConstructCall, JsValueRef* arguments, unsigned short argumentCount, void* callbackState) {
 	WorkerMessagePort *messagePort;
 	JsGetExternalData(arguments[0], (void **)&messagePort);
 	return messagePort->ownerMessageFunc;
 }
 
-static JsValueRef CALLBACK test_set(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount, void *callbackState) {
+static JsValueRef CALLBACK owner_onmessage_set(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount, void *callbackState) {
 	JsValueRef callback = arguments[1];
-	JsValueType type;
-	JsGetValueType(callback, &type);
-	if (type != JsFunction) {
-		kinc_log(KINC_LOG_LEVEL_ERROR, "[test_set]: argument is of type %d instead of %d", type, JsFunction);
-		return JS_INVALID_REFERENCE;
-	}
 	WorkerMessagePort *messagePort;
 	JsGetExternalData(arguments[0], (void **)&messagePort);
-	JsAddRef(callback, nullptr);
-	if (messagePort->ownerMessageFunc != JS_INVALID_REFERENCE) {
-		JsRelease(messagePort->ownerMessageFunc, nullptr);
+	JsValueType type;
+	JsGetValueType(callback, &type);
+	switch (type) { 
+	case JsFunction: 
+		JsAddRef(callback, nullptr);
+		if (messagePort->ownerMessageFunc != JS_INVALID_REFERENCE) {
+			JsRelease(messagePort->ownerMessageFunc, nullptr);
+		}
+		messagePort->ownerMessageFunc = callback;
+		break;
+	case JsUndefined:
+	case JsNull: 
+		if (messagePort->ownerMessageFunc != JS_INVALID_REFERENCE) {
+			JsRelease(messagePort->ownerMessageFunc, nullptr);
+		}
+		messagePort->ownerMessageFunc = JS_INVALID_REFERENCE;
+		break;
+	default:
+		kinc_log(KINC_LOG_LEVEL_ERROR, "[owner_onmessage_set]: argument is of type %d instead of %d", type, JsFunction);
+		return JS_INVALID_REFERENCE;
 	}
-	messagePort->ownerMessageFunc = callback;
+
 	return callback;
 }
 
-static JsValueRef CALLBACK krom_worker_constructor(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount,
+static JsValueRef CALLBACK owner_post_message(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount,
+                                              void *callbackState) {
+	WorkerMessagePort *messagePort;
+	JsGetExternalData(arguments[0], (void **)&messagePort);
+	return JS_INVALID_REFERENCE;
+}
+
+static JsValueRef CALLBACK worker_constructor(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount,
                                                    void *callbackState) {
 	kinc_log(KINC_LOG_LEVEL_INFO, "Constructing worker? %d", isConstructCall);
 	if (!isConstructCall) {
@@ -107,7 +166,10 @@ static JsValueRef CALLBACK krom_worker_constructor(JsValueRef callee, bool isCon
 		return JS_INVALID_REFERENCE;
 	}
 
-	// TODO Create worker object with functions, thread with runtime, etc.
+	if (argumentCount > 2) {
+		kinc_log(KINC_LOG_LEVEL_WARNING, "Krom only supports one argument for worker constructor, ignoring extra arguments");
+	}
+
 	WorkerMessagePort *messagePort = (WorkerMessagePort *)malloc(sizeof(WorkerMessagePort));
 	messagePort->ownerMessages = nullptr;
 	messagePort->ownerMessageCount = 0;
@@ -121,14 +183,15 @@ static JsValueRef CALLBACK krom_worker_constructor(JsValueRef callee, bool isCon
 	kinc_mutex_init(&messagePort->ownerMessageMutex);
 	kinc_mutex_init(&messagePort->workerMessageMutex);
 	kinc_event_init(&messagePort->ownerMessageEvent, true);
+	JsValueRef global;
+	JsGetGlobalObject(&global);
+	JsValueRef workerPrototype;
+	JsGetProperty(global, getId("WorkerPrototype"), &workerPrototype);
 	JsValueRef worker;
-	JsCreateExternalObject(messagePort, krom_worker_finalizer, &worker);
+	JsCreateExternalObjectWithPrototype(messagePort, worker_finalizer, workerPrototype, &worker);
 
 	// Create thread and add it to list in context data
-	JsWeakRef weakWorkerRef;
-	JsCreateWeakReference(worker, &weakWorkerRef);
 	OwnedWorker ownedWorker;
-	ownedWorker.workerRef = weakWorkerRef;
 	ownedWorker.workerMessagePort = messagePort;
 	ownedWorker.workerThread = (kinc_thread_t *)malloc(sizeof(kinc_thread_t));
 	WorkerData *workerData = (WorkerData *)malloc(sizeof(WorkerData));
@@ -137,7 +200,7 @@ static JsValueRef CALLBACK krom_worker_constructor(JsValueRef callee, bool isCon
 	JsCopyString(arguments[1], workerData->fileName, 255, &length);
 	workerData->fileName[length] = 0;
 
-	kinc_thread_init(ownedWorker.workerThread, krom_worker_thread_func, workerData);
+	kinc_thread_init(ownedWorker.workerThread, worker_thread_func, workerData);
 
 	JsContextRef context;
 	JsGetCurrentContext(&context);
@@ -151,13 +214,26 @@ static JsValueRef CALLBACK krom_worker_constructor(JsValueRef callee, bool isCon
 	contextData->workers[contextData->workersCount] = ownedWorker;
 	contextData->workersCount++;
 
+	return worker;
+}
 
-	// Teststuff - creating getter and setter
-	// taken from https://github.com/chakra-core/ChakraCore/issues/5615
+void bindWorkerClass() {
+	JsValueRef global;
+	JsGetGlobalObject(&global);
+
+	// Worker constructor function
+	JsValueRef worker;
+	JsCreateFunction(worker_constructor, nullptr, &worker);
+	JsSetProperty(global, getId("Worker"), worker, false);
+
+	// Create WorkerPrototype
+	JsValueRef workerPrototype;
+	JsCreateObject(&workerPrototype);
+
 	JsValueRef setterFunc;
-	JsCreateFunction(test_set, nullptr, &setterFunc);
+	JsCreateFunction(owner_onmessage_set, nullptr, &setterFunc);
 	JsValueRef getterFunc;
-	JsCreateFunction(test_get, nullptr, &getterFunc);
+	JsCreateFunction(owner_onmessage_get, nullptr, &getterFunc);
 	JsValueRef get;
 	JsCreateString("get", strlen("get"), &get);
 	JsValueRef set;
@@ -169,20 +245,11 @@ static JsValueRef CALLBACK krom_worker_constructor(JsValueRef callee, bool isCon
 	JsObjectSetProperty(descriptor, get, getterFunc, true);
 	JsObjectSetProperty(descriptor, set, setterFunc, true);
 	bool result;
-	JsObjectDefineProperty(worker, key, descriptor, &result);
-	//
-	return worker;
-}
+	JsObjectDefineProperty(workerPrototype, key, descriptor, &result);
 
-void bindWorkerClass() {
-	JsValueRef worker;
-	JsCreateFunction(krom_worker_constructor, nullptr, &worker);
+	JsSetProperty(global, getId("WorkerPrototype"), workerPrototype, false);
 
-	JsValueRef global;
-	JsGetGlobalObject(&global);
-
-	JsSetProperty(global, getId("Worker"), worker, false);
-
+	// Context Data to hold list of all owned workers
 	ContextData *contextData = (ContextData *)malloc(sizeof(ContextData));
 
 	contextData->workers = nullptr;
@@ -192,4 +259,54 @@ void bindWorkerClass() {
 	JsContextRef context;
 	JsGetCurrentContext(&context);
 	JsSetContextData(context, contextData);
+}
+
+void handleWorkerMessages() {
+	JsContextRef context;
+	JsGetCurrentContext(&context);
+	ContextData *contextData;
+	JsGetContextData(context, (void **)&contextData);
+	if (contextData->workersCount == 0) {
+		return;
+	}
+
+	JsValueRef global;
+	JsGetGlobalObject(&global);
+	JsValueRef json;
+	JsGetProperty(global, getId("JSON"), &json);
+	JsValueRef jsonParse;
+	JsGetProperty(json, getId("parse"), &jsonParse);
+	JsValueRef undefined;
+	JsGetUndefinedValue(&undefined);
+
+	for (int i = 0; i < contextData->workersCount; ++i) {
+		OwnedWorker *worker = &(contextData->workers[i]);
+		WorkerMessagePort *messagePort = worker->workerMessagePort;
+		if (messagePort->workerMessageFunc == JS_INVALID_REFERENCE) {
+			continue;
+		}
+		kinc_mutex_lock(&messagePort->workerMessageMutex);
+
+		for (int j = 0; j < messagePort->workerMessageCount; ++j) {
+			WorkerMessage message = messagePort->workerMessages[i];
+			JsValueRef messageString;
+			JsCreateString(message.message, message.length, &messageString);
+			JsValueRef parseArguments[2] = {undefined, messageString};
+			JsValueRef parsedString;
+			JsCallFunction(jsonParse, parseArguments, 2, &parsedString);
+
+			JsValueRef eventObject;
+			JsCreateObject(&eventObject);
+			JsSetProperty(eventObject, getId("data"), parsedString, false);
+
+			JsValueRef callbackArguments[2] = {undefined, eventObject};
+			JsValueRef result;
+			JsCallFunction(messagePort->workerMessageFunc, callbackArguments, 2, &result);
+
+			free(message.message);
+		}
+		messagePort->workerMessageCount = 0;
+
+		kinc_mutex_unlock(&messagePort->workerMessageMutex);
+	}
 }
