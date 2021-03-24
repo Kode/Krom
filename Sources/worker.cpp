@@ -168,6 +168,22 @@ static JsValueRef CALLBACK worker_onmessage_set(JsValueRef callee, bool isConstr
 	return arguments[1];
 }
 
+static JsValueRef CALLBACK worker_add_event_listener(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount,
+                                                void *callbackState) {
+	WorkerMessagePort *messagePort = (WorkerMessagePort *)callbackState;
+	char eventName[256];
+	size_t length;
+	JsCopyString(arguments[1], eventName, 255, &length);
+	eventName[length] = 0;
+	if (strcmp(eventName, "message") != 0) {
+		kinc_log(KINC_LOG_LEVEL_WARNING, "Trying to add listener for unknown event %s", eventName);
+		return JS_INVALID_REFERENCE;
+	}
+
+	setOnmessage(&messagePort->ownerMessages, arguments[2]);
+	return arguments[1];
+}
+
 static void worker_thread_func(void* param) {
 	WorkerData *workerData = (WorkerData *)param;
 	WorkerMessagePort *messagePort = workerData->messagePort;
@@ -207,6 +223,10 @@ static void worker_thread_func(void* param) {
 	bool propResult;
 	JsObjectDefineProperty(global, key, descriptor, &propResult);
 
+	JsValueRef addEventListener;
+	JsCreateFunction(worker_add_event_listener, messagePort, &addEventListener);
+	JsSetProperty(global, getId("addEventListener"), addEventListener, false);
+
 	kinc_file_reader_t reader;
 	if (!kinc_file_reader_open(&reader, workerData->fileName, KINC_FILE_TYPE_ASSET)) {
 		kinc_log(KINC_LOG_LEVEL_ERROR, "Could not load file %s for worker thread", workerData->fileName);
@@ -232,7 +252,23 @@ static void worker_thread_func(void* param) {
 		handleWorkerMessages();
 	}
 
-	// TODO: terminate and dispose all owned workers
+	ContextData *contextData;
+	JsGetContextData(context, (void **)&contextData);
+
+	for (int i = 0; i < contextData->workersCount; ++i) {
+		WorkerMessagePort *workerPort = contextData->workers[i].workerMessagePort;
+		workerPort->isTerminated = true;
+		if (!kinc_thread_try_to_destroy(contextData->workers[i].workerThread)) {
+			kinc_log(KINC_LOG_LEVEL_WARNING, "Failed to destroy worker thread");
+		}
+
+		free(contextData->workers[i].workerThread);
+		free(workerPort->ownerMessages.messages);
+		free(workerPort->workerMessages.messages);
+		kinc_mutex_destroy(&workerPort->ownerMessages.messageMutex);
+		kinc_mutex_destroy(&workerPort->workerMessages.messageMutex);
+		free(workerPort);
+	}
 
 	free(code);
 	free(workerData);
@@ -242,9 +278,44 @@ static void worker_thread_func(void* param) {
 }
 
 static void CALLBACK worker_finalizer(void *data) {
-	// TODO proper freeing of message port, stopping thread, releasing all references
 	WorkerMessagePort *messagePort = (WorkerMessagePort *)data;
-	kinc_log(KINC_LOG_LEVEL_INFO, "Finalizing thread %p", data);
+	
+	messagePort->isTerminated = true;
+
+	JsContextRef context;
+	JsGetCurrentContext(&context);
+	ContextData *contextData;
+	JsGetContextData(context, (void **)&contextData);
+
+	int index = -1;
+	for (int i = 0; i < contextData->workersCount; ++i) {
+		if (contextData->workers[i].workerMessagePort == messagePort) {
+			index = i;
+			break;
+		}
+	}
+
+	if (index == -1) {
+		kinc_log(KINC_LOG_LEVEL_WARNING, "Finalizing worker that is not tracked?!");
+	}
+	else {
+		if (!kinc_thread_try_to_destroy(contextData->workers[index].workerThread)) {
+			kinc_log(KINC_LOG_LEVEL_WARNING, "Failed to destroy worker thread");
+		}
+
+		free(contextData->workers[index].workerThread);
+
+		contextData->workersCount--;
+		// swap-delete worker reference in context data
+		if (index != contextData->workersCount) {
+			contextData->workers[index] = contextData->workers[contextData->workersCount];
+		}
+	}
+
+	free(messagePort->ownerMessages.messages);
+	free(messagePort->workerMessages.messages);
+	kinc_mutex_destroy(&messagePort->ownerMessages.messageMutex);
+	kinc_mutex_destroy(&messagePort->workerMessages.messageMutex);
 	free(messagePort);
 }
 
