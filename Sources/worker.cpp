@@ -4,6 +4,7 @@
 #include <kinc/io/filereader.h>
 #include <kinc/threads/mutex.h>
 #include <kinc/threads/thread.h>
+#include <kinc/system.h>
 
 #include "worker.h"
 #include "pch.h"
@@ -44,6 +45,20 @@ struct ContextData {
 	OwnedWorker *workers;
 	size_t workersCount;
 	size_t workersCapacity;
+};
+
+struct IntervalFunction {
+	JsValueRef function;
+	double interval;
+	double nextCallTime;
+	int id;
+};
+
+struct IntervalFunctions {
+	IntervalFunction *functions;
+	size_t functionCount;
+	size_t functionCapacity;
+	int latestId;
 };
 
 static void setOnmessage(MessageQueue* messageQueue, JsValueRef callback) {
@@ -184,6 +199,71 @@ static JsValueRef CALLBACK worker_add_event_listener(JsValueRef callee, bool isC
 	return arguments[1];
 }
 
+static JsValueRef CALLBACK worker_set_interval(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount,
+                                                     void *callbackState) {
+	IntervalFunctions *intervalFunctions = (IntervalFunctions *)callbackState;
+
+	JsValueRef function = arguments[1];
+	JsAddRef(function, nullptr);
+
+	double frequency;
+	if (argumentCount > 2) {
+		JsNumberToDouble(arguments[2], &frequency);
+		frequency /= 1000.0;
+	}
+	else {
+		frequency = 0.016;
+	}
+
+	if (intervalFunctions->functionCount == intervalFunctions->functionCapacity) {
+		intervalFunctions->functionCapacity = (intervalFunctions->functionCapacity == 0) ? 4 : (2 * intervalFunctions->functionCapacity);
+		intervalFunctions->functions = (IntervalFunction *)realloc(intervalFunctions->functions, intervalFunctions->functionCapacity * sizeof(IntervalFunction));
+	}
+
+	IntervalFunction *intervalFunction = &intervalFunctions->functions[intervalFunctions->functionCount];
+	intervalFunction->function = function;
+	intervalFunction->interval = frequency;
+	intervalFunction->nextCallTime = kinc_time() + frequency;
+	intervalFunction->id = intervalFunctions->latestId;
+
+	intervalFunctions->latestId++;
+	intervalFunctions->functionCount++;
+
+	JsValueRef id;
+	JsIntToNumber(intervalFunction->id, &id);
+	return id;
+}
+
+static JsValueRef CALLBACK worker_clear_interval(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount,
+                                               void *callbackState) {
+	IntervalFunctions *intervalFunctions = (IntervalFunctions *)callbackState;
+
+	int id;
+	JsNumberToInt(arguments[1], &id);
+
+	int index = -1;
+	for (int i = 0; i < intervalFunctions->functionCount; ++i) {
+		if (intervalFunctions->functions[i].id == id) {
+			index = i;
+			break;
+		}
+	}
+
+	if (index == -1) {
+		kinc_log(KINC_LOG_LEVEL_WARNING, "[clearInterval] attempting to remove function with id %d which isn't set", id);
+	}
+	else {
+		JsRelease(intervalFunctions->functions[index].function, nullptr);
+
+		intervalFunctions->functionCount--;
+		if (index != intervalFunctions->functionCount) {
+			intervalFunctions->functions[index] = intervalFunctions->functions[intervalFunctions->functionCount];
+		}
+	}
+
+	return JS_INVALID_REFERENCE;
+}
+
 static void worker_thread_func(void* param) {
 	WorkerData *workerData = (WorkerData *)param;
 	WorkerMessagePort *messagePort = workerData->messagePort;
@@ -227,6 +307,21 @@ static void worker_thread_func(void* param) {
 	JsCreateFunction(worker_add_event_listener, messagePort, &addEventListener);
 	JsSetProperty(global, getId("addEventListener"), addEventListener, false);
 
+	IntervalFunctions intervalFunctions = {
+		nullptr,
+		0.0,
+		0.0,
+		0
+	};
+
+	JsValueRef setInterval;
+	JsCreateFunction(worker_set_interval, &intervalFunctions, &setInterval);
+	JsSetProperty(global, getId("setInterval"), setInterval, false);
+
+	JsValueRef clearInterval;
+	JsCreateFunction(worker_clear_interval, &intervalFunctions, &clearInterval);
+	JsSetProperty(global, getId("clearInterval"), clearInterval, false);
+
 	kinc_file_reader_t reader;
 	if (!kinc_file_reader_open(&reader, workerData->fileName, KINC_FILE_TYPE_ASSET)) {
 		kinc_log(KINC_LOG_LEVEL_ERROR, "Could not load file %s for worker thread", workerData->fileName);
@@ -246,7 +341,19 @@ static void worker_thread_func(void* param) {
 	JsValueRef result;
 	JsRun(script, JS_SOURCE_CONTEXT_NONE, source, JsParseScriptAttributeNone, &result);
 
+	JsValueRef undefined;
+	JsGetUndefinedValue(&undefined);
+
 	while (!messagePort->isTerminated) {
+		double time = kinc_time();
+		for (int i = 0; i < intervalFunctions.functionCount; ++i) {
+			if (intervalFunctions.functions[i].nextCallTime <= time) {
+				JsCallFunction(intervalFunctions.functions[i].function, &undefined, 1, &result);
+
+				intervalFunctions.functions[i].nextCallTime = time + intervalFunctions.functions[i].interval;
+			}
+		}
+
 		handleMessageQueue(&messagePort->ownerMessages);
 
 		handleWorkerMessages();
@@ -270,6 +377,7 @@ static void worker_thread_func(void* param) {
 		free(workerPort);
 	}
 
+	free(intervalFunctions.functions);
 	free(code);
 	free(workerData);
 	JsSetCurrentContext(JS_INVALID_REFERENCE);
