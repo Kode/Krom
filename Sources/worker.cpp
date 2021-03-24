@@ -2,7 +2,6 @@
 
 #include <kinc/log.h>
 #include <kinc/io/filereader.h>
-#include <kinc/threads/event.h>
 #include <kinc/threads/mutex.h>
 #include <kinc/threads/thread.h>
 
@@ -27,7 +26,6 @@ struct WorkerMessagePort {
 	size_t ownerMessageCount;
 	size_t ownerMessageCapacity;
 	kinc_mutex_t ownerMessageMutex;
-	kinc_event_t ownerMessageEvent;
 	JsValueRef ownerMessageFunc;
 
 	bool isTerminated;
@@ -49,6 +47,49 @@ struct ContextData {
 	size_t workersCapacity;
 };
 
+static JsValueRef CALLBACK worker_post_message(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount,
+                                               void *callbackState) {
+	WorkerMessagePort *messagePort = (WorkerMessagePort *)callbackState;
+	if (argumentCount < 2) {
+		return JS_INVALID_REFERENCE;
+	}
+	if (argumentCount > 2) {
+		kinc_log(KINC_LOG_LEVEL_WARNING, "Krom workers only support 1 argument for postMessage");
+	}
+
+	JsValueRef global;
+	JsGetGlobalObject(&global);
+	JsValueRef json;
+	JsGetProperty(global, getId("JSON"), &json);
+	JsValueRef jsonStringify;
+	JsGetProperty(json, getId("stringify"), &jsonStringify);
+	JsValueRef undefined;
+	JsGetUndefinedValue(&undefined);
+
+	JsValueRef stringifyArguments[2] = {undefined, arguments[1]};
+	JsValueRef result;
+	JsCallFunction(jsonStringify, stringifyArguments, 2, &result);
+
+	WorkerMessage message;
+	JsCopyString(result, nullptr, 0, &message.length);
+	message.message = (char *)malloc(message.length);
+	JsCopyString(result, message.message, message.length, &message.length);
+
+	kinc_mutex_lock(&messagePort->workerMessageMutex);
+
+	if (messagePort->workerMessageCount == messagePort->workerMessageCapacity) {
+		messagePort->workerMessageCapacity = (messagePort->workerMessageCapacity == 0) ? 4 : (2 * messagePort->workerMessageCapacity);
+		messagePort->workerMessages = (WorkerMessage *)realloc(messagePort->workerMessages, messagePort->workerMessageCapacity * sizeof(WorkerMessage));
+	}
+
+	messagePort->workerMessages[messagePort->workerMessageCount] = message;
+	messagePort->workerMessageCount++;
+
+	kinc_mutex_unlock(&messagePort->workerMessageMutex);
+
+	return JS_INVALID_REFERENCE;
+}
+
 static void worker_thread_func(void* param) {
 	WorkerData *workerData = (WorkerData *)param;
 	WorkerMessagePort *messagePort = workerData->messagePort;
@@ -65,25 +106,73 @@ static void worker_thread_func(void* param) {
 
 	bindWorkerClass();
 
+	JsValueRef global;
+	JsGetGlobalObject(&global);
+	JsValueRef postMessage;
+	JsCreateFunction(worker_post_message, messagePort, &postMessage);
+	JsSetProperty(global, getId("postMessage"), postMessage, false);
+
 	kinc_file_reader_t reader;
 	if (!kinc_file_reader_open(&reader, workerData->fileName, KINC_FILE_TYPE_ASSET)) {
 		kinc_log(KINC_LOG_LEVEL_ERROR, "Could not load file %s for worker thread", workerData->fileName);
 		exit(1);
 	}
 
-	char *code = (char *)malloc(kinc_file_reader_size(&reader) + 1);
-	kinc_file_reader_read(&reader, code, kinc_file_reader_size(&reader));
-	code[kinc_file_reader_size(&reader)] = 0;
+	size_t fileSize = kinc_file_reader_size(&reader);
+	char *code = (char *)malloc(fileSize + 1);
+	kinc_file_reader_read(&reader, code, fileSize);
+	code[fileSize] = 0;
 	kinc_file_reader_close(&reader);
 
 	JsValueRef script, source;
 	JsCreateExternalArrayBuffer((void *)code, (unsigned int)strlen(code), nullptr, nullptr, &script);
 	JsCreateString(workerData->fileName, strlen(workerData->fileName), &source);
 
+	JsValueRef result;
+	JsRun(script, JS_SOURCE_CONTEXT_NONE, source, JsParseScriptAttributeNone, &result);
+
 	while (!messagePort->isTerminated) {
-		JsValueRef result;
-		JsRun(script, JS_SOURCE_CONTEXT_NONE, source, JsParseScriptAttributeNone, &result);
+		if (messagePort->ownerMessageFunc != JS_INVALID_REFERENCE) {
+			kinc_mutex_lock(&messagePort->ownerMessageMutex);
+
+			if (messagePort->ownerMessageCount > 0) {
+				JsValueRef global;
+				JsGetGlobalObject(&global);
+				JsValueRef json;
+				JsGetProperty(global, getId("JSON"), &json);
+				JsValueRef jsonParse;
+				JsGetProperty(json, getId("parse"), &jsonParse);
+				JsValueRef undefined;
+				JsGetUndefinedValue(&undefined);
+
+				for (int i = 0; i < messagePort->ownerMessageCount; ++i) {
+					WorkerMessage message = messagePort->ownerMessages[i];
+					JsValueRef messageString;
+					JsCreateString(message.message, message.length, &messageString);
+					JsValueRef parseArguments[2] = {undefined, messageString};
+					JsValueRef parsedString;
+					JsCallFunction(jsonParse, parseArguments, 2, &parsedString);
+
+					JsValueRef eventObject;
+					JsCreateObject(&eventObject);
+					JsSetProperty(eventObject, getId("data"), parsedString, false);
+
+					JsValueRef callbackArguments[2] = {undefined, eventObject};
+					JsValueRef result;
+					JsCallFunction(messagePort->ownerMessageFunc, callbackArguments, 2, &result);
+
+					free(message.message);
+				}
+				messagePort->ownerMessageCount = 0;
+			}
+
+			kinc_mutex_unlock(&messagePort->ownerMessageMutex);
+		}
+
+		handleWorkerMessages();
 	}
+
+	// TODO: terminate and dispose all owned workers
 
 	free(code);
 	free(workerData);
@@ -102,7 +191,7 @@ static void CALLBACK worker_finalizer(void *data) {
 static JsValueRef CALLBACK owner_onmessage_get(JsValueRef callee, bool isConstructCall, JsValueRef* arguments, unsigned short argumentCount, void* callbackState) {
 	WorkerMessagePort *messagePort;
 	JsGetExternalData(arguments[0], (void **)&messagePort);
-	return messagePort->ownerMessageFunc;
+	return messagePort->workerMessageFunc;
 }
 
 static JsValueRef CALLBACK owner_onmessage_set(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount, void *callbackState) {
@@ -114,17 +203,17 @@ static JsValueRef CALLBACK owner_onmessage_set(JsValueRef callee, bool isConstru
 	switch (type) { 
 	case JsFunction: 
 		JsAddRef(callback, nullptr);
-		if (messagePort->ownerMessageFunc != JS_INVALID_REFERENCE) {
-			JsRelease(messagePort->ownerMessageFunc, nullptr);
+		if (messagePort->workerMessageFunc != JS_INVALID_REFERENCE) {
+			JsRelease(messagePort->workerMessageFunc, nullptr);
 		}
-		messagePort->ownerMessageFunc = callback;
+		messagePort->workerMessageFunc = callback;
 		break;
 	case JsUndefined:
 	case JsNull: 
-		if (messagePort->ownerMessageFunc != JS_INVALID_REFERENCE) {
-			JsRelease(messagePort->ownerMessageFunc, nullptr);
+		if (messagePort->workerMessageFunc != JS_INVALID_REFERENCE) {
+			JsRelease(messagePort->workerMessageFunc, nullptr);
 		}
-		messagePort->ownerMessageFunc = JS_INVALID_REFERENCE;
+		messagePort->workerMessageFunc = JS_INVALID_REFERENCE;
 		break;
 	default:
 		kinc_log(KINC_LOG_LEVEL_ERROR, "[owner_onmessage_set]: argument is of type %d instead of %d", type, JsFunction);
@@ -182,7 +271,6 @@ static JsValueRef CALLBACK worker_constructor(JsValueRef callee, bool isConstruc
 	messagePort->isTerminated = false;
 	kinc_mutex_init(&messagePort->ownerMessageMutex);
 	kinc_mutex_init(&messagePort->workerMessageMutex);
-	kinc_event_init(&messagePort->ownerMessageEvent, true);
 	JsValueRef global;
 	JsGetGlobalObject(&global);
 	JsValueRef workerPrototype;
@@ -288,7 +376,7 @@ void handleWorkerMessages() {
 		kinc_mutex_lock(&messagePort->workerMessageMutex);
 
 		for (int j = 0; j < messagePort->workerMessageCount; ++j) {
-			WorkerMessage message = messagePort->workerMessages[i];
+			WorkerMessage message = messagePort->workerMessages[j];
 			JsValueRef messageString;
 			JsCreateString(message.message, message.length, &messageString);
 			JsValueRef parseArguments[2] = {undefined, messageString};
