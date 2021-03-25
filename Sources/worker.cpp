@@ -286,6 +286,7 @@ static void worker_thread_func(void* param) {
 	JsCreateFunction(worker_post_message, messagePort, &postMessage);
 	JsSetProperty(global, getId("postMessage"), postMessage, false);
 
+	// Create onmessage getter and setter properties
 	JsValueRef setterFunc;
 	JsCreateFunction(worker_onmessage_set, messagePort, &setterFunc);
 	JsValueRef getterFunc;
@@ -370,6 +371,11 @@ static void worker_thread_func(void* param) {
 		}
 
 		free(contextData->workers[i].workerThread);
+		free(contextData->workers[i].workerMessagePort->ownerMessages.messages);
+		free(contextData->workers[i].workerMessagePort->workerMessages.messages);
+		kinc_mutex_destroy(&contextData->workers[i].workerMessagePort->ownerMessages.messageMutex);
+		kinc_mutex_destroy(&contextData->workers[i].workerMessagePort->workerMessages.messageMutex);
+		free(contextData->workers[i].workerMessagePort);
 		free(workerPort->ownerMessages.messages);
 		free(workerPort->workerMessages.messages);
 		kinc_mutex_destroy(&workerPort->ownerMessages.messageMutex);
@@ -380,6 +386,8 @@ static void worker_thread_func(void* param) {
 	free(intervalFunctions.functions);
 	free(code);
 	free(workerData);
+	free(contextData->workers);
+	free(contextData);
 	JsSetCurrentContext(JS_INVALID_REFERENCE);
 	JsDisableRuntimeExecution(runtime);
 	JsDisposeRuntime(runtime);
@@ -570,6 +578,7 @@ void bindWorkerClass() {
 	JsValueRef workerPrototype;
 	JsCreateObject(&workerPrototype);
 
+	// Create onmessage getter and setter properties
 	JsValueRef setterFunc;
 	JsCreateFunction(owner_onmessage_set, nullptr, &setterFunc);
 	JsValueRef getterFunc;
