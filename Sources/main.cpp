@@ -227,6 +227,7 @@ namespace {
 		win.height = height;
 		win.x = -1;
 		win.y = -1;
+		win.display_index = -1;
 		win.visible = !nowindow;
 		win.mode = (kinc_window_mode_t)windowMode;
 		win.window_features = windowFeatures;
