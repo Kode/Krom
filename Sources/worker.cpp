@@ -11,6 +11,12 @@
 
 #include "debug_server.h"
 
+#ifdef KORE_WINDOWS
+#define CALLBACK __stdcall
+#else
+#define CALLBACK
+#endif
+
 struct WorkerMessage {
 	char *message;
 	size_t length;
