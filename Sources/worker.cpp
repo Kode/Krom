@@ -1,5 +1,8 @@
 #include <ChakraCore.h>
 
+#include <stdlib.h>
+#include <string.h>
+
 #include <kinc/log.h>
 #include <kinc/io/filereader.h>
 #include <kinc/threads/mutex.h>
