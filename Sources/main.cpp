@@ -458,6 +458,16 @@ namespace {
 		return value;
 	}
 
+	JsValueRef CALLBACK krom_set_mouse_position(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount,
+	                                         void *callbackState) {
+		int windowId, x, y;
+		JsNumberToInt(arguments[1], &windowId);
+		JsNumberToInt(arguments[2], &x);
+		JsNumberToInt(arguments[3], &y);
+		kinc_mouse_set_position(windowId, x, y);
+		return JS_INVALID_REFERENCE;
+	}
+
 	JsValueRef CALLBACK krom_show_mouse(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount, void *callbackState) {
 		bool value;
 		JsBooleanToBool(arguments[1], &value);
@@ -2758,6 +2768,7 @@ namespace {
 		addFunction(unlockMouse, krom_unlock_mouse);
 		addFunction(canLockMouse, krom_can_lock_mouse);
 		addFunction(isMouseLocked, krom_is_mouse_locked);
+		addFunction(setMousePosition, krom_set_mouse_position);
 		addFunction(showMouse, krom_show_mouse);
 		addFunction(createIndexBuffer, krom_create_indexbuffer);
 		addFunction(deleteIndexBuffer, krom_delete_indexbuffer);
