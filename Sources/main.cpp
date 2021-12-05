@@ -535,6 +535,28 @@ namespace {
 		return JS_INVALID_REFERENCE;
 	}
 
+	static kinc_g4_vertex_data_t convert_vertex_data(int kha_vertex_data) {
+		switch (kha_vertex_data) {
+		case 0: // Float1
+			return KINC_G4_VERTEX_DATA_FLOAT1;
+		case 1: // Float2
+			return KINC_G4_VERTEX_DATA_FLOAT2;
+		case 2: // Float3
+			return KINC_G4_VERTEX_DATA_FLOAT3;
+		case 3: // Float4
+			return KINC_G4_VERTEX_DATA_FLOAT4;
+		case 4: // Float4x4
+			return KINC_G4_VERTEX_DATA_FLOAT4X4;
+		case 5: // Short2Norm
+			return KINC_G4_VERTEX_DATA_SHORT2_NORM;
+		case 6: // Short4Norm
+			return KINC_G4_VERTEX_DATA_SHORT4_NORM;
+		default:
+			assert(false);
+			return KINC_G4_VERTEX_DATA_NONE;
+		}
+	}
+
 	JsValueRef CALLBACK krom_create_vertexbuffer(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount,
 	                                             void *callbackState) {
 		JsValueRef lengthObj;
@@ -561,7 +583,7 @@ namespace {
 			JsGetProperty(element, getId("data"), &dataObj);
 			int data;
 			JsNumberToInt(dataObj, &data);
-			kinc_g4_vertex_structure_add(&structure, name, (kinc_g4_vertex_data_t)data);
+			kinc_g4_vertex_structure_add(&structure, name, convert_vertex_data(data));
 		}
 
 		int value1, value3, value4;
@@ -594,10 +616,8 @@ namespace {
 
 		float *vertices = kinc_g4_vertex_buffer_lock(buffer, start, count);
 		JsValueRef value;
-		JsCreateExternalArrayBuffer(vertices, kinc_g4_vertex_buffer_count(buffer) * kinc_g4_vertex_buffer_stride(buffer), nullptr, nullptr, &value);
-		JsValueRef array;
-		JsCreateTypedArray(JsArrayTypeFloat32, value, 0, kinc_g4_vertex_buffer_count(buffer) * kinc_g4_vertex_buffer_stride(buffer) / 4, &array);
-		return array;
+		JsCreateExternalArrayBuffer(vertices, count * kinc_g4_vertex_buffer_stride(buffer), nullptr, nullptr, &value);
+		return value;
 	}
 
 	JsValueRef CALLBACK krom_unlock_vertex_buffer(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount,
