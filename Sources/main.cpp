@@ -256,18 +256,18 @@ namespace {
 		kinc_set_background_callback(background);
 		kinc_set_shutdown_callback(shutdown);
 
-		kinc_keyboard_key_down_callback = keyDown;
-		kinc_keyboard_key_up_callback = keyUp;
-		kinc_keyboard_key_press_callback = keyPress;
-		kinc_mouse_move_callback = mouseMove;
-		kinc_mouse_press_callback = mouseDown;
-		kinc_mouse_release_callback = mouseUp;
-		kinc_mouse_scroll_callback = mouseWheel;
-		kinc_pen_press_callback = penDown;
-		kinc_pen_release_callback = penUp;
-		kinc_pen_move_callback = penMove;
-		kinc_gamepad_axis_callback = gamepadAxis;
-		kinc_gamepad_button_callback = gamepadButton;
+		kinc_keyboard_set_key_down_callback(keyDown);
+		kinc_keyboard_set_key_up_callback(keyUp);
+		kinc_keyboard_set_key_press_callback(keyPress);
+		kinc_mouse_set_move_callback(mouseMove);
+		kinc_mouse_set_press_callback(mouseDown);
+		kinc_mouse_set_release_callback(mouseUp);
+		kinc_mouse_set_scroll_callback(mouseWheel);
+		kinc_pen_set_press_callback(penDown);
+		kinc_pen_set_release_callback(penUp);
+		kinc_pen_set_move_callback(penMove);
+		kinc_gamepad_set_axis_callback(gamepadAxis);
+		kinc_gamepad_set_button_callback(gamepadButton);
 
 		return JS_INVALID_REFERENCE;
 	}
@@ -441,25 +441,25 @@ namespace {
 	}
 
 	JsValueRef CALLBACK krom_unlock_mouse(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount, void *callbackState) {
-		kinc_mouse_unlock(0);
+		kinc_mouse_unlock();
 		return JS_INVALID_REFERENCE;
 	}
 
 	JsValueRef CALLBACK krom_can_lock_mouse(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount, void *callbackState) {
 		JsValueRef value;
-		JsBoolToBoolean(kinc_mouse_can_lock(0), &value);
+		JsBoolToBoolean(kinc_mouse_can_lock(), &value);
 		return value;
 	}
 
 	JsValueRef CALLBACK krom_is_mouse_locked(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount,
 	                                         void *callbackState) {
 		JsValueRef value;
-		JsBoolToBoolean(kinc_mouse_is_locked(0), &value);
+		JsBoolToBoolean(kinc_mouse_is_locked(), &value);
 		return value;
 	}
 
 	JsValueRef CALLBACK krom_set_mouse_position(JsValueRef callee, bool isConstructCall, JsValueRef *arguments, unsigned short argumentCount,
-	                                         void *callbackState) {
+	                                            void *callbackState) {
 		int windowId, x, y;
 		JsNumberToInt(arguments[1], &windowId);
 		JsNumberToInt(arguments[2], &x);
@@ -493,7 +493,7 @@ namespace {
 		JsNumberToInt(arguments[1], &count);
 		JsValueRef ib;
 		kinc_g4_index_buffer_t *buffer = (kinc_g4_index_buffer_t *)malloc(sizeof(kinc_g4_index_buffer_t));
-		kinc_g4_index_buffer_init(buffer, count, KINC_G4_INDEX_BUFFER_FORMAT_32BIT);
+		kinc_g4_index_buffer_init(buffer, count, KINC_G4_INDEX_BUFFER_FORMAT_32BIT, KINC_G4_USAGE_STATIC);
 		JsCreateExternalObject(buffer, nullptr, &ib);
 		return ib;
 	}
