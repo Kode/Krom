@@ -1130,13 +1130,15 @@ namespace {
 		pipeline->stencil_write_mask = stencilWriteMask;
 
 		getPipeInt(blendSource);
-		pipeline->blend_source = (kinc_g4_blending_operation_t)blendSource;
+		pipeline->blend_source = (kinc_g4_blending_factor_t)blendSource;
 		getPipeInt(blendDestination);
-		pipeline->blend_destination = (kinc_g4_blending_operation_t)blendDestination;
+		pipeline->blend_destination = (kinc_g4_blending_factor_t)blendDestination;
+		pipeline->blend_operation = KINC_G4_BLENDOP_ADD;
 		getPipeInt(alphaBlendSource);
-		pipeline->alpha_blend_source = (kinc_g4_blending_operation_t)alphaBlendSource;
+		pipeline->alpha_blend_source = (kinc_g4_blending_factor_t)alphaBlendSource;
 		getPipeInt(alphaBlendDestination);
-		pipeline->alpha_blend_destination = (kinc_g4_blending_operation_t)alphaBlendDestination;
+		pipeline->alpha_blend_destination = (kinc_g4_blending_factor_t)alphaBlendDestination;
+		pipeline->alpha_blend_operation = KINC_G4_BLENDOP_ADD;
 
 		JsValueRef maskRed, maskGreen, maskBlue, maskAlpha;
 		JsGetProperty(arguments[12], getId("colorWriteMaskRed"), &maskRed);
