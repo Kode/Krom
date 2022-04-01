@@ -1,12 +1,12 @@
 [submodule "Chakra"]
 	path = Chakra
 	url = https://github.com/Kode/ChakraCore.git
-	branch = master
+	branch = main
 [submodule "Kinc"]
 	path = Kinc
 	url = https://github.com/Kode/Kinc.git
-	branch = master
+	branch = main
 [submodule "ChakraDebugger"]
 	path = ChakraDebugger
 	url = https://github.com/Kode/ChakraCore-Debugger.git
-	branch = master
+	branch = main
