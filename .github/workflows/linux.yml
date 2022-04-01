@@ -3,10 +3,10 @@ name: Linux
 on:
   push:
     branches:
-    - master
+    - main
   pull_request:
     branches:
-    - master
+    - main
 
 jobs:
   build:
@@ -38,6 +38,6 @@ jobs:
     - name: Commit binary
       run: git -C Krom_bin commit -a -m "Update Linux binary to $GITHUB_SHA."
     - name: Push binary
-      run: git -C Krom_bin push https://Kode-Robbot:$ROBBOT_PASS@github.com/Kode/Krom_bin.git master --tags
+      run: git -C Krom_bin push https://Kode-Robbot:$ROBBOT_PASS@github.com/Kode/Krom_bin.git main --tags
       env:
         ROBBOT_PASS: ${{ secrets.ROBBOT_PASS }}
