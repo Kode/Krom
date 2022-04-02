@@ -1,6 +1,8 @@
 let project = new Project('Krom');
 
-project.cpp11 = true;
+await project.addProject('Kinc');
+
+project.cppStd = 'c++11';
 project.linkTimeOptimization = false;
 project.macOSnoArm = true;
 project.addFile('Sources/**');
@@ -8,5 +10,7 @@ project.addFile('Sources/**');
 await project.addProject('Chakra/Build');
 
 project.setDebugDir('Deployment');
+
+project.flatten();
 
 resolve(project);

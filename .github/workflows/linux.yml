@@ -21,12 +21,8 @@ jobs:
       run: sudo apt-get install libasound2-dev libxinerama-dev libxrandr-dev libgl1-mesa-dev libxi-dev libxcursor-dev libudev-dev libwayland-dev wayland-protocols libxkbcommon-dev --yes --quiet
     - name: Get Submodules
       run: git submodule update --init --recursive
-    - name: Get Node.js
-      run: git clone https://github.com/Kode/nodejs_bin.git --depth 1
-    - name: Setup Node.js
-      run: nodejs_bin/copysysbin.sh
     - name: Compile
-      run: nodejs_bin/node Kinc/make.js --compiler clang --compile
+      run: Kinc/make --compiler clang --compile
     - name: Get Krom_bin
       run: git clone https://github.com/Kode/Krom_bin.git
     - name: Copy binary
