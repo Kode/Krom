@@ -148,7 +148,8 @@
       ],
 
       'includes': [
-        'node.gypi'
+        'node.gypi',
+        'krom.gypi'
       ],
 
       'include_dirs': [
