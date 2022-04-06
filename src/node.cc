@@ -495,9 +495,9 @@ MaybeLocal<Value> StartExecution(Environment* env, StartExecutionCallback cb) {
     return StartExecution(env, "internal/main/inspect");
   }
 
-  if (per_process::cli_options->print_help) {
-    return StartExecution(env, "internal/main/print_help");
-  }
+  //if (per_process::cli_options->print_help) {
+  //  return StartExecution(env, "internal/main/print_help");
+  //}
 
 
   if (env->options()->prof_process) {
@@ -513,15 +513,15 @@ MaybeLocal<Value> StartExecution(Environment* env, StartExecutionCallback cb) {
     return StartExecution(env, "internal/main/check_syntax");
   }
 
-  if (!first_argv.empty() && first_argv != "-") {
+  //if (!first_argv.empty() && first_argv != "-") {
     return StartExecution(env, "internal/main/run_main_module");
-  }
+  //}
 
-  if (env->options()->force_repl || uv_guess_handle(STDIN_FILENO) == UV_TTY) {
-    return StartExecution(env, "internal/main/repl");
-  }
+  //if (env->options()->force_repl || uv_guess_handle(STDIN_FILENO) == UV_TTY) {
+  //  return StartExecution(env, "internal/main/repl");
+  //}
 
-  return StartExecution(env, "internal/main/eval_stdin");
+  //return StartExecution(env, "internal/main/eval_stdin");
 }
 
 #ifdef __POSIX__
@@ -782,6 +782,8 @@ int ProcessGlobalArgs(std::vector<std::string>* args,
                       std::vector<std::string>* exec_args,
                       std::vector<std::string>* errors,
                       OptionEnvvarSettings settings) {
+  return 0;
+
   // Parse a few arguments which are specific to Node.
   std::vector<std::string> v8_args;
 
