@@ -1176,7 +1176,8 @@
       ],
 
       'includes': [
-        'node.gypi'
+        'node.gypi',
+        'krom_libs.gypi'
       ],
 
       'include_dirs': [
@@ -1275,7 +1276,8 @@
       ],
 
       'includes': [
-        'node.gypi'
+        'node.gypi',
+        'krom_libs.gypi'
       ],
 
       'include_dirs': [
@@ -1352,7 +1354,8 @@
       ],
 
       'includes': [
-        'node.gypi'
+        'node.gypi',
+        'krom_libs.gypi'
       ],
 
       'include_dirs': [
@@ -1407,7 +1410,8 @@
       ],
 
       'includes': [
-        'node.gypi'
+        'node.gypi',
+        'krom_libs.gypi'
       ],
 
       'include_dirs': [

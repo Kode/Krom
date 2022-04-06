@@ -4983,38 +4983,10 @@ void Initialize(Local<Object> target,
                 void* priv) {
   node::Environment* env = node::Environment::GetCurrent(context);
   env->SetMethod(target, "start", Start);
-  env->SetMethod(target, "getHostname", GetHostname);
-  env->SetMethod(target, "getLoadAvg", GetLoadAvg);
-  env->SetMethod(target, "getUptime", GetUptime);
-  env->SetMethod(target, "getTotalMem", GetTotalMemory);
-  env->SetMethod(target, "getFreeMem", GetFreeMemory);
-  env->SetMethod(target, "getCPUs", GetCPUInfo);
-  env->SetMethod(target, "getInterfaceAddresses", GetInterfaceAddresses);
-  env->SetMethod(target, "getHomeDirectory", GetHomeDirectory);
-  env->SetMethod(target, "getUserInfo", GetUserInfo);
-  env->SetMethod(target, "setPriority", SetPriority);
-  env->SetMethod(target, "getPriority", GetPriority);
-  env->SetMethod(target, "getOSInformation", GetOSInformation);
-  target
-      ->Set(env->context(),
-            node::FIXED_ONE_BYTE_STRING(env->isolate(), "isBigEndian"),
-            Boolean::New(env->isolate(), node::IsBigEndian()))
-      .Check();
 }
 
 void RegisterExternalReferences(node::ExternalReferenceRegistry* registry) {
-  registry->Register(GetHostname);
-  registry->Register(GetLoadAvg);
-  registry->Register(GetUptime);
-  registry->Register(GetTotalMemory);
-  registry->Register(GetFreeMemory);
-  registry->Register(GetCPUInfo);
-  registry->Register(GetInterfaceAddresses);
-  registry->Register(GetHomeDirectory);
-  registry->Register(GetUserInfo);
-  registry->Register(SetPriority);
-  registry->Register(GetPriority);
-  registry->Register(GetOSInformation);
+  registry->Register(Start);
 }
 
 }  // namespace krom

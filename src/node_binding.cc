@@ -57,6 +57,7 @@
   V(inspector)                                                                 \
   V(js_stream)                                                                 \
   V(js_udp_wrap)                                                               \
+  V(krom)                                                                      \
   V(messaging)                                                                 \
   V(module_wrap)                                                               \
   V(native_module)                                                             \
