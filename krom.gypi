@@ -1,5 +1,6 @@
 {
 	'sources': [
+		'src/krom/main.cpp',
 		'Kinc/Sources/kinc/rootunit.c',
 		'Kinc/Sources/kinc/graphics4/g4unit.c',
 		'Kinc/Sources/kinc/input/inputunit.c',
@@ -27,16 +28,5 @@
 		'KORE_DIRECT3D',
 		'KORE_DIRECT3D11',
 		'KINC_NO_MAIN'
-	],
-	'libraries': [
-		'dxguid.lib',
-		'dsound.lib',
-		'dinput8.lib',
-		'ws2_32.lib',
-		'Winhttp.lib',
-		'wbemuuid.lib',
-		'd3d11.lib',
-		'Ole32.lib',
-		'OleAut32.lib'
 	]
 }

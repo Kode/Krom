@@ -149,7 +149,7 @@
 
       'includes': [
         'node.gypi',
-        'krom.gypi'
+        'krom_libs.gypi'
       ],
 
       'include_dirs': [
@@ -433,6 +433,7 @@
       'type': '<(node_intermediate_lib_type)',
       'includes': [
         'node.gypi',
+        'krom.gypi'
       ],
 
       'include_dirs': [
