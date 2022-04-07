@@ -47,12 +47,40 @@
 #include <unistd.h>
 #endif
 
-#if 0
-CHAKRA_API
-JsStringToPointer(_In_ JsValueRef value,
-                  _Outptr_result_buffer_(*stringLength)
-                      const wchar_t** stringValue,
-                  _Out_ size_t* stringLength);
+#include "env-inl.h"
+#include "node_external_reference.h"
+#include "string_bytes.h"
+
+#ifdef __MINGW32__
+#include <io.h>
+#endif  // __MINGW32__
+
+#ifdef __POSIX__
+#include <unistd.h>  // gethostname, sysconf
+#include <climits>   // PATH_MAX on Solaris.
+#endif               // __POSIX__
+
+#include <array>
+#include <cerrno>
+#include <cstring>
+
+using v8::Array;
+using v8::ArrayBuffer;
+using v8::Boolean;
+using v8::Context;
+using v8::Float64Array;
+using v8::FunctionCallbackInfo;
+using v8::Int32;
+using v8::Integer;
+using v8::Isolate;
+using v8::Local;
+using v8::MaybeLocal;
+using v8::NewStringType;
+using v8::Null;
+using v8::Number;
+using v8::Object;
+using v8::String;
+using v8::Value;
 
 const int KROM_API = 6;
 const int KROM_DEBUG_API = 2;
@@ -65,25 +93,18 @@ const char* macgetresourcepath();
 
 const char* getExeDir();
 
-JsRuntimeHandle runtime;
-JsContextRef context;
-
-#ifdef KORE_WINDOWS
-#define CALLBACK __stdcall
-#else
-#define CALLBACK
-#endif
-
 namespace {
-int _argc;
-char** _argv;
-bool debugMode = false;
-bool watch = false;
-bool enableSound = false;
-bool nowindow = false;
-bool serialized = false;
-unsigned int serializedLength = 0;
+  int _argc;
+  char** _argv;
+  bool debugMode = false;
+  bool watch = false;
+  bool enableSound = false;
+  bool nowindow = false;
+  bool serialized = false;
+  unsigned int serializedLength = 0;
+}
 
+#if 0
 JsValueRef updateFunction;
 JsValueRef dropFilesFunction;
 JsValueRef cutFunction;
@@ -107,6 +128,8 @@ JsValueRef penMoveFunction;
 JsValueRef gamepadAxisFunction;
 JsValueRef gamepadButtonFunction;
 JsValueRef audioFunction;
+#endif
+
 std::map<std::string, bool> imageChanges;
 std::map<std::string, bool> shaderChanges;
 std::map<std::string, std::string> shaderFileNames;
@@ -152,7 +175,7 @@ void sendLogMessageArgs(const char* format, va_list args) {
   vsnprintf(msg, sizeof(msg) - 2, format, args);
   kinc_log(KINC_LOG_LEVEL_INFO, "%s", msg);
 
-  if (debugMode) {
+  /*if (debugMode) {
     std::vector<int> message;
     message.push_back(IDE_MESSAGE_LOG);
     size_t messageLength = strlen(msg);
@@ -161,7 +184,7 @@ void sendLogMessageArgs(const char* format, va_list args) {
       message.push_back(msg[i]);
     }
     sendMessage(message.data(), message.size());
-  }
+  }*/
 }
 
 void sendLogMessage(const char* format, ...) {
@@ -171,28 +194,20 @@ void sendLogMessage(const char* format, ...) {
   va_end(args);
 }
 
-JsValueRef CALLBACK krom_init(JsValueRef callee,
-                              bool isConstructCall,
-                              JsValueRef* arguments,
-                              unsigned short argumentCount,
-                              void* callbackState) {
-  char title[256];
-  size_t length;
-  JsCopyString(arguments[1], title, 255, &length);
-  title[length] = 0;
-  int width, height, samplesPerPixel;
-  JsNumberToInt(arguments[2], &width);
-  JsNumberToInt(arguments[3], &height);
-  JsNumberToInt(arguments[4], &samplesPerPixel);
-  bool vSync;
-  JsBooleanToBool(arguments[5], &vSync);
-  int windowMode, windowFeatures;
-  JsNumberToInt(arguments[6], &windowMode);
-  JsNumberToInt(arguments[7], &windowFeatures);
+static void krom_init(const FunctionCallbackInfo<Value>& args) {
+  node::Environment* env = node::Environment::GetCurrent(args);
+
+  node::BufferValue title(env->isolate(), args[0]);
+  int width = args[1].As<Int32>()->Value();
+  int height = args[2].As<Int32>()->Value();
+  int samplesPerPixel = args[3].As<Int32>()->Value();
+  bool vSync = args[4].As<Boolean>()->Value();
+  int windowMode = args[5].As<Int32>()->Value();
+  int windowFeatures = args[6].As<Int32>()->Value();
 
   int apiVersion = 0;
-  if (argumentCount > 8) {
-    JsNumberToInt(arguments[8], &apiVersion);
+  if (args.Length() > 7) {
+    apiVersion= args[7].As<Int32>()->Value();
   }
 
   if (apiVersion != KROM_API) {
@@ -211,7 +226,7 @@ JsValueRef CALLBACK krom_init(JsValueRef callee,
   }
 
   kinc_window_options_t win;
-  win.title = title;
+  win.title = *title;
   win.width = width;
   win.height = height;
   win.x = -1;
@@ -223,7 +238,7 @@ JsValueRef CALLBACK krom_init(JsValueRef callee,
   kinc_framebuffer_options_t frame;
   frame.vertical_sync = vSync;
   frame.samples_per_pixel = samplesPerPixel;
-  kinc_init(title, width, height, &win, &frame);
+  kinc_init(*title, width, height, &win, &frame);
 
   kinc_mutex_init(&mutex);
   kinc_mutex_init(&audioMutex);
@@ -256,10 +271,9 @@ JsValueRef CALLBACK krom_init(JsValueRef callee,
   kinc_pen_set_move_callback(penMove);
   kinc_gamepad_set_axis_callback(gamepadAxis);
   kinc_gamepad_set_button_callback(gamepadButton);
-
-  return JS_INVALID_REFERENCE;
 }
 
+#if 0
 JsValueRef CALLBACK krom_log(JsValueRef callee,
                              bool isConstructCall,
                              JsValueRef* arguments,
@@ -4637,60 +4651,18 @@ int kickstart(int argc, char** argv) {
 }
 #endif
 
-#include "env-inl.h"
-#include "node_external_reference.h"
-#include "string_bytes.h"
-
-#ifdef __MINGW32__
-#include <io.h>
-#endif  // __MINGW32__
-
-#ifdef __POSIX__
-#include <unistd.h>  // gethostname, sysconf
-#include <climits>   // PATH_MAX on Solaris.
-#endif               // __POSIX__
-
-#include <array>
-#include <cerrno>
-#include <cstring>
-
 namespace krom {
-
-using v8::Array;
-using v8::ArrayBuffer;
-using v8::Boolean;
-using v8::Context;
-using v8::Float64Array;
-using v8::FunctionCallbackInfo;
-using v8::Int32;
-using v8::Integer;
-using v8::Isolate;
-using v8::Local;
-using v8::MaybeLocal;
-using v8::NewStringType;
-using v8::Null;
-using v8::Number;
-using v8::Object;
-using v8::String;
-using v8::Value;
-
-static void Start(const FunctionCallbackInfo<Value>& args) {
-  node::Environment* env = node::Environment::GetCurrent(args);
-
-  kinc_init("Krom", 800, 600, NULL, NULL);
-  kinc_start();
-}
 
 void Initialize(Local<Object> target,
                 Local<Value> unused,
                 Local<Context> context,
                 void* priv) {
   node::Environment* env = node::Environment::GetCurrent(context);
-  env->SetMethod(target, "start", Start);
+  env->SetMethod(target, "init", krom_init);
 }
 
 void RegisterExternalReferences(node::ExternalReferenceRegistry* registry) {
-  registry->Register(Start);
+  registry->Register(krom_init);
 }
 
 }  // namespace krom
