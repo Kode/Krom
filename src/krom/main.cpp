@@ -31,16 +31,16 @@
 #include "debug_server.h"
 #include "worker.h"
 
-#include <assert.h>
-#include <stdarg.h>
 #include <algorithm>
+#include <assert.h>
 #include <fstream>
 #include <map>
 #include <sstream>
+#include <stdarg.h>
 #include <vector>
 
 #ifdef KORE_WINDOWS
-#include <Windows.h>  // AttachConsole
+#include <Windows.h> // AttachConsole
 #endif
 
 #ifndef KORE_WINDOWS
@@ -53,12 +53,12 @@
 
 #ifdef __MINGW32__
 #include <io.h>
-#endif  // __MINGW32__
+#endif // __MINGW32__
 
 #ifdef __POSIX__
-#include <unistd.h>  // gethostname, sysconf
-#include <climits>   // PATH_MAX on Solaris.
-#endif               // __POSIX__
+#include <climits>  // PATH_MAX on Solaris.
+#include <unistd.h> // gethostname, sysconf
+#endif              // __POSIX__
 
 #include <array>
 #include <cerrno>
@@ -88,20 +88,20 @@ const int KROM_DEBUG_API = 2;
 bool AttachProcess(HANDLE hmod);
 
 #ifdef KORE_MACOS
-const char* macgetresourcepath();
+const char *macgetresourcepath();
 #endif
 
-const char* getExeDir();
+const char *getExeDir();
 
 namespace {
-  int _argc;
-  char** _argv;
-  bool debugMode = false;
-  bool watch = false;
-  bool enableSound = false;
-  bool nowindow = false;
-  bool serialized = false;
-  unsigned int serializedLength = 0;
+	int _argc;
+	char **_argv;
+	bool debugMode = false;
+	bool watch = false;
+	bool enableSound = false;
+	bool nowindow = false;
+	bool serialized = false;
+	unsigned int serializedLength = 0;
 }
 
 #if 0
@@ -140,11 +140,11 @@ int audioSamples = 0;
 int audioReadLocation = 0;
 
 void update();
-void updateAudio(kinc_a2_buffer_t* buffer, int samples);
-void dropFiles(wchar_t* filePath);
-char* cut();
-char* copy();
-void paste(char* data);
+void updateAudio(kinc_a2_buffer_t *buffer, int samples);
+void dropFiles(wchar_t *filePath);
+char *cut();
+char *copy();
+void paste(char *data);
 void foreground();
 void resume();
 void pause();
@@ -170,107 +170,106 @@ char tempStringFS[tempStringSize + 1];
 
 JsPropertyIdRef buffer_id;
 
-void sendLogMessageArgs(const char* format, va_list args) {
-  char msg[4096];
-  vsnprintf(msg, sizeof(msg) - 2, format, args);
-  kinc_log(KINC_LOG_LEVEL_INFO, "%s", msg);
+void sendLogMessageArgs(const char *format, va_list args) {
+	char msg[4096];
+	vsnprintf(msg, sizeof(msg) - 2, format, args);
+	kinc_log(KINC_LOG_LEVEL_INFO, "%s", msg);
 
-  /*if (debugMode) {
-    std::vector<int> message;
-    message.push_back(IDE_MESSAGE_LOG);
-    size_t messageLength = strlen(msg);
-    message.push_back(messageLength);
-    for (size_t i = 0; i < messageLength; ++i) {
-      message.push_back(msg[i]);
-    }
-    sendMessage(message.data(), message.size());
-  }*/
+	/*if (debugMode) {
+	  std::vector<int> message;
+	  message.push_back(IDE_MESSAGE_LOG);
+	  size_t messageLength = strlen(msg);
+	  message.push_back(messageLength);
+	  for (size_t i = 0; i < messageLength; ++i) {
+	    message.push_back(msg[i]);
+	  }
+	  sendMessage(message.data(), message.size());
+	}*/
 }
 
-void sendLogMessage(const char* format, ...) {
-  va_list args;
-  va_start(args, format);
-  sendLogMessageArgs(format, args);
-  va_end(args);
+void sendLogMessage(const char *format, ...) {
+	va_list args;
+	va_start(args, format);
+	sendLogMessageArgs(format, args);
+	va_end(args);
 }
 
-static void krom_init(const FunctionCallbackInfo<Value>& args) {
-  node::Environment* env = node::Environment::GetCurrent(args);
+static void krom_init(const FunctionCallbackInfo<Value> &args) {
+	node::Environment *env = node::Environment::GetCurrent(args);
 
-  node::BufferValue title(env->isolate(), args[0]);
-  int width = args[1].As<Int32>()->Value();
-  int height = args[2].As<Int32>()->Value();
-  int samplesPerPixel = args[3].As<Int32>()->Value();
-  bool vSync = args[4].As<Boolean>()->Value();
-  int windowMode = args[5].As<Int32>()->Value();
-  int windowFeatures = args[6].As<Int32>()->Value();
+	node::BufferValue title(env->isolate(), args[0]);
+	int width = args[1].As<Int32>()->Value();
+	int height = args[2].As<Int32>()->Value();
+	int samplesPerPixel = args[3].As<Int32>()->Value();
+	bool vSync = args[4].As<Boolean>()->Value();
+	int windowMode = args[5].As<Int32>()->Value();
+	int windowFeatures = args[6].As<Int32>()->Value();
 
-  int apiVersion = 0;
-  if (args.Length() > 7) {
-    apiVersion= args[7].As<Int32>()->Value();
-  }
+	int apiVersion = 0;
+	if (args.Length() > 7) {
+		apiVersion = args[7].As<Int32>()->Value();
+	}
 
-  if (apiVersion != KROM_API) {
-    const char* outdated;
-    if (apiVersion < KROM_API) {
-      outdated = "Kha";
-    } else if (KROM_API < apiVersion) {
-      outdated = "Krom";
-    }
-    sendLogMessage("Krom uses API version %i but Kha targets API version %i. "
-                   "Please update %s.",
-                   KROM_API,
-                   apiVersion,
-                   outdated);
-    exit(1);
-  }
+	if (apiVersion != KROM_API) {
+		const char *outdated;
+		if (apiVersion < KROM_API) {
+			outdated = "Kha";
+		}
+		else if (KROM_API < apiVersion) {
+			outdated = "Krom";
+		}
+		sendLogMessage("Krom uses API version %i but Kha targets API version %i. "
+		               "Please update %s.",
+		               KROM_API, apiVersion, outdated);
+		exit(1);
+	}
 
-  kinc_window_options_t win;
-  win.title = *title;
-  win.width = width;
-  win.height = height;
-  win.x = -1;
-  win.y = -1;
-  win.display_index = -1;
-  win.visible = !nowindow;
-  win.mode = (kinc_window_mode_t)windowMode;
-  win.window_features = windowFeatures;
-  kinc_framebuffer_options_t frame;
-  frame.vertical_sync = vSync;
-  frame.samples_per_pixel = samplesPerPixel;
-  kinc_init(*title, width, height, &win, &frame);
+	kinc_window_options_t win;
+	win.title = *title;
+	win.width = width;
+	win.height = height;
+	win.x = -1;
+	win.y = -1;
+	win.display_index = -1;
+	win.visible = !nowindow;
+	win.mode = (kinc_window_mode_t)windowMode;
+	win.window_features = windowFeatures;
+	kinc_framebuffer_options_t frame;
+	frame.vertical_sync = vSync;
+	frame.samples_per_pixel = samplesPerPixel;
+	kinc_init(*title, width, height, &win, &frame);
 
-  kinc_mutex_init(&mutex);
-  kinc_mutex_init(&audioMutex);
-  if (enableSound) {
-    kinc_a2_set_callback(updateAudio);
-    kinc_a2_init();
-  }
-  kinc_random_init((int)(kinc_time() * 1000));
+	kinc_mutex_init(&mutex);
+	kinc_mutex_init(&audioMutex);
+	if (enableSound) {
+		kinc_a2_set_callback(updateAudio);
+		kinc_a2_init();
+	}
+	kinc_random_init((int)(kinc_time() * 1000));
 
-  kinc_set_update_callback(update);
-  kinc_set_drop_files_callback(dropFiles);
-  kinc_set_copy_callback(copy);
-  kinc_set_cut_callback(cut);
-  kinc_set_paste_callback(paste);
-  kinc_set_foreground_callback(foreground);
-  kinc_set_resume_callback(resume);
-  kinc_set_pause_callback(pause);
-  kinc_set_background_callback(background);
-  kinc_set_shutdown_callback(shutdown);
+	kinc_set_update_callback(update);
+	kinc_set_drop_files_callback(dropFiles);
+	kinc_set_copy_callback(copy);
+	kinc_set_cut_callback(cut);
+	kinc_set_paste_callback(paste);
+	kinc_set_foreground_callback(foreground);
+	kinc_set_resume_callback(resume);
+	kinc_set_pause_callback(pause);
+	kinc_set_background_callback(background);
+	kinc_set_shutdown_callback(shutdown);
 
-  kinc_keyboard_set_key_down_callback(keyDown);
-  kinc_keyboard_set_key_up_callback(keyUp);
-  kinc_keyboard_set_key_press_callback(keyPress);
-  kinc_mouse_set_move_callback(mouseMove);
-  kinc_mouse_set_press_callback(mouseDown);
-  kinc_mouse_set_release_callback(mouseUp);
-  kinc_mouse_set_scroll_callback(mouseWheel);
-  kinc_pen_set_press_callback(penDown);
-  kinc_pen_set_release_callback(penUp);
-  kinc_pen_set_move_callback(penMove);
-  kinc_gamepad_set_axis_callback(gamepadAxis);
-  kinc_gamepad_set_button_callback(gamepadButton);
+	kinc_keyboard_set_key_down_callback(keyDown);
+	kinc_keyboard_set_key_up_callback(keyUp);
+	kinc_keyboard_set_key_press_callback(keyPress);
+	kinc_mouse_set_move_callback(mouseMove);
+	kinc_mouse_set_press_callback(mouseDown);
+	kinc_mouse_set_release_callback(mouseUp);
+	kinc_mouse_set_scroll_callback(mouseWheel);
+	kinc_pen_set_press_callback(penDown);
+	kinc_pen_set_release_callback(penUp);
+	kinc_pen_set_move_callback(penMove);
+	kinc_gamepad_set_axis_callback(gamepadAxis);
+	kinc_gamepad_set_button_callback(gamepadButton);
 }
 
 #if 0
@@ -288,7 +287,7 @@ JsValueRef CALLBACK krom_log(JsValueRef callee,
   const wchar_t* str = nullptr;
   size_t strLength = 0;
   JsStringToPointer(stringValue, &str, &strLength);
-
+   
   size_t done = 0;
   char message[512];
   while (done < strLength) {
@@ -1153,17 +1152,17 @@ void recompilePipeline(JsValueRef projobj) {
   JsSetIndexedProperty(projobj, zero, pipelineObj);
 }
 
-#define getPipeInt(name)                                                       \
-  JsValueRef name##Obj;                                                        \
-  int name;                                                                    \
-  JsGetProperty(arguments[12], getId(#name), &name##Obj);                      \
-  JsNumberToInt(name##Obj, &name)
+#define getPipeInt(name)                                                                                                                                       \
+	JsValueRef name##Obj;                                                                                                                                      \
+	int name;                                                                                                                                                  \
+	JsGetProperty(arguments[12], getId(#name), &name##Obj);                                                                                                    \
+	JsNumberToInt(name##Obj, &name)
 
-#define getPipeBool(name)                                                      \
-  JsValueRef name##Obj;                                                        \
-  bool name;                                                                   \
-  JsGetProperty(arguments[12], getId(#name), &name##Obj);                      \
-  JsBooleanToBool(name##Obj, &name)
+#define getPipeBool(name)                                                                                                                                      \
+	JsValueRef name##Obj;                                                                                                                                      \
+	bool name;                                                                                                                                                 \
+	JsGetProperty(arguments[12], getId(#name), &name##Obj);                                                                                                    \
+	JsBooleanToBool(name##Obj, &name)
 
 JsValueRef CALLBACK krom_compile_pipeline(JsValueRef callee,
                                           bool isConstructCall,
@@ -3434,12 +3433,12 @@ JsValueRef CALLBACK krom_compute(JsValueRef callee,
   return JS_INVALID_REFERENCE;
 }
 
-#define addFunction(name, funcName)                                            \
-  JsPropertyIdRef name##Id;                                                    \
-  JsValueRef name##Func;                                                       \
-  JsCreateFunction(funcName, nullptr, &name##Func);                            \
-  JsCreatePropertyId(#name, strlen(#name), &name##Id);                         \
-  JsSetProperty(krom, name##Id, name##Func, false)
+#define addFunction(name, funcName)                                                                                                                            \
+	JsPropertyIdRef name##Id;                                                                                                                                  \
+	JsValueRef name##Func;                                                                                                                                     \
+	JsCreateFunction(funcName, nullptr, &name##Func);                                                                                                          \
+	JsCreatePropertyId(#name, strlen(#name), &name##Id);                                                                                                       \
+	JsSetProperty(krom, name##Id, name##Func, false)
 
 #define createId(name) JsCreatePropertyId(#name, strlen(#name), &name##_id)
 
@@ -4653,19 +4652,16 @@ int kickstart(int argc, char** argv) {
 
 namespace krom {
 
-void Initialize(Local<Object> target,
-                Local<Value> unused,
-                Local<Context> context,
-                void* priv) {
-  node::Environment* env = node::Environment::GetCurrent(context);
-  env->SetMethod(target, "init", krom_init);
-}
+	void Initialize(Local<Object> target, Local<Value> unused, Local<Context> context, void *priv) {
+		node::Environment *env = node::Environment::GetCurrent(context);
+		env->SetMethod(target, "init", krom_init);
+	}
 
-void RegisterExternalReferences(node::ExternalReferenceRegistry* registry) {
-  registry->Register(krom_init);
-}
+	void RegisterExternalReferences(node::ExternalReferenceRegistry *registry) {
+		registry->Register(krom_init);
+	}
 
-}  // namespace krom
+} // namespace krom
 
 NODE_MODULE_CONTEXT_AWARE_INTERNAL(krom, krom::Initialize)
 NODE_MODULE_EXTERNAL_REFERENCE(krom, krom::RegisterExternalReferences)
