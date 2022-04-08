@@ -69,7 +69,9 @@ using v8::ArrayBuffer;
 using v8::Boolean;
 using v8::Context;
 using v8::Float64Array;
+using v8::Function;
 using v8::FunctionCallbackInfo;
+using v8::Global;
 using v8::Int32;
 using v8::Integer;
 using v8::Isolate;
@@ -104,31 +106,29 @@ namespace {
 	unsigned int serializedLength = 0;
 }
 
-#if 0
-JsValueRef updateFunction;
-JsValueRef dropFilesFunction;
-JsValueRef cutFunction;
-JsValueRef copyFunction;
-JsValueRef pasteFunction;
-JsValueRef foregroundFunction;
-JsValueRef resumeFunction;
-JsValueRef pauseFunction;
-JsValueRef backgroundFunction;
-JsValueRef shutdownFunction;
-JsValueRef keyboardDownFunction;
-JsValueRef keyboardUpFunction;
-JsValueRef keyboardPressFunction;
-JsValueRef mouseDownFunction;
-JsValueRef mouseUpFunction;
-JsValueRef mouseMoveFunction;
-JsValueRef mouseWheelFunction;
-JsValueRef penDownFunction;
-JsValueRef penUpFunction;
-JsValueRef penMoveFunction;
-JsValueRef gamepadAxisFunction;
-JsValueRef gamepadButtonFunction;
-JsValueRef audioFunction;
-#endif
+Global<Function> updateFunction;
+Global<Function> dropFilesFunction;
+Global<Function> cutFunction;
+Global<Function> copyFunction;
+Global<Function> pasteFunction;
+Global<Function> foregroundFunction;
+Global<Function> resumeFunction;
+Global<Function> pauseFunction;
+Global<Function> backgroundFunction;
+Global<Function> shutdownFunction;
+Global<Function> keyboardDownFunction;
+Global<Function> keyboardUpFunction;
+Global<Function> keyboardPressFunction;
+Global<Function> mouseDownFunction;
+Global<Function> mouseUpFunction;
+Global<Function> mouseMoveFunction;
+Global<Function> mouseWheelFunction;
+Global<Function> penDownFunction;
+Global<Function> penUpFunction;
+Global<Function> penMoveFunction;
+Global<Function> gamepadAxisFunction;
+Global<Function> gamepadButtonFunction;
+Global<Function> audioFunction;
 
 std::map<std::string, bool> imageChanges;
 std::map<std::string, bool> shaderChanges;
@@ -272,109 +272,50 @@ static void krom_init(const FunctionCallbackInfo<Value> &args) {
 	kinc_gamepad_set_button_callback(gamepadButton);
 }
 
+static void krom_log(const FunctionCallbackInfo<Value> &args) {
+	if (args.Length() < 1) {
+		return;
+	}
+
+	node::Environment *env = node::Environment::GetCurrent(args);
+	node::BufferValue stringValue(env->isolate(), args[0]);
+	sendLogMessage(*stringValue);
+}
+
+static void krom_graphics_clear(const FunctionCallbackInfo<Value> &args) {
+	int flags = args[0].As<Int32>()->Value();
+	int color = args[1].As<Int32>()->Value();
+	double depth = args[2].As<Number>()->Value();
+	int stencil = args[3].As<Int32>()->Value();
+	kinc_g4_clear(flags, color, (float)depth, stencil);
+}
+
+static void krom_set_callback(const FunctionCallbackInfo<Value> &args) {
+	node::Environment *env = node::Environment::GetCurrent(args);
+	updateFunction.Reset(env->isolate(), Local<Function>::Cast(args[0]));
+}
+
+static void krom_set_drop_files_callback(const FunctionCallbackInfo<Value> &args) {
+	node::Environment *env = node::Environment::GetCurrent(args);
+	dropFilesFunction.Reset(env->isolate(), Local<Function>::Cast(args[0]));
+}
+
+static void krom_set_cut_copy_paste_callback(const FunctionCallbackInfo<Value> &args) {
+	node::Environment *env = node::Environment::GetCurrent(args);
+	cutFunction.Reset(env->isolate(), Local<Function>::Cast(args[0]));
+	copyFunction.Reset(env->isolate(), Local<Function>::Cast(args[1]));
+	pasteFunction.Reset(env->isolate(), Local<Function>::Cast(args[2]));
+}
+
+static void krom_set_application_state_callback(const FunctionCallbackInfo<Value> &args) {
+	node::Environment *env = node::Environment::GetCurrent(args);
+	foregroundFunction.Reset(env->isolate(), Local<Function>::Cast(args[0]));
+	resumeFunction.Reset(env->isolate(), Local<Function>::Cast(args[1]));
+	pauseFunction.Reset(env->isolate(), Local<Function>::Cast(args[2]));
+	backgroundFunction.Reset(env->isolate(), Local<Function>::Cast(args[3]));
+	shutdownFunction.Reset(env->isolate(), Local<Function>::Cast(args[4]));
+}
 #if 0
-JsValueRef CALLBACK krom_log(JsValueRef callee,
-                             bool isConstructCall,
-                             JsValueRef* arguments,
-                             unsigned short argumentCount,
-                             void* callbackState) {
-  if (argumentCount < 2) {
-    return JS_INVALID_REFERENCE;
-  }
-  JsValueRef stringValue;
-  JsConvertValueToString(arguments[1], &stringValue);
-
-  const wchar_t* str = nullptr;
-  size_t strLength = 0;
-  JsStringToPointer(stringValue, &str, &strLength);
-   
-  size_t done = 0;
-  char message[512];
-  while (done < strLength) {
-    size_t i;
-    for (i = 0; i < 510; ++i) {
-      message[i] = str[done++];
-      if (done >= strLength) {
-        message[++i] = '\n';
-        ++i;
-        break;
-      }
-    }
-    message[i] = 0;
-    sendLogMessage(message);
-  }
-  return JS_INVALID_REFERENCE;
-}
-
-JsValueRef CALLBACK krom_graphics_clear(JsValueRef callee,
-                                        bool isConstructCall,
-                                        JsValueRef* arguments,
-                                        unsigned short argumentCount,
-                                        void* callbackState) {
-  int flags, color, stencil;
-  JsNumberToInt(arguments[1], &flags);
-  JsNumberToInt(arguments[2], &color);
-  double depth;
-  JsNumberToDouble(arguments[3], &depth);
-  JsNumberToInt(arguments[4], &stencil);
-  kinc_g4_clear(flags, color, depth, stencil);
-  return JS_INVALID_REFERENCE;
-}
-
-JsValueRef CALLBACK krom_set_callback(JsValueRef callee,
-                                      bool isConstructCall,
-                                      JsValueRef* arguments,
-                                      unsigned short argumentCount,
-                                      void* callbackState) {
-  updateFunction = arguments[1];
-  JsAddRef(updateFunction, nullptr);
-  return JS_INVALID_REFERENCE;
-}
-
-JsValueRef CALLBACK krom_set_drop_files_callback(JsValueRef callee,
-                                                 bool isConstructCall,
-                                                 JsValueRef* arguments,
-                                                 unsigned short argumentCount,
-                                                 void* callbackState) {
-  dropFilesFunction = arguments[1];
-  JsAddRef(dropFilesFunction, nullptr);
-  return JS_INVALID_REFERENCE;
-}
-
-JsValueRef CALLBACK
-krom_set_cut_copy_paste_callback(JsValueRef callee,
-                                 bool isConstructCall,
-                                 JsValueRef* arguments,
-                                 unsigned short argumentCount,
-                                 void* callbackState) {
-  cutFunction = arguments[1];
-  copyFunction = arguments[2];
-  pasteFunction = arguments[3];
-  JsAddRef(cutFunction, nullptr);
-  JsAddRef(copyFunction, nullptr);
-  JsAddRef(pasteFunction, nullptr);
-  return JS_INVALID_REFERENCE;
-}
-
-JsValueRef CALLBACK
-krom_set_application_state_callback(JsValueRef callee,
-                                    bool isConstructCall,
-                                    JsValueRef* arguments,
-                                    unsigned short argumentCount,
-                                    void* callbackState) {
-  foregroundFunction = arguments[1];
-  resumeFunction = arguments[2];
-  pauseFunction = arguments[3];
-  backgroundFunction = arguments[4];
-  shutdownFunction = arguments[5];
-  JsAddRef(foregroundFunction, nullptr);
-  JsAddRef(resumeFunction, nullptr);
-  JsAddRef(pauseFunction, nullptr);
-  JsAddRef(backgroundFunction, nullptr);
-  JsAddRef(shutdownFunction, nullptr);
-  return JS_INVALID_REFERENCE;
-}
-
 JsValueRef CALLBACK
 krom_set_keyboard_down_callback(JsValueRef callee,
                                 bool isConstructCall,
