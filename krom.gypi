@@ -11,6 +11,7 @@
 		'Kinc/Backends/System/Windows/Sources/kinc/backend/windowscppunit.cpp',
 		'Kinc/Backends/Graphics4/Direct3D11/Sources/kinc/backend/compute.c',
 		'Kinc/Backends/Graphics4/Direct3D11/Sources/kinc/backend/graphics4/d3d11unit.c',
+		'Kinc/Backends/Audio2/WASAPI/Sources/kinc/backend/WASAPI.winrt.cpp'
 	],
 	'include_dirs': [
 		'Kinc/Sources',

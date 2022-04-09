@@ -85,6 +85,7 @@ using v8::Number;
 using v8::Object;
 using v8::ObjectTemplate;
 using v8::String;
+using v8::Uint32Array;
 using v8::Value;
 
 const int KROM_API = 6;
@@ -416,7 +417,7 @@ static void krom_set_audio_callback(const FunctionCallbackInfo<Value> &args) {
 	audioFunction.Reset(env->isolate(), Local<Function>::Cast(args[0]));
 }
 
-void krom_create_indexbuffer(const FunctionCallbackInfo<Value> &args) {
+static void krom_create_indexbuffer(const FunctionCallbackInfo<Value> &args) {
 	node::Environment *env = node::Environment::GetCurrent(args);
 
 	Local<ObjectTemplate> templ = ObjectTemplate::New(env->isolate());
@@ -430,7 +431,7 @@ void krom_create_indexbuffer(const FunctionCallbackInfo<Value> &args) {
 	args.GetReturnValue().Set(obj);
 }
 
-void krom_delete_indexbuffer(const FunctionCallbackInfo<Value> &args) {
+static void krom_delete_indexbuffer(const FunctionCallbackInfo<Value> &args) {
 	node::Environment *env = node::Environment::GetCurrent(args);
 
 	Local<External> field = Local<External>::Cast(args[0].As<Object>()->GetInternalField(0));
@@ -438,188 +439,164 @@ void krom_delete_indexbuffer(const FunctionCallbackInfo<Value> &args) {
 	kinc_g4_index_buffer_destroy(buffer);
 	free(buffer);
 }
-#if 0
-JsValueRef CALLBACK krom_lock_index_buffer(JsValueRef callee,
-                                           bool isConstructCall,
-                                           JsValueRef* arguments,
-                                           unsigned short argumentCount,
-                                           void* callbackState) {
-  kinc_g4_index_buffer_t* buffer;
-  JsGetExternalData(arguments[1], (void**)&buffer);
-  int* indices = kinc_g4_index_buffer_lock(buffer);
-  JsValueRef value;
-  JsCreateExternalArrayBuffer(indices,
-                              kinc_g4_index_buffer_count(buffer) * sizeof(int),
-                              nullptr,
-                              nullptr,
-                              &value);
-  JsValueRef array;
-  JsCreateTypedArray(
-      JsArrayTypeUint32, value, 0, kinc_g4_index_buffer_count(buffer), &array);
-  return array;
+
+static void delete_index_buffer_data(void *data, size_t length, void *deleter_data) {}
+
+static void krom_lock_index_buffer(const FunctionCallbackInfo<Value> &args) {
+	node::Environment *env = node::Environment::GetCurrent(args);
+
+	Local<External> field = Local<External>::Cast(args[0].As<Object>()->GetInternalField(0));
+	kinc_g4_index_buffer_t *buffer = (kinc_g4_index_buffer_t *)field->Value();
+	int *indices = kinc_g4_index_buffer_lock(buffer);
+
+	std::shared_ptr<v8::BackingStore> store =
+	    v8::ArrayBuffer::NewBackingStore(indices, kinc_g4_index_buffer_count(buffer) * sizeof(int), delete_index_buffer_data, nullptr);
+	Local<ArrayBuffer> abuffer = ArrayBuffer::New(env->isolate(), store);
+
+	args.GetReturnValue().Set(Uint32Array::New(abuffer, 0, kinc_g4_index_buffer_count(buffer)));
 }
 
-JsValueRef CALLBACK krom_unlock_index_buffer(JsValueRef callee,
-                                             bool isConstructCall,
-                                             JsValueRef* arguments,
-                                             unsigned short argumentCount,
-                                             void* callbackState) {
-  kinc_g4_index_buffer_t* buffer;
-  JsGetExternalData(arguments[1], (void**)&buffer);
-  kinc_g4_index_buffer_unlock(buffer);
-  return JS_INVALID_REFERENCE;
+static void krom_unlock_index_buffer(const FunctionCallbackInfo<Value> &args) {
+	node::Environment *env = node::Environment::GetCurrent(args);
+
+	Local<External> field = Local<External>::Cast(args[0].As<Object>()->GetInternalField(0));
+
+	kinc_g4_index_buffer_t *buffer = (kinc_g4_index_buffer_t *)field->Value();
+	kinc_g4_index_buffer_unlock(buffer);
 }
 
-JsValueRef CALLBACK krom_set_indexbuffer(JsValueRef callee,
-                                         bool isConstructCall,
-                                         JsValueRef* arguments,
-                                         unsigned short argumentCount,
-                                         void* callbackState) {
-  kinc_g4_index_buffer_t* buffer;
-  JsGetExternalData(arguments[1], (void**)&buffer);
-  kinc_g4_set_index_buffer(buffer);
-  return JS_INVALID_REFERENCE;
+static void krom_set_indexbuffer(const FunctionCallbackInfo<Value> &args) {
+	Local<External> field = Local<External>::Cast(args[0].As<Object>()->GetInternalField(0));
+
+	kinc_g4_index_buffer_t *buffer = (kinc_g4_index_buffer_t *)field->Value();
+	kinc_g4_set_index_buffer(buffer);
 }
 
 static kinc_g4_vertex_data_t convert_vertex_data(int kha_vertex_data) {
-  switch (kha_vertex_data) {
-    case 0:  // Float32_1X
-      return KINC_G4_VERTEX_DATA_F32_1X;
-    case 1:  // Float32_2X
-      return KINC_G4_VERTEX_DATA_F32_2X;
-    case 2:  // Float32_3X
-      return KINC_G4_VERTEX_DATA_F32_3X;
-    case 3:  // Float32_4X
-      return KINC_G4_VERTEX_DATA_F32_4X;
-    case 4:  // Float32_4X4
-      return KINC_G4_VERTEX_DATA_F32_4X4;
-    case 5:  // Int8_1X
-      return KINC_G4_VERTEX_DATA_I8_1X;
-    case 6:  // UInt8_1X
-      return KINC_G4_VERTEX_DATA_U8_1X;
-    case 7:  // Int8_1X_Normalized
-      return KINC_G4_VERTEX_DATA_I8_1X_NORMALIZED;
-    case 8:  // UInt8_1X_Normalized
-      return KINC_G4_VERTEX_DATA_U8_1X_NORMALIZED;
-    case 9:  // Int8_2X
-      return KINC_G4_VERTEX_DATA_I8_2X;
-    case 10:  // UInt8_2X
-      return KINC_G4_VERTEX_DATA_U8_2X;
-    case 11:  // Int8_2X_Normalized
-      return KINC_G4_VERTEX_DATA_I8_2X_NORMALIZED;
-    case 12:  // UInt8_2X_Normalized
-      return KINC_G4_VERTEX_DATA_U8_2X_NORMALIZED;
-    case 13:  // Int8_4X
-      return KINC_G4_VERTEX_DATA_I8_4X;
-    case 14:  // UInt8_4X
-      return KINC_G4_VERTEX_DATA_U8_4X;
-    case 15:  // Int8_4X_Normalized
-      return KINC_G4_VERTEX_DATA_I8_4X_NORMALIZED;
-    case 16:  // UInt8_4X_Normalized
-      return KINC_G4_VERTEX_DATA_U8_4X_NORMALIZED;
-    case 17:  // Int16_1X
-      return KINC_G4_VERTEX_DATA_I16_1X;
-    case 18:  // UInt16_1X
-      return KINC_G4_VERTEX_DATA_U16_1X;
-    case 19:  // Int16_1X_Normalized
-      return KINC_G4_VERTEX_DATA_I16_1X_NORMALIZED;
-    case 20:  // UInt16_1X_Normalized
-      return KINC_G4_VERTEX_DATA_U16_1X_NORMALIZED;
-    case 21:  // Int16_2X
-      return KINC_G4_VERTEX_DATA_I16_2X;
-    case 22:  // UInt16_2X
-      return KINC_G4_VERTEX_DATA_U16_2X;
-    case 23:  // Int16_2X_Normalized
-      return KINC_G4_VERTEX_DATA_I16_2X_NORMALIZED;
-    case 24:  // UInt16_2X_Normalized
-      return KINC_G4_VERTEX_DATA_U16_2X_NORMALIZED;
-    case 25:  // Int16_4X
-      return KINC_G4_VERTEX_DATA_I16_4X;
-    case 26:  // UInt16_4X
-      return KINC_G4_VERTEX_DATA_U16_4X;
-    case 27:  // Int16_4X_Normalized
-      return KINC_G4_VERTEX_DATA_I16_4X_NORMALIZED;
-    case 28:  // UInt16_4X_Normalized
-      return KINC_G4_VERTEX_DATA_U16_4X_NORMALIZED;
-    case 29:  // Int32_1X
-      return KINC_G4_VERTEX_DATA_I32_1X;
-    case 30:  // UInt32_1X
-      return KINC_G4_VERTEX_DATA_U32_1X;
-    case 31:  // Int32_2X
-      return KINC_G4_VERTEX_DATA_I32_2X;
-    case 32:  // UInt32_2X
-      return KINC_G4_VERTEX_DATA_U32_2X;
-    case 33:  // Int32_3X
-      return KINC_G4_VERTEX_DATA_I32_3X;
-    case 34:  // UInt32_3X
-      return KINC_G4_VERTEX_DATA_U32_3X;
-    case 35:  // Int32_4X
-      return KINC_G4_VERTEX_DATA_I32_4X;
-    case 36:  // UInt32_4X
-      return KINC_G4_VERTEX_DATA_U32_4X;
-    default:
-      assert(false);
-      return KINC_G4_VERTEX_DATA_NONE;
-  }
+	switch (kha_vertex_data) {
+	case 0: // Float32_1X
+		return KINC_G4_VERTEX_DATA_F32_1X;
+	case 1: // Float32_2X
+		return KINC_G4_VERTEX_DATA_F32_2X;
+	case 2: // Float32_3X
+		return KINC_G4_VERTEX_DATA_F32_3X;
+	case 3: // Float32_4X
+		return KINC_G4_VERTEX_DATA_F32_4X;
+	case 4: // Float32_4X4
+		return KINC_G4_VERTEX_DATA_F32_4X4;
+	case 5: // Int8_1X
+		return KINC_G4_VERTEX_DATA_I8_1X;
+	case 6: // UInt8_1X
+		return KINC_G4_VERTEX_DATA_U8_1X;
+	case 7: // Int8_1X_Normalized
+		return KINC_G4_VERTEX_DATA_I8_1X_NORMALIZED;
+	case 8: // UInt8_1X_Normalized
+		return KINC_G4_VERTEX_DATA_U8_1X_NORMALIZED;
+	case 9: // Int8_2X
+		return KINC_G4_VERTEX_DATA_I8_2X;
+	case 10: // UInt8_2X
+		return KINC_G4_VERTEX_DATA_U8_2X;
+	case 11: // Int8_2X_Normalized
+		return KINC_G4_VERTEX_DATA_I8_2X_NORMALIZED;
+	case 12: // UInt8_2X_Normalized
+		return KINC_G4_VERTEX_DATA_U8_2X_NORMALIZED;
+	case 13: // Int8_4X
+		return KINC_G4_VERTEX_DATA_I8_4X;
+	case 14: // UInt8_4X
+		return KINC_G4_VERTEX_DATA_U8_4X;
+	case 15: // Int8_4X_Normalized
+		return KINC_G4_VERTEX_DATA_I8_4X_NORMALIZED;
+	case 16: // UInt8_4X_Normalized
+		return KINC_G4_VERTEX_DATA_U8_4X_NORMALIZED;
+	case 17: // Int16_1X
+		return KINC_G4_VERTEX_DATA_I16_1X;
+	case 18: // UInt16_1X
+		return KINC_G4_VERTEX_DATA_U16_1X;
+	case 19: // Int16_1X_Normalized
+		return KINC_G4_VERTEX_DATA_I16_1X_NORMALIZED;
+	case 20: // UInt16_1X_Normalized
+		return KINC_G4_VERTEX_DATA_U16_1X_NORMALIZED;
+	case 21: // Int16_2X
+		return KINC_G4_VERTEX_DATA_I16_2X;
+	case 22: // UInt16_2X
+		return KINC_G4_VERTEX_DATA_U16_2X;
+	case 23: // Int16_2X_Normalized
+		return KINC_G4_VERTEX_DATA_I16_2X_NORMALIZED;
+	case 24: // UInt16_2X_Normalized
+		return KINC_G4_VERTEX_DATA_U16_2X_NORMALIZED;
+	case 25: // Int16_4X
+		return KINC_G4_VERTEX_DATA_I16_4X;
+	case 26: // UInt16_4X
+		return KINC_G4_VERTEX_DATA_U16_4X;
+	case 27: // Int16_4X_Normalized
+		return KINC_G4_VERTEX_DATA_I16_4X_NORMALIZED;
+	case 28: // UInt16_4X_Normalized
+		return KINC_G4_VERTEX_DATA_U16_4X_NORMALIZED;
+	case 29: // Int32_1X
+		return KINC_G4_VERTEX_DATA_I32_1X;
+	case 30: // UInt32_1X
+		return KINC_G4_VERTEX_DATA_U32_1X;
+	case 31: // Int32_2X
+		return KINC_G4_VERTEX_DATA_I32_2X;
+	case 32: // UInt32_2X
+		return KINC_G4_VERTEX_DATA_U32_2X;
+	case 33: // Int32_3X
+		return KINC_G4_VERTEX_DATA_I32_3X;
+	case 34: // UInt32_3X
+		return KINC_G4_VERTEX_DATA_U32_3X;
+	case 35: // Int32_4X
+		return KINC_G4_VERTEX_DATA_I32_4X;
+	case 36: // UInt32_4X
+		return KINC_G4_VERTEX_DATA_U32_4X;
+	default:
+		assert(false);
+		return KINC_G4_VERTEX_DATA_NONE;
+	}
 }
 
-JsValueRef CALLBACK krom_create_vertexbuffer(JsValueRef callee,
-                                             bool isConstructCall,
-                                             JsValueRef* arguments,
-                                             unsigned short argumentCount,
-                                             void* callbackState) {
-  JsValueRef lengthObj;
-  JsGetProperty(arguments[2], getId("length"), &lengthObj);
-  int length;
-  JsNumberToInt(lengthObj, &length);
+static void krom_create_vertexbuffer(const FunctionCallbackInfo<Value> &args) {
+	node::Environment *env = node::Environment::GetCurrent(args);
 
-  JsValueRef one;
-  JsIntToNumber(1, &one);
+	Local<ObjectTemplate> templ = ObjectTemplate::New(env->isolate());
+	templ->SetInternalFieldCount(1);
 
-  kinc_g4_vertex_structure_t structure;
-  kinc_g4_vertex_structure_init(&structure);
-  for (int i = 0; i < length; ++i) {
-    JsValueRef index, element;
-    JsIntToNumber(i, &index);
-    JsGetIndexedProperty(arguments[2], index, &element);
-    JsValueRef str;
-    JsGetProperty(element, getId("name"), &str);
-    char* name = new char[256];  // TODO
-    size_t strLength;
-    JsCopyString(str, name, 255, &strLength);
-    name[strLength] = 0;
-    JsValueRef dataObj;
-    JsGetProperty(element, getId("data"), &dataObj);
-    int data;
-    JsNumberToInt(dataObj, &data);
-    kinc_g4_vertex_structure_add(&structure, name, convert_vertex_data(data));
-  }
+	Local<Object> obj = templ->NewInstance(env->isolate()->GetCurrentContext()).ToLocalChecked();
 
-  int value1, value3, value4;
-  JsNumberToInt(arguments[1], &value1);
-  JsNumberToInt(arguments[3], &value3);
-  JsNumberToInt(arguments[4], &value4);
-  kinc_g4_vertex_buffer_t* buffer =
-      (kinc_g4_vertex_buffer_t*)malloc(sizeof(kinc_g4_vertex_buffer_t));
-  kinc_g4_vertex_buffer_init(
-      buffer, value1, &structure, (kinc_g4_usage_t)value3, value4);
-  JsValueRef obj;
-  JsCreateExternalObject(buffer, nullptr, &obj);
-  return obj;
+	Local<Object> jsstructure = args[1].As<Object>();
+	int32_t length = jsstructure->Get(env->isolate()->GetCurrentContext(), String::NewFromUtf8(env->isolate(), "length").ToLocalChecked())
+	                     .ToLocalChecked()
+	                     .As<Int32>()
+	                     ->Value();
+	kinc_g4_vertex_structure_t structure;
+	kinc_g4_vertex_structure_init(&structure);
+	for (int32_t i = 0; i < length; ++i) {
+		Local<Object> element = jsstructure->Get(env->isolate()->GetCurrentContext(), i).ToLocalChecked().As<Object>();
+		Local<Value> str = element->Get(env->isolate()->GetCurrentContext(), String::NewFromUtf8(env->isolate(), "name").ToLocalChecked()).ToLocalChecked();
+		String::Utf8Value utf8_value(env->isolate(), str);
+		int32_t data = element->Get(env->isolate()->GetCurrentContext(), String::NewFromUtf8(env->isolate(), "data").ToLocalChecked())
+		                   .ToLocalChecked()
+		                   .As<Int32>()
+		                   ->Value();
+		char *name = new char[256]; // TODO
+		strcpy(name, *utf8_value);
+		kinc_g4_vertex_structure_add(&structure, name, convert_vertex_data(data));
+	}
+
+	kinc_g4_vertex_buffer_t *buffer = (kinc_g4_vertex_buffer_t *)malloc(sizeof(kinc_g4_vertex_buffer_t));
+	kinc_g4_vertex_buffer_init(buffer, args[0].As<Int32>()->Value(), &structure, (kinc_g4_usage_t)args[2].As<Int32>()->Value(), args[3].As<Int32>()->Value());
+	obj->SetInternalField(0, External::New(env->isolate(), buffer));
+	args.GetReturnValue().Set(obj);
 }
 
-JsValueRef CALLBACK krom_delete_vertexbuffer(JsValueRef callee,
-                                             bool isConstructCall,
-                                             JsValueRef* arguments,
-                                             unsigned short argumentCount,
-                                             void* callbackState) {
-  kinc_g4_vertex_buffer_t* buffer;
-  JsGetExternalData(arguments[1], (void**)&buffer);
-  kinc_g4_vertex_buffer_destroy(buffer);
-  free(buffer);
-  return JS_INVALID_REFERENCE;
-}
+static void krom_delete_vertexbuffer(const FunctionCallbackInfo<Value> &args) {
+	node::Environment *env = node::Environment::GetCurrent(args);
 
+	Local<External> field = Local<External>::Cast(args[0].As<Object>()->GetInternalField(0));
+	kinc_g4_vertex_buffer_t *buffer = (kinc_g4_vertex_buffer_t *)field->Value();
+	kinc_g4_vertex_buffer_destroy(buffer);
+	free(buffer);
+}
+#if 0
 JsValueRef CALLBACK krom_lock_vertex_buffer(JsValueRef callee,
                                             bool isConstructCall,
                                             JsValueRef* arguments,
