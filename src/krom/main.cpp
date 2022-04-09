@@ -68,10 +68,12 @@ using v8::Array;
 using v8::ArrayBuffer;
 using v8::Boolean;
 using v8::Context;
+using v8::External;
 using v8::Float64Array;
 using v8::Function;
 using v8::FunctionCallbackInfo;
 using v8::Global;
+using v8::HandleScope;
 using v8::Int32;
 using v8::Integer;
 using v8::Isolate;
@@ -81,6 +83,7 @@ using v8::NewStringType;
 using v8::Null;
 using v8::Number;
 using v8::Object;
+using v8::ObjectTemplate;
 using v8::String;
 using v8::Value;
 
@@ -315,234 +318,127 @@ static void krom_set_application_state_callback(const FunctionCallbackInfo<Value
 	backgroundFunction.Reset(env->isolate(), Local<Function>::Cast(args[3]));
 	shutdownFunction.Reset(env->isolate(), Local<Function>::Cast(args[4]));
 }
+
+static void krom_set_keyboard_down_callback(const FunctionCallbackInfo<Value> &args) {
+	node::Environment *env = node::Environment::GetCurrent(args);
+	keyboardDownFunction.Reset(env->isolate(), Local<Function>::Cast(args[0]));
+}
+
+static void krom_set_keyboard_up_callback(const FunctionCallbackInfo<Value> &args) {
+	node::Environment *env = node::Environment::GetCurrent(args);
+	keyboardUpFunction.Reset(env->isolate(), Local<Function>::Cast(args[0]));
+}
+
+static void krom_set_keyboard_press_callback(const FunctionCallbackInfo<Value> &args) {
+	node::Environment *env = node::Environment::GetCurrent(args);
+	keyboardPressFunction.Reset(env->isolate(), Local<Function>::Cast(args[0]));
+}
+
+static void krom_set_mouse_down_callback(const FunctionCallbackInfo<Value> &args) {
+	node::Environment *env = node::Environment::GetCurrent(args);
+	mouseDownFunction.Reset(env->isolate(), Local<Function>::Cast(args[0]));
+}
+
+static void krom_set_mouse_up_callback(const FunctionCallbackInfo<Value> &args) {
+	node::Environment *env = node::Environment::GetCurrent(args);
+	mouseUpFunction.Reset(env->isolate(), Local<Function>::Cast(args[0]));
+}
+
+static void krom_set_mouse_move_callback(const FunctionCallbackInfo<Value> &args) {
+	node::Environment *env = node::Environment::GetCurrent(args);
+	mouseMoveFunction.Reset(env->isolate(), Local<Function>::Cast(args[0]));
+}
+
+static void krom_set_mouse_wheel_callback(const FunctionCallbackInfo<Value> &args) {
+	node::Environment *env = node::Environment::GetCurrent(args);
+	mouseWheelFunction.Reset(env->isolate(), Local<Function>::Cast(args[0]));
+}
+
+static void krom_set_pen_down_callback(const FunctionCallbackInfo<Value> &args) {
+	node::Environment *env = node::Environment::GetCurrent(args);
+	penDownFunction.Reset(env->isolate(), Local<Function>::Cast(args[0]));
+}
+
+static void krom_set_pen_up_callback(const FunctionCallbackInfo<Value> &args) {
+	node::Environment *env = node::Environment::GetCurrent(args);
+	penUpFunction.Reset(env->isolate(), Local<Function>::Cast(args[0]));
+}
+
+static void krom_set_pen_move_callback(const FunctionCallbackInfo<Value> &args) {
+	node::Environment *env = node::Environment::GetCurrent(args);
+	penMoveFunction.Reset(env->isolate(), Local<Function>::Cast(args[0]));
+}
+
+static void krom_set_gamepad_axis_callback(const FunctionCallbackInfo<Value> &args) {
+	node::Environment *env = node::Environment::GetCurrent(args);
+	gamepadAxisFunction.Reset(env->isolate(), Local<Function>::Cast(args[0]));
+}
+
+static void krom_set_gamepad_button_callback(const FunctionCallbackInfo<Value> &args) {
+	node::Environment *env = node::Environment::GetCurrent(args);
+	gamepadButtonFunction.Reset(env->isolate(), Local<Function>::Cast(args[0]));
+}
+
+static void krom_lock_mouse(const FunctionCallbackInfo<Value> &args) {
+	kinc_mouse_lock(0);
+}
+
+static void krom_unlock_mouse(const FunctionCallbackInfo<Value> &args) {
+	kinc_mouse_unlock();
+}
+
+static void krom_can_lock_mouse(const FunctionCallbackInfo<Value> &args) {
+	args.GetReturnValue().Set(kinc_mouse_can_lock());
+}
+
+static void krom_is_mouse_locked(const FunctionCallbackInfo<Value> &args) {
+	args.GetReturnValue().Set(kinc_mouse_is_locked());
+}
+
+static void krom_set_mouse_position(const FunctionCallbackInfo<Value> &args) {
+	int windowId = args[0].As<Int32>()->Value();
+	int x = args[1].As<Int32>()->Value();
+	int y = args[2].As<Int32>()->Value();
+	kinc_mouse_set_position(windowId, x, y);
+}
+
+static void krom_show_mouse(const FunctionCallbackInfo<Value> &args) {
+	if (args[0].As<Boolean>()->Value()) {
+		kinc_mouse_show();
+	}
+	else {
+		kinc_mouse_hide();
+	}
+}
+
+static void krom_set_audio_callback(const FunctionCallbackInfo<Value> &args) {
+	node::Environment *env = node::Environment::GetCurrent(args);
+	audioFunction.Reset(env->isolate(), Local<Function>::Cast(args[0]));
+}
+
+void krom_create_indexbuffer(const FunctionCallbackInfo<Value> &args) {
+	node::Environment *env = node::Environment::GetCurrent(args);
+
+	Local<ObjectTemplate> templ = ObjectTemplate::New(env->isolate());
+	templ->SetInternalFieldCount(1);
+
+	kinc_g4_index_buffer_t *buffer = (kinc_g4_index_buffer_t *)malloc(sizeof(kinc_g4_index_buffer_t));
+	kinc_g4_index_buffer_init(buffer, args[0].As<Int32>()->Value(), KINC_G4_INDEX_BUFFER_FORMAT_32BIT, KINC_G4_USAGE_STATIC);
+
+	Local<Object> obj = templ->NewInstance(env->isolate()->GetCurrentContext()).ToLocalChecked();
+	obj->SetInternalField(0, External::New(env->isolate(), buffer));
+	args.GetReturnValue().Set(obj);
+}
+
+void krom_delete_indexbuffer(const FunctionCallbackInfo<Value> &args) {
+	node::Environment *env = node::Environment::GetCurrent(args);
+
+	Local<External> field = Local<External>::Cast(args[0].As<Object>()->GetInternalField(0));
+	kinc_g4_index_buffer_t *buffer = (kinc_g4_index_buffer_t *)field->Value();
+	kinc_g4_index_buffer_destroy(buffer);
+	free(buffer);
+}
 #if 0
-JsValueRef CALLBACK
-krom_set_keyboard_down_callback(JsValueRef callee,
-                                bool isConstructCall,
-                                JsValueRef* arguments,
-                                unsigned short argumentCount,
-                                void* callbackState) {
-  keyboardDownFunction = arguments[1];
-  JsAddRef(keyboardDownFunction, nullptr);
-  return JS_INVALID_REFERENCE;
-}
-
-JsValueRef CALLBACK krom_set_keyboard_up_callback(JsValueRef callee,
-                                                  bool isConstructCall,
-                                                  JsValueRef* arguments,
-                                                  unsigned short argumentCount,
-                                                  void* callbackState) {
-  keyboardUpFunction = arguments[1];
-  JsAddRef(keyboardUpFunction, nullptr);
-  return JS_INVALID_REFERENCE;
-}
-
-JsValueRef CALLBACK
-krom_set_keyboard_press_callback(JsValueRef callee,
-                                 bool isConstructCall,
-                                 JsValueRef* arguments,
-                                 unsigned short argumentCount,
-                                 void* callbackState) {
-  keyboardPressFunction = arguments[1];
-  JsAddRef(keyboardPressFunction, nullptr);
-  return JS_INVALID_REFERENCE;
-}
-
-JsValueRef CALLBACK krom_set_mouse_down_callback(JsValueRef callee,
-                                                 bool isConstructCall,
-                                                 JsValueRef* arguments,
-                                                 unsigned short argumentCount,
-                                                 void* callbackState) {
-  mouseDownFunction = arguments[1];
-  JsAddRef(mouseDownFunction, nullptr);
-  return JS_INVALID_REFERENCE;
-}
-
-JsValueRef CALLBACK krom_set_mouse_up_callback(JsValueRef callee,
-                                               bool isConstructCall,
-                                               JsValueRef* arguments,
-                                               unsigned short argumentCount,
-                                               void* callbackState) {
-  mouseUpFunction = arguments[1];
-  JsAddRef(mouseUpFunction, nullptr);
-  return JS_INVALID_REFERENCE;
-}
-
-JsValueRef CALLBACK krom_set_mouse_move_callback(JsValueRef callee,
-                                                 bool isConstructCall,
-                                                 JsValueRef* arguments,
-                                                 unsigned short argumentCount,
-                                                 void* callbackState) {
-  mouseMoveFunction = arguments[1];
-  JsAddRef(mouseMoveFunction, nullptr);
-  return JS_INVALID_REFERENCE;
-}
-
-JsValueRef CALLBACK krom_set_mouse_wheel_callback(JsValueRef callee,
-                                                  bool isConstructCall,
-                                                  JsValueRef* arguments,
-                                                  unsigned short argumentCount,
-                                                  void* callbackState) {
-  mouseWheelFunction = arguments[1];
-  JsAddRef(mouseWheelFunction, nullptr);
-  return JS_INVALID_REFERENCE;
-}
-
-JsValueRef CALLBACK krom_set_pen_down_callback(JsValueRef callee,
-                                               bool isConstructCall,
-                                               JsValueRef* arguments,
-                                               unsigned short argumentCount,
-                                               void* callbackState) {
-  penDownFunction = arguments[1];
-  JsAddRef(penDownFunction, nullptr);
-  return JS_INVALID_REFERENCE;
-}
-
-JsValueRef CALLBACK krom_set_pen_up_callback(JsValueRef callee,
-                                             bool isConstructCall,
-                                             JsValueRef* arguments,
-                                             unsigned short argumentCount,
-                                             void* callbackState) {
-  penUpFunction = arguments[1];
-  JsAddRef(penUpFunction, nullptr);
-  return JS_INVALID_REFERENCE;
-}
-
-JsValueRef CALLBACK krom_set_pen_move_callback(JsValueRef callee,
-                                               bool isConstructCall,
-                                               JsValueRef* arguments,
-                                               unsigned short argumentCount,
-                                               void* callbackState) {
-  penMoveFunction = arguments[1];
-  JsAddRef(penMoveFunction, nullptr);
-  return JS_INVALID_REFERENCE;
-}
-
-JsValueRef CALLBACK krom_set_gamepad_axis_callback(JsValueRef callee,
-                                                   bool isConstructCall,
-                                                   JsValueRef* arguments,
-                                                   unsigned short argumentCount,
-                                                   void* callbackState) {
-  gamepadAxisFunction = arguments[1];
-  JsAddRef(gamepadAxisFunction, nullptr);
-  return JS_INVALID_REFERENCE;
-}
-
-JsValueRef CALLBACK
-krom_set_gamepad_button_callback(JsValueRef callee,
-                                 bool isConstructCall,
-                                 JsValueRef* arguments,
-                                 unsigned short argumentCount,
-                                 void* callbackState) {
-  gamepadButtonFunction = arguments[1];
-  JsAddRef(gamepadButtonFunction, nullptr);
-  return JS_INVALID_REFERENCE;
-}
-
-JsValueRef CALLBACK krom_lock_mouse(JsValueRef callee,
-                                    bool isConstructCall,
-                                    JsValueRef* arguments,
-                                    unsigned short argumentCount,
-                                    void* callbackState) {
-  kinc_mouse_lock(0);
-  return JS_INVALID_REFERENCE;
-}
-
-JsValueRef CALLBACK krom_unlock_mouse(JsValueRef callee,
-                                      bool isConstructCall,
-                                      JsValueRef* arguments,
-                                      unsigned short argumentCount,
-                                      void* callbackState) {
-  kinc_mouse_unlock();
-  return JS_INVALID_REFERENCE;
-}
-
-JsValueRef CALLBACK krom_can_lock_mouse(JsValueRef callee,
-                                        bool isConstructCall,
-                                        JsValueRef* arguments,
-                                        unsigned short argumentCount,
-                                        void* callbackState) {
-  JsValueRef value;
-  JsBoolToBoolean(kinc_mouse_can_lock(), &value);
-  return value;
-}
-
-JsValueRef CALLBACK krom_is_mouse_locked(JsValueRef callee,
-                                         bool isConstructCall,
-                                         JsValueRef* arguments,
-                                         unsigned short argumentCount,
-                                         void* callbackState) {
-  JsValueRef value;
-  JsBoolToBoolean(kinc_mouse_is_locked(), &value);
-  return value;
-}
-
-JsValueRef CALLBACK krom_set_mouse_position(JsValueRef callee,
-                                            bool isConstructCall,
-                                            JsValueRef* arguments,
-                                            unsigned short argumentCount,
-                                            void* callbackState) {
-  int windowId, x, y;
-  JsNumberToInt(arguments[1], &windowId);
-  JsNumberToInt(arguments[2], &x);
-  JsNumberToInt(arguments[3], &y);
-  kinc_mouse_set_position(windowId, x, y);
-  return JS_INVALID_REFERENCE;
-}
-
-JsValueRef CALLBACK krom_show_mouse(JsValueRef callee,
-                                    bool isConstructCall,
-                                    JsValueRef* arguments,
-                                    unsigned short argumentCount,
-                                    void* callbackState) {
-  bool value;
-  JsBooleanToBool(arguments[1], &value);
-  if (value) {
-    kinc_mouse_show();
-  } else {
-    kinc_mouse_hide();
-  }
-  return JS_INVALID_REFERENCE;
-}
-
-JsValueRef CALLBACK krom_set_audio_callback(JsValueRef callee,
-                                            bool isConstructCall,
-                                            JsValueRef* arguments,
-                                            unsigned short argumentCount,
-                                            void* callbackState) {
-  audioFunction = arguments[1];
-  JsAddRef(audioFunction, nullptr);
-  return JS_INVALID_REFERENCE;
-}
-
-JsValueRef CALLBACK krom_create_indexbuffer(JsValueRef callee,
-                                            bool isConstructCall,
-                                            JsValueRef* arguments,
-                                            unsigned short argumentCount,
-                                            void* callbackState) {
-  int count;
-  JsNumberToInt(arguments[1], &count);
-  JsValueRef ib;
-  kinc_g4_index_buffer_t* buffer =
-      (kinc_g4_index_buffer_t*)malloc(sizeof(kinc_g4_index_buffer_t));
-  kinc_g4_index_buffer_init(
-      buffer, count, KINC_G4_INDEX_BUFFER_FORMAT_32BIT, KINC_G4_USAGE_STATIC);
-  JsCreateExternalObject(buffer, nullptr, &ib);
-  return ib;
-}
-
-JsValueRef CALLBACK krom_delete_indexbuffer(JsValueRef callee,
-                                            bool isConstructCall,
-                                            JsValueRef* arguments,
-                                            unsigned short argumentCount,
-                                            void* callbackState) {
-  kinc_g4_index_buffer_t* buffer;
-  JsGetExternalData(arguments[1], (void**)&buffer);
-  kinc_g4_index_buffer_destroy(buffer);
-  free(buffer);
-  return JS_INVALID_REFERENCE;
-}
-
 JsValueRef CALLBACK krom_lock_index_buffer(JsValueRef callee,
                                            bool isConstructCall,
                                            JsValueRef* arguments,
