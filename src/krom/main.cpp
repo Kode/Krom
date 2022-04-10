@@ -440,7 +440,7 @@ static void krom_delete_indexbuffer(const FunctionCallbackInfo<Value> &args) {
 	free(buffer);
 }
 
-static void delete_index_buffer_data(void *data, size_t length, void *deleter_data) {}
+static void do_not_actually_delete(void *data, size_t length, void *deleter_data) {}
 
 static void krom_lock_index_buffer(const FunctionCallbackInfo<Value> &args) {
 	node::Environment *env = node::Environment::GetCurrent(args);
@@ -450,7 +450,7 @@ static void krom_lock_index_buffer(const FunctionCallbackInfo<Value> &args) {
 	int *indices = kinc_g4_index_buffer_lock(buffer);
 
 	std::shared_ptr<v8::BackingStore> store =
-	    v8::ArrayBuffer::NewBackingStore(indices, kinc_g4_index_buffer_count(buffer) * sizeof(int), delete_index_buffer_data, nullptr);
+	    v8::ArrayBuffer::NewBackingStore(indices, kinc_g4_index_buffer_count(buffer) * sizeof(int), do_not_actually_delete, nullptr);
 	Local<ArrayBuffer> abuffer = ArrayBuffer::New(env->isolate(), store);
 
 	args.GetReturnValue().Set(Uint32Array::New(abuffer, 0, kinc_g4_index_buffer_count(buffer)));
@@ -589,281 +589,221 @@ static void krom_create_vertexbuffer(const FunctionCallbackInfo<Value> &args) {
 }
 
 static void krom_delete_vertexbuffer(const FunctionCallbackInfo<Value> &args) {
-	node::Environment *env = node::Environment::GetCurrent(args);
-
 	Local<External> field = Local<External>::Cast(args[0].As<Object>()->GetInternalField(0));
 	kinc_g4_vertex_buffer_t *buffer = (kinc_g4_vertex_buffer_t *)field->Value();
 	kinc_g4_vertex_buffer_destroy(buffer);
 	free(buffer);
 }
+
+static void krom_lock_vertex_buffer(const FunctionCallbackInfo<Value> &args) {
+	node::Environment *env = node::Environment::GetCurrent(args);
+
+	Local<External> field = Local<External>::Cast(args[0].As<Object>()->GetInternalField(0));
+	kinc_g4_vertex_buffer_t *buffer = (kinc_g4_vertex_buffer_t *)field->Value();
+	int start = args[1].As<Int32>()->Value();
+	int count = args[2].As<Int32>()->Value();
+	float *vertices = kinc_g4_vertex_buffer_lock(buffer, start, count);
+
+	std::shared_ptr<v8::BackingStore> store =
+	    v8::ArrayBuffer::NewBackingStore(vertices, count * kinc_g4_vertex_buffer_stride(buffer), do_not_actually_delete, nullptr);
+	Local<ArrayBuffer> abuffer = ArrayBuffer::New(env->isolate(), store);
+
+	args.GetReturnValue().Set(abuffer);
+}
+
+static void krom_unlock_vertex_buffer(const FunctionCallbackInfo<Value> &args) {
+	Local<External> field = Local<External>::Cast(args[0].As<Object>()->GetInternalField(0));
+	int count = args[1].As<Int32>()->Value();
+	kinc_g4_vertex_buffer_t *buffer = (kinc_g4_vertex_buffer_t *)field->Value();
+	kinc_g4_vertex_buffer_unlock(buffer, count);
+}
+
+static void krom_set_vertexbuffer(const FunctionCallbackInfo<Value> &args) {
+	Local<External> field = Local<External>::Cast(args[0].As<Object>()->GetInternalField(0));
+	kinc_g4_vertex_buffer_t *buffer = (kinc_g4_vertex_buffer_t *)field->Value();
+	kinc_g4_set_vertex_buffer(buffer);
+}
+
+static void krom_set_vertexbuffers(const FunctionCallbackInfo<Value> &args) {
+	node::Environment *env = node::Environment::GetCurrent(args);
+
+	kinc_g4_vertex_buffer_t *vertexBuffers[8] = {nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr};
+	Local<Object> jsarray = args[0].As<Object>();
+	int32_t length =
+	    jsarray->Get(env->isolate()->GetCurrentContext(), String::NewFromUtf8(env->isolate(), "length").ToLocalChecked()).ToLocalChecked().As<Int32>()->Value();
+	for (int i = 0; i < length; ++i) {
+		Local<Object> bufferobj = jsarray->Get(env->isolate()->GetCurrentContext(), i)
+		                              .ToLocalChecked()
+		                              .As<Object>()
+		                              ->Get(env->isolate()->GetCurrentContext(), String::NewFromUtf8(env->isolate(), "buffer").ToLocalChecked())
+		                              .ToLocalChecked()
+		                              .As<Object>();
+		Local<External> bufferfield = Local<External>::Cast(bufferobj->GetInternalField(0));
+		vertexBuffers[i] = (kinc_g4_vertex_buffer_t *)bufferfield->Value();
+	}
+	kinc_g4_set_vertex_buffers(vertexBuffers, length);
+}
+
+static void krom_draw_indexed_vertices(const FunctionCallbackInfo<Value> &args) {
+	int start = args[0].As<Int32>()->Value();
+	int count = args[1].As<Int32>()->Value();
+	if (count < 0) {
+		kinc_g4_draw_indexed_vertices();
+	}
+	else {
+		kinc_g4_draw_indexed_vertices_from_to(start, count);
+	}
+}
+
+static void krom_draw_indexed_vertices_instanced(const FunctionCallbackInfo<Value> &args) {
+	int instanceCount = args[0].As<Int32>()->Value();
+	int start = args[1].As<Int32>()->Value();
+	int count = args[2].As<Int32>()->Value();
+	if (count < 0) {
+		kinc_g4_draw_indexed_vertices_instanced(instanceCount);
+	}
+	else {
+		kinc_g4_draw_indexed_vertices_instanced_from_to(instanceCount, start, count);
+	}
+}
+
+static std::string replace(std::string str, char a, char b) {
+	for (size_t i = 0; i < str.size(); ++i) {
+		if (str[i] == a) str[i] = b;
+	}
+	return str;
+}
+
+static void krom_create_vertex_shader(const FunctionCallbackInfo<Value> &args) {
+	node::Environment *env = node::Environment::GetCurrent(args);
+
+	Local<ArrayBuffer> buffer = Local<ArrayBuffer>::Cast(args[0]);
+	auto store = buffer->GetBackingStore();
+	kinc_g4_shader_t *shader = (kinc_g4_shader_t *)malloc(sizeof(kinc_g4_shader_t));
+	kinc_g4_shader_init(shader, store->Data(), store->ByteLength(), KINC_G4_SHADER_TYPE_VERTEX);
+
+	Local<ObjectTemplate> templ = ObjectTemplate::New(env->isolate());
+	templ->SetInternalFieldCount(1);
+
+	Local<Object> obj = templ->NewInstance(env->isolate()->GetCurrentContext()).ToLocalChecked();
+	obj->SetInternalField(0, External::New(env->isolate(), shader));
+	obj->Set(env->isolate()->GetCurrentContext(), String::NewFromUtf8(env->isolate(), "name").ToLocalChecked(), args[1]);
+	args.GetReturnValue().Set(obj);
+}
+
+static void krom_create_vertex_shader_from_source(const FunctionCallbackInfo<Value> &args) {
+	node::Environment *env = node::Environment::GetCurrent(args);
+
+	String::Utf8Value utf8_value(env->isolate(), args[0]);
+	char *source = new char[strlen(*utf8_value) + 1];
+	strcpy(source, *utf8_value);
+	kinc_g4_shader_t *shader = (kinc_g4_shader_t *)malloc(sizeof(kinc_g4_shader_t));
+	kinc_g4_shader_init_from_source(shader, source, KINC_G4_SHADER_TYPE_VERTEX);
+
+	Local<ObjectTemplate> templ = ObjectTemplate::New(env->isolate());
+	templ->SetInternalFieldCount(1);
+
+	Local<Object> obj = templ->NewInstance(env->isolate()->GetCurrentContext()).ToLocalChecked();
+	obj->SetInternalField(0, External::New(env->isolate(), shader));
+	Local<String> name = String::NewFromUtf8(env->isolate(), "").ToLocalChecked();
+	obj->Set(env->isolate()->GetCurrentContext(), String::NewFromUtf8(env->isolate(), "name").ToLocalChecked(), name);
+	args.GetReturnValue().Set(obj);
+}
+
+static void krom_create_fragment_shader(const FunctionCallbackInfo<Value> &args) {
+	node::Environment *env = node::Environment::GetCurrent(args);
+
+	Local<ArrayBuffer> buffer = Local<ArrayBuffer>::Cast(args[0]);
+	auto store = buffer->GetBackingStore();
+	kinc_g4_shader_t *shader = (kinc_g4_shader_t *)malloc(sizeof(kinc_g4_shader_t));
+	kinc_g4_shader_init(shader, store->Data(), store->ByteLength(), KINC_G4_SHADER_TYPE_FRAGMENT);
+
+	Local<ObjectTemplate> templ = ObjectTemplate::New(env->isolate());
+	templ->SetInternalFieldCount(1);
+
+	Local<Object> obj = templ->NewInstance(env->isolate()->GetCurrentContext()).ToLocalChecked();
+	obj->SetInternalField(0, External::New(env->isolate(), shader));
+	obj->Set(env->isolate()->GetCurrentContext(), String::NewFromUtf8(env->isolate(), "name").ToLocalChecked(), args[1]);
+	args.GetReturnValue().Set(obj);
+}
+
+static void krom_create_fragment_shader_from_source(const FunctionCallbackInfo<Value> &args) {
+	node::Environment *env = node::Environment::GetCurrent(args);
+
+	String::Utf8Value utf8_value(env->isolate(), args[0]);
+	char *source = new char[strlen(*utf8_value) + 1];
+	strcpy(source, *utf8_value);
+	kinc_g4_shader_t *shader = (kinc_g4_shader_t *)malloc(sizeof(kinc_g4_shader_t));
+	kinc_g4_shader_init_from_source(shader, source, KINC_G4_SHADER_TYPE_FRAGMENT);
+
+	Local<ObjectTemplate> templ = ObjectTemplate::New(env->isolate());
+	templ->SetInternalFieldCount(1);
+
+	Local<Object> obj = templ->NewInstance(env->isolate()->GetCurrentContext()).ToLocalChecked();
+	obj->SetInternalField(0, External::New(env->isolate(), shader));
+	Local<String> name = String::NewFromUtf8(env->isolate(), "").ToLocalChecked();
+	obj->Set(env->isolate()->GetCurrentContext(), String::NewFromUtf8(env->isolate(), "name").ToLocalChecked(), name);
+	args.GetReturnValue().Set(obj);
+}
+
+static void krom_create_geometry_shader(const FunctionCallbackInfo<Value> &args) {
+	node::Environment *env = node::Environment::GetCurrent(args);
+
+	Local<ArrayBuffer> buffer = Local<ArrayBuffer>::Cast(args[0]);
+	auto store = buffer->GetBackingStore();
+	kinc_g4_shader_t *shader = (kinc_g4_shader_t *)malloc(sizeof(kinc_g4_shader_t));
+	kinc_g4_shader_init(shader, store->Data(), store->ByteLength(), KINC_G4_SHADER_TYPE_GEOMETRY);
+
+	Local<ObjectTemplate> templ = ObjectTemplate::New(env->isolate());
+	templ->SetInternalFieldCount(1);
+
+	Local<Object> obj = templ->NewInstance(env->isolate()->GetCurrentContext()).ToLocalChecked();
+	obj->SetInternalField(0, External::New(env->isolate(), shader));
+	obj->Set(env->isolate()->GetCurrentContext(), String::NewFromUtf8(env->isolate(), "name").ToLocalChecked(), args[1]);
+	args.GetReturnValue().Set(obj);
+}
+
+static void krom_create_tessellation_control_shader(const FunctionCallbackInfo<Value> &args) {
+	node::Environment *env = node::Environment::GetCurrent(args);
+
+	Local<ArrayBuffer> buffer = Local<ArrayBuffer>::Cast(args[0]);
+	auto store = buffer->GetBackingStore();
+	kinc_g4_shader_t *shader = (kinc_g4_shader_t *)malloc(sizeof(kinc_g4_shader_t));
+	kinc_g4_shader_init(shader, store->Data(), store->ByteLength(), KINC_G4_SHADER_TYPE_TESSELLATION_CONTROL);
+
+	Local<ObjectTemplate> templ = ObjectTemplate::New(env->isolate());
+	templ->SetInternalFieldCount(1);
+
+	Local<Object> obj = templ->NewInstance(env->isolate()->GetCurrentContext()).ToLocalChecked();
+	obj->SetInternalField(0, External::New(env->isolate(), shader));
+	obj->Set(env->isolate()->GetCurrentContext(), String::NewFromUtf8(env->isolate(), "name").ToLocalChecked(), args[1]);
+	args.GetReturnValue().Set(obj);
+}
+
+static void krom_create_tessellation_evaluation_shader(const FunctionCallbackInfo<Value> &args) {
+	node::Environment *env = node::Environment::GetCurrent(args);
+
+	Local<ArrayBuffer> buffer = Local<ArrayBuffer>::Cast(args[0]);
+	auto store = buffer->GetBackingStore();
+	kinc_g4_shader_t *shader = (kinc_g4_shader_t *)malloc(sizeof(kinc_g4_shader_t));
+	kinc_g4_shader_init(shader, store->Data(), store->ByteLength(), KINC_G4_SHADER_TYPE_TESSELLATION_EVALUATION);
+
+	Local<ObjectTemplate> templ = ObjectTemplate::New(env->isolate());
+	templ->SetInternalFieldCount(1);
+
+	Local<Object> obj = templ->NewInstance(env->isolate()->GetCurrentContext()).ToLocalChecked();
+	obj->SetInternalField(0, External::New(env->isolate(), shader));
+	obj->Set(env->isolate()->GetCurrentContext(), String::NewFromUtf8(env->isolate(), "name").ToLocalChecked(), args[1]);
+	args.GetReturnValue().Set(obj);
+}
+
+static void krom_delete_shader(const FunctionCallbackInfo<Value> &args) {
+	Local<External> field = Local<External>::Cast(args[0].As<Object>()->GetInternalField(0));
+	kinc_g4_shader_t *shader = (kinc_g4_shader_t *)field->Value();
+	kinc_g4_shader_destroy(shader);
+	free(shader);
+}
 #if 0
-JsValueRef CALLBACK krom_lock_vertex_buffer(JsValueRef callee,
-                                            bool isConstructCall,
-                                            JsValueRef* arguments,
-                                            unsigned short argumentCount,
-                                            void* callbackState) {
-  kinc_g4_vertex_buffer_t* buffer;
-  JsGetExternalData(arguments[1], (void**)&buffer);
-  int start, count;
-  JsNumberToInt(arguments[2], &start);
-  JsNumberToInt(arguments[3], &count);
-
-  float* vertices = kinc_g4_vertex_buffer_lock(buffer, start, count);
-  JsValueRef value;
-  JsCreateExternalArrayBuffer(vertices,
-                              count * kinc_g4_vertex_buffer_stride(buffer),
-                              nullptr,
-                              nullptr,
-                              &value);
-  return value;
-}
-
-JsValueRef CALLBACK krom_unlock_vertex_buffer(JsValueRef callee,
-                                              bool isConstructCall,
-                                              JsValueRef* arguments,
-                                              unsigned short argumentCount,
-                                              void* callbackState) {
-  kinc_g4_vertex_buffer_t* buffer;
-  JsGetExternalData(arguments[1], (void**)&buffer);
-  int count;
-  JsNumberToInt(arguments[2], &count);
-
-  kinc_g4_vertex_buffer_unlock(buffer, count);
-  return JS_INVALID_REFERENCE;
-}
-
-JsValueRef CALLBACK krom_set_vertexbuffer(JsValueRef callee,
-                                          bool isConstructCall,
-                                          JsValueRef* arguments,
-                                          unsigned short argumentCount,
-                                          void* callbackState) {
-  kinc_g4_vertex_buffer_t* buffer;
-  JsGetExternalData(arguments[1], (void**)&buffer);
-  kinc_g4_set_vertex_buffer(buffer);
-  return JS_INVALID_REFERENCE;
-}
-
-JsValueRef CALLBACK krom_set_vertexbuffers(JsValueRef callee,
-                                           bool isConstructCall,
-                                           JsValueRef* arguments,
-                                           unsigned short argumentCount,
-                                           void* callbackState) {
-  kinc_g4_vertex_buffer_t* vertexBuffers[8] = {
-      nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr};
-  JsValueRef lengthObj;
-  JsGetProperty(arguments[1], getId("length"), &lengthObj);
-  int length;
-  JsNumberToInt(lengthObj, &length);
-  for (int i = 0; i < length; ++i) {
-    JsValueRef index, obj, bufObj;
-    JsIntToNumber(i, &index);
-    JsGetIndexedProperty(arguments[1], index, &obj);
-    JsGetProperty(obj, getId("buffer"), &bufObj);
-    kinc_g4_vertex_buffer_t* buffer;
-    JsGetExternalData(bufObj, (void**)&buffer);
-    vertexBuffers[i] = buffer;
-  }
-  kinc_g4_set_vertex_buffers(vertexBuffers, length);
-  return JS_INVALID_REFERENCE;
-}
-
-JsValueRef CALLBACK krom_draw_indexed_vertices(JsValueRef callee,
-                                               bool isConstructCall,
-                                               JsValueRef* arguments,
-                                               unsigned short argumentCount,
-                                               void* callbackState) {
-  int start, count;
-  JsNumberToInt(arguments[1], &start);
-  JsNumberToInt(arguments[2], &count);
-  if (count < 0) {
-    kinc_g4_draw_indexed_vertices();
-  } else {
-    kinc_g4_draw_indexed_vertices_from_to(start, count);
-  }
-  return JS_INVALID_REFERENCE;
-}
-
-JsValueRef CALLBACK
-krom_draw_indexed_vertices_instanced(JsValueRef callee,
-                                     bool isConstructCall,
-                                     JsValueRef* arguments,
-                                     unsigned short argumentCount,
-                                     void* callbackState) {
-  int instanceCount, start, count;
-  JsNumberToInt(arguments[1], &instanceCount);
-  JsNumberToInt(arguments[2], &start);
-  JsNumberToInt(arguments[3], &count);
-  if (count < 0) {
-    kinc_g4_draw_indexed_vertices_instanced(instanceCount);
-  } else {
-    kinc_g4_draw_indexed_vertices_instanced_from_to(
-        instanceCount, start, count);
-  }
-  return JS_INVALID_REFERENCE;
-}
-
-std::string replace(std::string str, char a, char b) {
-  for (size_t i = 0; i < str.size(); ++i) {
-    if (str[i] == a) str[i] = b;
-  }
-  return str;
-}
-
-JsValueRef CALLBACK krom_create_vertex_shader(JsValueRef callee,
-                                              bool isConstructCall,
-                                              JsValueRef* arguments,
-                                              unsigned short argumentCount,
-                                              void* callbackState) {
-  Kore::u8* content;
-  unsigned bufferLength;
-  JsGetArrayBufferStorage(arguments[1], &content, &bufferLength);
-  kinc_g4_shader_t* shader =
-      (kinc_g4_shader_t*)malloc(sizeof(kinc_g4_shader_t));
-  kinc_g4_shader_init(
-      shader, content, bufferLength, KINC_G4_SHADER_TYPE_VERTEX);
-
-  JsValueRef value;
-  JsCreateExternalObject(shader, nullptr, &value);
-  JsSetProperty(value, getId("name"), arguments[2], false);
-  return value;
-}
-
-JsValueRef CALLBACK
-krom_create_vertex_shader_from_source(JsValueRef callee,
-                                      bool isConstructCall,
-                                      JsValueRef* arguments,
-                                      unsigned short argumentCount,
-                                      void* callbackState) {
-  size_t length;
-  JsCopyString(arguments[1], tempStringVS, tempStringSize, &length);
-  tempStringVS[length] = 0;
-  kinc_g4_shader_t* shader =
-      (kinc_g4_shader_t*)malloc(sizeof(kinc_g4_shader_t));
-  kinc_g4_shader_init_from_source(
-      shader, tempStringVS, KINC_G4_SHADER_TYPE_VERTEX);
-
-  JsValueRef value;
-  JsCreateExternalObject(shader, nullptr, &value);
-  JsValueRef string;
-  JsCreateString("", 0, &string);
-  JsSetProperty(value, getId("name"), string, false);
-  return value;
-}
-
-JsValueRef CALLBACK krom_create_fragment_shader(JsValueRef callee,
-                                                bool isConstructCall,
-                                                JsValueRef* arguments,
-                                                unsigned short argumentCount,
-                                                void* callbackState) {
-  Kore::u8* content;
-  unsigned bufferLength;
-  JsGetArrayBufferStorage(arguments[1], &content, &bufferLength);
-  kinc_g4_shader_t* shader =
-      (kinc_g4_shader_t*)malloc(sizeof(kinc_g4_shader_t));
-  kinc_g4_shader_init(
-      shader, content, bufferLength, KINC_G4_SHADER_TYPE_FRAGMENT);
-
-  JsValueRef value;
-  JsCreateExternalObject(shader, nullptr, &value);
-  JsSetProperty(value, getId("name"), arguments[2], false);
-  return value;
-}
-
-JsValueRef CALLBACK
-krom_create_fragment_shader_from_source(JsValueRef callee,
-                                        bool isConstructCall,
-                                        JsValueRef* arguments,
-                                        unsigned short argumentCount,
-                                        void* callbackState) {
-  size_t length;
-  JsCopyString(arguments[1], tempStringFS, tempStringSize, &length);
-  tempStringFS[length] = 0;
-  kinc_g4_shader_t* shader =
-      (kinc_g4_shader_t*)malloc(sizeof(kinc_g4_shader_t));
-  kinc_g4_shader_init_from_source(
-      shader, tempStringVS, KINC_G4_SHADER_TYPE_FRAGMENT);
-
-  JsValueRef value;
-  JsCreateExternalObject(shader, nullptr, &value);
-  JsValueRef string;
-  JsCreateString("", 0, &string);
-  JsSetProperty(value, getId("name"), string, false);
-  return value;
-}
-
-JsValueRef CALLBACK krom_create_geometry_shader(JsValueRef callee,
-                                                bool isConstructCall,
-                                                JsValueRef* arguments,
-                                                unsigned short argumentCount,
-                                                void* callbackState) {
-  Kore::u8* content;
-  unsigned bufferLength;
-  JsGetArrayBufferStorage(arguments[1], &content, &bufferLength);
-  kinc_g4_shader_t* shader =
-      (kinc_g4_shader_t*)malloc(sizeof(kinc_g4_shader_t));
-  kinc_g4_shader_init(
-      shader, content, bufferLength, KINC_G4_SHADER_TYPE_GEOMETRY);
-
-  JsValueRef value;
-  JsCreateExternalObject(shader, nullptr, &value);
-  JsSetProperty(value, getId("name"), arguments[2], false);
-  return value;
-}
-
-JsValueRef CALLBACK
-krom_create_tessellation_control_shader(JsValueRef callee,
-                                        bool isConstructCall,
-                                        JsValueRef* arguments,
-                                        unsigned short argumentCount,
-                                        void* callbackState) {
-  Kore::u8* content;
-  unsigned bufferLength;
-  JsGetArrayBufferStorage(arguments[1], &content, &bufferLength);
-  kinc_g4_shader_t* shader =
-      (kinc_g4_shader_t*)malloc(sizeof(kinc_g4_shader_t));
-  kinc_g4_shader_init(
-      shader, content, bufferLength, KINC_G4_SHADER_TYPE_TESSELLATION_CONTROL);
-
-  JsValueRef value;
-  JsCreateExternalObject(shader, nullptr, &value);
-  JsSetProperty(value, getId("name"), arguments[2], false);
-  return value;
-}
-
-JsValueRef CALLBACK
-krom_create_tessellation_evaluation_shader(JsValueRef callee,
-                                           bool isConstructCall,
-                                           JsValueRef* arguments,
-                                           unsigned short argumentCount,
-                                           void* callbackState) {
-  Kore::u8* content;
-  unsigned bufferLength;
-  JsGetArrayBufferStorage(arguments[1], &content, &bufferLength);
-  kinc_g4_shader_t* shader =
-      (kinc_g4_shader_t*)malloc(sizeof(kinc_g4_shader_t));
-  kinc_g4_shader_init(shader,
-                      content,
-                      bufferLength,
-                      KINC_G4_SHADER_TYPE_TESSELLATION_EVALUATION);
-
-  JsValueRef value;
-  JsCreateExternalObject(shader, nullptr, &value);
-  JsSetProperty(value, getId("name"), arguments[2], false);
-  return value;
-}
-
-JsValueRef CALLBACK krom_delete_shader(JsValueRef callee,
-                                       bool isConstructCall,
-                                       JsValueRef* arguments,
-                                       unsigned short argumentCount,
-                                       void* callbackState) {
-  kinc_g4_shader_t* shader;
-  JsGetExternalData(arguments[1], (void**)&shader);
-  kinc_g4_shader_destroy(shader);
-  free(shader);
-  return JS_INVALID_REFERENCE;
-}
-
 JsValueRef CALLBACK krom_create_pipeline(JsValueRef callee,
                                          bool isConstructCall,
                                          JsValueRef* arguments,
