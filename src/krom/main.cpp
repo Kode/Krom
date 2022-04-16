@@ -803,778 +803,621 @@ static void krom_delete_shader(const FunctionCallbackInfo<Value> &args) {
 	kinc_g4_shader_destroy(shader);
 	free(shader);
 }
-#if 0
-JsValueRef CALLBACK krom_create_pipeline(JsValueRef callee,
-                                         bool isConstructCall,
-                                         JsValueRef* arguments,
-                                         unsigned short argumentCount,
-                                         void* callbackState) {
-  kinc_g4_pipeline_t* pipeline =
-      (kinc_g4_pipeline_t*)malloc(sizeof(kinc_g4_pipeline_t));
-  kinc_g4_pipeline_init(pipeline);
-  JsValueRef pipelineObj;
-  JsCreateExternalObject(pipeline, nullptr, &pipelineObj);
-  return pipelineObj;
+
+static void krom_create_pipeline(const FunctionCallbackInfo<Value> &args) {
+	node::Environment *env = node::Environment::GetCurrent(args);
+
+	kinc_g4_pipeline_t *pipeline = (kinc_g4_pipeline_t *)malloc(sizeof(kinc_g4_pipeline_t));
+	kinc_g4_pipeline_init(pipeline);
+
+	Local<ObjectTemplate> templ = ObjectTemplate::New(env->isolate());
+	templ->SetInternalFieldCount(8);
+
+	Local<Object> obj = templ->NewInstance(env->isolate()->GetCurrentContext()).ToLocalChecked();
+	obj->SetInternalField(0, External::New(env->isolate(), pipeline));
+	args.GetReturnValue().Set(obj);
 }
 
-JsValueRef CALLBACK krom_delete_pipeline(JsValueRef callee,
-                                         bool isConstructCall,
-                                         JsValueRef* arguments,
-                                         unsigned short argumentCount,
-                                         void* callbackState) {
-  kinc_g4_pipeline_t* pipeline;
-  JsGetExternalData(arguments[1], (void**)&pipeline);
-  kinc_g4_pipeline_destroy(pipeline);
-  free(pipeline);
-  return JS_INVALID_REFERENCE;
+static void krom_delete_pipeline(const FunctionCallbackInfo<Value> &args) {
+	Local<External> field = Local<External>::Cast(args[0].As<Object>()->GetInternalField(0));
+	kinc_g4_pipeline_t *pipeline = (kinc_g4_pipeline_t *)field->Value();
+	kinc_g4_pipeline_destroy(pipeline);
+	free(pipeline);
 }
 
-void recompilePipeline(JsValueRef projobj) {
-  JsValueRef zero, one, two, three, four, five, six, seven;
-  JsIntToNumber(0, &zero);
-  JsIntToNumber(1, &one);
-  JsIntToNumber(2, &two);
-  JsIntToNumber(3, &three);
-  JsIntToNumber(4, &four);
-  JsIntToNumber(5, &five);
-  JsIntToNumber(6, &six);
-  JsIntToNumber(7, &seven);
+static void recompilePipeline(const FunctionCallbackInfo<Value> &args, Local<Object> projobj) {
+	node::Environment *env = node::Environment::GetCurrent(args);
 
-  JsValueRef structsfield;
-  JsGetIndexedProperty(projobj, one, &structsfield);
-  kinc_g4_vertex_structure_t** structures;
-  JsGetExternalData(structsfield, (void**)&structures);
+	Local<External> structsfield = Local<External>::Cast(projobj->GetInternalField(1));
+	kinc_g4_vertex_structure_t **structures = (kinc_g4_vertex_structure_t **)structsfield->Value();
 
-  JsValueRef sizefield;
-  JsGetIndexedProperty(projobj, two, &sizefield);
-  int size;
-  JsNumberToInt(sizefield, &size);
+	Local<External> sizefield = Local<External>::Cast(projobj->GetInternalField(2));
+	int32_t size = sizefield.As<Int32>()->Value();
 
-  JsValueRef vsfield;
-  JsGetIndexedProperty(projobj, three, &vsfield);
-  kinc_g4_shader_t* vs;
-  JsGetExternalData(vsfield, (void**)&vs);
+	Local<External> vsfield = Local<External>::Cast(projobj->GetInternalField(3));
+	kinc_g4_shader_t *vs = (kinc_g4_shader_t *)vsfield->Value();
 
-  JsValueRef fsfield;
-  JsGetIndexedProperty(projobj, four, &fsfield);
-  kinc_g4_shader_t* fs;
-  JsGetExternalData(fsfield, (void**)&fs);
+	Local<External> fsfield = Local<External>::Cast(projobj->GetInternalField(4));
+	kinc_g4_shader_t *fs = (kinc_g4_shader_t *)fsfield->Value();
 
-  kinc_g4_pipeline_t* pipeline =
-      (kinc_g4_pipeline_t*)malloc(sizeof(kinc_g4_pipeline_t));
-  pipeline->vertex_shader = vs;
-  pipeline->fragment_shader = fs;
+	kinc_g4_pipeline_t *pipeline = (kinc_g4_pipeline_t *)malloc(sizeof(kinc_g4_pipeline_t));
+	kinc_g4_pipeline_init(pipeline);
+	pipeline->vertex_shader = vs;
+	pipeline->fragment_shader = fs;
 
-  JsValueRef gsfield;
-  JsGetIndexedProperty(projobj, five, &gsfield);
-  JsValueType type;
-  JsGetValueType(gsfield, &type);
-  if (type == JsUndefined && type != JsNull) {
-    kinc_g4_shader_t* gs;
-    JsGetExternalData(gsfield, (void**)&gs);
-    pipeline->geometry_shader = gs;
-  }
+	Local<External> gsfield = Local<External>::Cast(projobj->GetInternalField(5));
+	if (!gsfield->IsNull() && !gsfield->IsUndefined()) {
+		kinc_g4_shader_t *gs = (kinc_g4_shader_t *)gsfield->Value();
+		pipeline->geometry_shader = gs;
+	}
 
-  JsValueRef tcsfield;
-  JsGetIndexedProperty(projobj, six, &tcsfield);
-  JsGetValueType(tcsfield, &type);
-  if (type == JsUndefined && type != JsNull) {
-    kinc_g4_shader_t* tcs;
-    JsGetExternalData(tcsfield, (void**)&tcs);
-    pipeline->tessellation_control_shader = tcs;
-  }
+	Local<External> tcsfield = Local<External>::Cast(projobj->GetInternalField(6));
+	if (!tcsfield->IsNull() && !tcsfield->IsUndefined()) {
+		kinc_g4_shader_t *tcs = (kinc_g4_shader_t *)tcsfield->Value();
+		pipeline->tessellation_control_shader = tcs;
+	}
 
-  JsValueRef tesfield;
-  JsGetIndexedProperty(projobj, six, &tesfield);
-  JsGetValueType(tesfield, &type);
-  if (type == JsUndefined && type != JsNull) {
-    kinc_g4_shader_t* tes;
-    JsGetExternalData(tesfield, (void**)&tes);
-    pipeline->tessellation_evaluation_shader = tes;
-  }
+	Local<External> tesfield = Local<External>::Cast(projobj->GetInternalField(7));
+	if (!tesfield->IsNull() && !tesfield->IsUndefined()) {
+		kinc_g4_shader_t *tes = (kinc_g4_shader_t *)tesfield->Value();
+		pipeline->tessellation_evaluation_shader = tes;
+	}
 
-  for (int i = 0; i < size; ++i) {
-    pipeline->input_layout[i] = structures[i];
-  }
-  pipeline->input_layout[size] = nullptr;
+	for (int i = 0; i < size; ++i) {
+		pipeline->input_layout[i] = structures[i];
+	}
+	pipeline->input_layout[size] = nullptr;
 
-  kinc_g4_pipeline_compile(pipeline);
+	kinc_g4_pipeline_compile(pipeline);
 
-  JsValueRef pipelineObj;
-  JsCreateExternalObject(pipeline, nullptr, &pipelineObj);
-
-  JsSetIndexedProperty(projobj, zero, pipelineObj);
+	projobj->SetInternalField(0, External::New(env->isolate(), pipeline));
 }
 
-#define getPipeInt(name)                                                                                                                                       \
-	JsValueRef name##Obj;                                                                                                                                      \
-	int name;                                                                                                                                                  \
-	JsGetProperty(arguments[12], getId(#name), &name##Obj);                                                                                                    \
-	JsNumberToInt(name##Obj, &name)
+static void krom_compile_pipeline(const FunctionCallbackInfo<Value> &args) {
+	node::Environment *env = node::Environment::GetCurrent(args);
 
-#define getPipeBool(name)                                                                                                                                      \
-	JsValueRef name##Obj;                                                                                                                                      \
-	bool name;                                                                                                                                                 \
-	JsGetProperty(arguments[12], getId(#name), &name##Obj);                                                                                                    \
-	JsBooleanToBool(name##Obj, &name)
+	Local<Object> progobj = args[0].As<Object>();
 
-JsValueRef CALLBACK krom_compile_pipeline(JsValueRef callee,
-                                          bool isConstructCall,
-                                          JsValueRef* arguments,
-                                          unsigned short argumentCount,
-                                          void* callbackState) {
-  JsValueRef progobj = arguments[1];
+	Local<External> progfield = Local<External>::Cast(progobj->GetInternalField(0));
+	kinc_g4_pipeline_t *pipeline = (kinc_g4_pipeline_t *)progfield->Value();
 
-  JsValueRef one;
-  JsIntToNumber(1, &one);
+	kinc_g4_vertex_structure_t s0, s1, s2, s3;
+	kinc_g4_vertex_structure_t *structures[4] = {&s0, &s1, &s2, &s3};
 
-  kinc_g4_pipeline_t* pipeline;
-  JsGetExternalData(progobj, (void**)&pipeline);
+	int32_t size = args[5].As<Int32>()->Value();
+	for (int32_t i1 = 0; i1 < size; ++i1) {
+		Local<Object> jsstructure = args[i1 + 1].As<Object>();
+		structures[i1]->instanced = jsstructure->Get(env->isolate()->GetCurrentContext(), String::NewFromUtf8(env->isolate(), "instanced").ToLocalChecked())
+		                                .ToLocalChecked()
+		                                .As<Boolean>()
+		                                ->Value();
+		Local<Object> elements = jsstructure->Get(env->isolate()->GetCurrentContext(), String::NewFromUtf8(env->isolate(), "elements").ToLocalChecked())
+		                             .ToLocalChecked()
+		                             .As<Object>();
+		int32_t length = elements->Get(env->isolate()->GetCurrentContext(), String::NewFromUtf8(env->isolate(), "length").ToLocalChecked())
+		                     .ToLocalChecked()
+		                     .As<Int32>()
+		                     ->Value();
+		for (int32_t i2 = 0; i2 < length; ++i2) {
+			Local<Object> element = elements->Get(env->isolate()->GetCurrentContext(), i2).ToLocalChecked().As<Object>();
+			Local<Value> str = element->Get(env->isolate()->GetCurrentContext(), String::NewFromUtf8(env->isolate(), "name").ToLocalChecked()).ToLocalChecked();
+			String::Utf8Value utf8_value(env->isolate(), str);
+			int32_t data = element->Get(env->isolate()->GetCurrentContext(), String::NewFromUtf8(env->isolate(), "data").ToLocalChecked())
+			                   .ToLocalChecked()
+			                   .As<Int32>()
+			                   ->Value();
+			char *name = new char[256]; // TODO
+			strcpy(name, *utf8_value);
+			kinc_g4_vertex_structure_add(structures[i1], name, (kinc_g4_vertex_data_t)data);
+		}
+	}
 
-  kinc_g4_vertex_structure_t s0, s1, s2, s3;
-  kinc_g4_vertex_structure_init(&s0);
-  kinc_g4_vertex_structure_init(&s1);
-  kinc_g4_vertex_structure_init(&s2);
-  kinc_g4_vertex_structure_init(&s3);
-  kinc_g4_vertex_structure_t* structures[4] = {&s0, &s1, &s2, &s3};
+	progobj->SetInternalField(1, External::New(env->isolate(), structures));
+	progobj->SetInternalField(2, External::New(env->isolate(), &size));
 
-  int size;
-  JsNumberToInt(arguments[6], &size);
-  for (int i1 = 0; i1 < size; ++i1) {
-    JsValueRef jsstructure = arguments[i1 + 2];
+	Local<External> vsfield = Local<External>::Cast(args[6].As<Object>()->GetInternalField(0));
+	kinc_g4_shader_t *vertexShader = (kinc_g4_shader_t *)vsfield->Value();
+	progobj->SetInternalField(3, External::New(env->isolate(), vertexShader));
+	progobj->Set(env->isolate()->GetCurrentContext(), String::NewFromUtf8(env->isolate(), "vsname").ToLocalChecked(),
+	             args[6].As<Object>()->Get(env->isolate()->GetCurrentContext(), String::NewFromUtf8(env->isolate(), "name").ToLocalChecked()).ToLocalChecked());
 
-    JsValueRef instancedObj;
-    JsGetProperty(jsstructure, getId("instanced"), &instancedObj);
-    bool instanced;
-    JsBooleanToBool(instancedObj, &instanced);
-    structures[i1]->instanced = instanced;
+	Local<External> fsfield = Local<External>::Cast(args[7].As<Object>()->GetInternalField(0));
+	kinc_g4_shader_t *fragmentShader = (kinc_g4_shader_t *)fsfield->Value();
+	progobj->SetInternalField(4, External::New(env->isolate(), fragmentShader));
+	progobj->Set(env->isolate()->GetCurrentContext(), String::NewFromUtf8(env->isolate(), "fsname").ToLocalChecked(),
+	             args[7].As<Object>()->Get(env->isolate()->GetCurrentContext(), String::NewFromUtf8(env->isolate(), "name").ToLocalChecked()).ToLocalChecked());
 
-    JsValueRef elementsObj;
-    JsGetProperty(jsstructure, getId("elements"), &elementsObj);
+	pipeline->vertex_shader = vertexShader;
+	pipeline->fragment_shader = fragmentShader;
 
-    JsValueRef lengthObj;
-    JsGetProperty(elementsObj, getId("length"), &lengthObj);
-    int length;
-    JsNumberToInt(lengthObj, &length);
-    for (int i2 = 0; i2 < length; ++i2) {
-      JsValueRef index;
-      JsIntToNumber(i2, &index);
-      JsValueRef element;
-      JsGetIndexedProperty(elementsObj, index, &element);
-      JsValueRef str;
-      JsGetProperty(element, getId("name"), &str);
-      JsValueRef dataObj;
-      JsGetProperty(element, getId("data"), &dataObj);
-      int data;
-      JsNumberToInt(dataObj, &data);
-      char* name = new char[256];  // TODO
-      size_t length;
-      JsCopyString(str, name, 255, &length);
-      name[length] = 0;
-      kinc_g4_vertex_structure_add(
-          structures[i1], name, (kinc_g4_vertex_data_t)data);
-    }
-  }
+	if (!args[8]->IsNull() && !args[8]->IsUndefined()) {
+		Local<External> gsfield = Local<External>::Cast(args[8].As<Object>()->GetInternalField(0));
+		kinc_g4_shader_t *geometryShader = (kinc_g4_shader_t *)gsfield->Value();
+		progobj->SetInternalField(5, External::New(env->isolate(), geometryShader));
+		progobj->Set(
+		    env->isolate()->GetCurrentContext(), String::NewFromUtf8(env->isolate(), "gsname").ToLocalChecked(),
+		    args[8].As<Object>()->Get(env->isolate()->GetCurrentContext(), String::NewFromUtf8(env->isolate(), "name").ToLocalChecked()).ToLocalChecked());
+		pipeline->geometry_shader = geometryShader;
+	}
 
-  JsValueRef two, three, four, five, six, seven;
-  JsIntToNumber(2, &two);
-  JsIntToNumber(3, &three);
-  JsIntToNumber(4, &four);
-  JsIntToNumber(5, &five);
-  JsIntToNumber(6, &six);
-  JsIntToNumber(7, &seven);
+	if (!args[9]->IsNull() && !args[9]->IsUndefined()) {
+		Local<External> tcsfield = Local<External>::Cast(args[9].As<Object>()->GetInternalField(0));
+		kinc_g4_shader_t *tessellationControlShader = (kinc_g4_shader_t *)tcsfield->Value();
+		progobj->SetInternalField(6, External::New(env->isolate(), tessellationControlShader));
+		progobj->Set(
+		    env->isolate()->GetCurrentContext(), String::NewFromUtf8(env->isolate(), "tcsname").ToLocalChecked(),
+		    args[9].As<Object>()->Get(env->isolate()->GetCurrentContext(), String::NewFromUtf8(env->isolate(), "name").ToLocalChecked()).ToLocalChecked());
+		pipeline->tessellation_control_shader = tessellationControlShader;
+	}
 
-  JsValueRef structuresObj;
-  JsCreateExternalObject(structures, nullptr, &structuresObj);
-  JsSetIndexedProperty(progobj, one, structuresObj);
+	if (!args[10]->IsNull() && !args[10]->IsUndefined()) {
+		Local<External> tesfield = Local<External>::Cast(args[10].As<Object>()->GetInternalField(0));
+		kinc_g4_shader_t *tessellationEvaluationShader = (kinc_g4_shader_t *)tesfield->Value();
+		progobj->SetInternalField(7, External::New(env->isolate(), tessellationEvaluationShader));
+		progobj->Set(
+		    env->isolate()->GetCurrentContext(), String::NewFromUtf8(env->isolate(), "tesname").ToLocalChecked(),
+		    args[10].As<Object>()->Get(env->isolate()->GetCurrentContext(), String::NewFromUtf8(env->isolate(), "name").ToLocalChecked()).ToLocalChecked());
+		pipeline->tessellation_evaluation_shader = tessellationEvaluationShader;
+	}
 
-  JsSetIndexedProperty(progobj, two, arguments[6]);
+	for (int i = 0; i < size; ++i) {
+		pipeline->input_layout[i] = structures[i];
+	}
+	pipeline->input_layout[size] = nullptr;
 
-  kinc_g4_shader_t* vertexShader;
-  JsGetExternalData(arguments[7], (void**)&vertexShader);
-  JsValueRef vsObj;
-  JsCreateExternalObject(vertexShader, nullptr, &vsObj);
-  JsSetIndexedProperty(progobj, three, vsObj);
-  JsValueRef vsname;
-  JsGetProperty(arguments[7], getId("name"), &vsname);
-  JsSetProperty(progobj, getId("vsname"), vsname, false);
+	pipeline->cull_mode = (kinc_g4_cull_mode_t)args[11]
+	                          .As<Object>()
+	                          ->Get(env->isolate()->GetCurrentContext(), String::NewFromUtf8(env->isolate(), "cullMode").ToLocalChecked())
+	                          .ToLocalChecked()
+	                          .As<Int32>()
+	                          ->Value();
 
-  kinc_g4_shader_t* fragmentShader;
-  JsGetExternalData(arguments[8], (void**)&fragmentShader);
-  JsValueRef fsObj;
-  JsCreateExternalObject(fragmentShader, nullptr, &fsObj);
-  JsSetIndexedProperty(progobj, four, fsObj);
-  JsValueRef fsname;
-  JsGetProperty(arguments[8], getId("name"), &fsname);
-  JsSetProperty(progobj, getId("fsname"), fsname, false);
+	pipeline->depth_write = args[11]
+	                            .As<Object>()
+	                            ->Get(env->isolate()->GetCurrentContext(), String::NewFromUtf8(env->isolate(), "depthWrite").ToLocalChecked())
+	                            .ToLocalChecked()
+	                            .As<Boolean>()
+	                            ->Value();
+	pipeline->depth_mode = (kinc_g4_compare_mode_t)args[11]
+	                           .As<Object>()
+	                           ->Get(env->isolate()->GetCurrentContext(), String::NewFromUtf8(env->isolate(), "depthMode").ToLocalChecked())
+	                           .ToLocalChecked()
+	                           .As<Int32>()
+	                           ->Value();
 
-  pipeline->vertex_shader = vertexShader;
-  pipeline->fragment_shader = fragmentShader;
+	pipeline->stencil_mode = (kinc_g4_compare_mode_t)args[11]
+	                             .As<Object>()
+	                             ->Get(env->isolate()->GetCurrentContext(), String::NewFromUtf8(env->isolate(), "stencilMode").ToLocalChecked())
+	                             .ToLocalChecked()
+	                             .As<Int32>()
+	                             ->Value();
+	pipeline->stencil_both_pass = (kinc_g4_stencil_action_t)args[11]
+	                                  .As<Object>()
+	                                  ->Get(env->isolate()->GetCurrentContext(), String::NewFromUtf8(env->isolate(), "stencilBothPass").ToLocalChecked())
+	                                  .ToLocalChecked()
+	                                  .As<Int32>()
+	                                  ->Value();
+	pipeline->stencil_depth_fail = (kinc_g4_stencil_action_t)args[11]
+	                                   .As<Object>()
+	                                   ->Get(env->isolate()->GetCurrentContext(), String::NewFromUtf8(env->isolate(), "stencilDepthFail").ToLocalChecked())
+	                                   .ToLocalChecked()
+	                                   .As<Int32>()
+	                                   ->Value();
+	pipeline->stencil_fail = (kinc_g4_stencil_action_t)args[11]
+	                             .As<Object>()
+	                             ->Get(env->isolate()->GetCurrentContext(), String::NewFromUtf8(env->isolate(), "stencilFail").ToLocalChecked())
+	                             .ToLocalChecked()
+	                             .As<Int32>()
+	                             ->Value();
+	pipeline->stencil_reference_value =
+	    args[11]
+	        .As<Object>()
+	        ->Get(env->isolate()->GetCurrentContext(), String::NewFromUtf8(env->isolate(), "stencilReferenceValue").ToLocalChecked())
+	        .ToLocalChecked()
+	        .As<Int32>()
+	        ->Value();
+	pipeline->stencil_read_mask = args[11]
+	                                  .As<Object>()
+	                                  ->Get(env->isolate()->GetCurrentContext(), String::NewFromUtf8(env->isolate(), "stencilReadMask").ToLocalChecked())
+	                                  .ToLocalChecked()
+	                                  .As<Int32>()
+	                                  ->Value();
+	pipeline->stencil_write_mask = args[11]
+	                                   .As<Object>()
+	                                   ->Get(env->isolate()->GetCurrentContext(), String::NewFromUtf8(env->isolate(), "stencilWriteMask").ToLocalChecked())
+	                                   .ToLocalChecked()
+	                                   .As<Int32>()
+	                                   ->Value();
 
-  JsValueType gsType;
-  JsGetValueType(arguments[9], &gsType);
-  if (gsType != JsNull && gsType != JsUndefined) {
-    kinc_g4_shader_t* geometryShader;
-    JsGetExternalData(arguments[9], (void**)&geometryShader);
-    JsValueRef gsObj;
-    JsCreateExternalObject(geometryShader, nullptr, &gsObj);
-    JsSetIndexedProperty(progobj, five, gsObj);
-    JsValueRef gsname;
-    JsGetProperty(arguments[9], getId("name"), &gsname);
-    JsSetProperty(progobj, getId("gsname"), gsname, false);
-    pipeline->geometry_shader = geometryShader;
-  }
+	pipeline->blend_source = (kinc_g4_blending_factor_t)args[11]
+	                             .As<Object>()
+	                             ->Get(env->isolate()->GetCurrentContext(), String::NewFromUtf8(env->isolate(), "blendSource").ToLocalChecked())
+	                             .ToLocalChecked()
+	                             .As<Int32>()
+	                             ->Value();
+	pipeline->blend_destination = (kinc_g4_blending_factor_t)args[11]
+	                                  .As<Object>()
+	                                  ->Get(env->isolate()->GetCurrentContext(), String::NewFromUtf8(env->isolate(), "blendDestination").ToLocalChecked())
+	                                  .ToLocalChecked()
+	                                  .As<Int32>()
+	                                  ->Value();
+	pipeline->blend_operation = KINC_G4_BLENDOP_ADD;
+	pipeline->alpha_blend_source = (kinc_g4_blending_factor_t)args[11]
+	                                   .As<Object>()
+	                                   ->Get(env->isolate()->GetCurrentContext(), String::NewFromUtf8(env->isolate(), "alphaBlendSource").ToLocalChecked())
+	                                   .ToLocalChecked()
+	                                   .As<Int32>()
+	                                   ->Value();
+	pipeline->alpha_blend_destination =
+	    (kinc_g4_blending_factor_t)args[11]
+	        .As<Object>()
+	        ->Get(env->isolate()->GetCurrentContext(), String::NewFromUtf8(env->isolate(), "alphaBlendDestination").ToLocalChecked())
+	        .ToLocalChecked()
+	        .As<Int32>()
+	        ->Value();
+	pipeline->alpha_blend_operation = KINC_G4_BLENDOP_ADD;
 
-  JsValueType tcsType;
-  JsGetValueType(arguments[10], &tcsType);
-  if (tcsType != JsNull && tcsType != JsUndefined) {
-    kinc_g4_shader_t* tessellationControlShader;
-    JsGetExternalData(arguments[10], (void**)&tessellationControlShader);
-    JsValueRef tcsObj;
-    JsCreateExternalObject(tessellationControlShader, nullptr, &tcsObj);
-    JsSetIndexedProperty(progobj, six, tcsObj);
-    JsValueRef tcsname;
-    JsGetProperty(arguments[10], getId("name"), &tcsname);
-    JsSetProperty(progobj, getId("tcsname"), tcsname, false);
-    pipeline->tessellation_control_shader = tessellationControlShader;
-  }
+	Local<Object> maskRedArray = args[11]
+	                                 .As<Object>()
+	                                 ->Get(env->isolate()->GetCurrentContext(), String::NewFromUtf8(env->isolate(), "colorWriteMaskRed").ToLocalChecked())
+	                                 .ToLocalChecked()
+	                                 .As<Object>();
+	Local<Object> maskGreenArray = args[11]
+	                                   .As<Object>()
+	                                   ->Get(env->isolate()->GetCurrentContext(), String::NewFromUtf8(env->isolate(), "colorWriteMaskGreen").ToLocalChecked())
+	                                   .ToLocalChecked()
+	                                   .As<Object>();
+	Local<Object> maskBlueArray = args[11]
+	                                  .As<Object>()
+	                                  ->Get(env->isolate()->GetCurrentContext(), String::NewFromUtf8(env->isolate(), "colorWriteMaskBlue").ToLocalChecked())
+	                                  .ToLocalChecked()
+	                                  .As<Object>();
+	Local<Object> maskAlphaArray = args[11]
+	                                   .As<Object>()
+	                                   ->Get(env->isolate()->GetCurrentContext(), String::NewFromUtf8(env->isolate(), "colorWriteMaskAlpha").ToLocalChecked())
+	                                   .ToLocalChecked()
+	                                   .As<Object>();
 
-  JsValueType tesType;
-  JsGetValueType(arguments[11], &tesType);
-  if (tesType != JsNull && tesType != JsUndefined) {
-    kinc_g4_shader_t* tessellationEvaluationShader;
-    JsGetExternalData(arguments[11], (void**)&tessellationEvaluationShader);
-    JsValueRef tesObj;
-    JsCreateExternalObject(tessellationEvaluationShader, nullptr, &tesObj);
-    JsSetIndexedProperty(progobj, seven, tesObj);
-    JsValueRef tesname;
-    JsGetProperty(arguments[11], getId("name"), &tesname);
-    JsSetProperty(progobj, getId("tesname"), tesname, false);
-    pipeline->tessellation_evaluation_shader = tessellationEvaluationShader;
-  }
+	for (int i = 0; i < 8; ++i) {
+		pipeline->color_write_mask_red[i] = maskRedArray->Get(env->isolate()->GetCurrentContext(), i).ToLocalChecked().As<Boolean>()->Value();
+		pipeline->color_write_mask_green[i] = maskGreenArray->Get(env->isolate()->GetCurrentContext(), i).ToLocalChecked().As<Boolean>()->Value();
+		pipeline->color_write_mask_blue[i] = maskBlueArray->Get(env->isolate()->GetCurrentContext(), i).ToLocalChecked().As<Boolean>()->Value();
+		pipeline->color_write_mask_alpha[i] = maskAlphaArray->Get(env->isolate()->GetCurrentContext(), i).ToLocalChecked().As<Boolean>()->Value();
+	}
 
-  for (int i = 0; i < size; ++i) {
-    pipeline->input_layout[i] = structures[i];
-  }
-  pipeline->input_layout[size] = nullptr;
+	pipeline->conservative_rasterization =
+	    args[11]
+	        .As<Object>()
+	        ->Get(env->isolate()->GetCurrentContext(), String::NewFromUtf8(env->isolate(), "conservativeRasterization").ToLocalChecked())
+	        .ToLocalChecked()
+	        .As<Boolean>()
+	        ->Value();
 
-  getPipeInt(cullMode);
-  pipeline->cull_mode = (kinc_g4_cull_mode_t)cullMode;
-  getPipeBool(depthWrite);
-  pipeline->depth_write = depthWrite;
-  getPipeInt(depthMode);
-  pipeline->depth_mode = (kinc_g4_compare_mode_t)depthMode;
-
-  getPipeInt(stencilMode);
-  pipeline->stencil_mode = (kinc_g4_compare_mode_t)stencilMode;
-  getPipeInt(stencilBothPass);
-  pipeline->stencil_both_pass = (kinc_g4_stencil_action_t)stencilBothPass;
-  getPipeInt(stencilDepthFail);
-  pipeline->stencil_depth_fail = (kinc_g4_stencil_action_t)stencilDepthFail;
-  getPipeInt(stencilFail);
-  pipeline->stencil_fail = (kinc_g4_stencil_action_t)stencilFail;
-  getPipeInt(stencilReferenceValue);
-  pipeline->stencil_reference_value = stencilReferenceValue;
-  getPipeInt(stencilReadMask);
-  pipeline->stencil_read_mask = stencilReadMask;
-  getPipeInt(stencilWriteMask);
-  pipeline->stencil_write_mask = stencilWriteMask;
-
-  getPipeInt(blendSource);
-  pipeline->blend_source = (kinc_g4_blending_factor_t)blendSource;
-  getPipeInt(blendDestination);
-  pipeline->blend_destination = (kinc_g4_blending_factor_t)blendDestination;
-  pipeline->blend_operation = KINC_G4_BLENDOP_ADD;
-  getPipeInt(alphaBlendSource);
-  pipeline->alpha_blend_source = (kinc_g4_blending_factor_t)alphaBlendSource;
-  getPipeInt(alphaBlendDestination);
-  pipeline->alpha_blend_destination =
-      (kinc_g4_blending_factor_t)alphaBlendDestination;
-  pipeline->alpha_blend_operation = KINC_G4_BLENDOP_ADD;
-
-  JsValueRef maskRed, maskGreen, maskBlue, maskAlpha;
-  JsGetProperty(arguments[12], getId("colorWriteMaskRed"), &maskRed);
-  JsGetProperty(arguments[12], getId("colorWriteMaskGreen"), &maskGreen);
-  JsGetProperty(arguments[12], getId("colorWriteMaskBlue"), &maskBlue);
-  JsGetProperty(arguments[12], getId("colorWriteMaskAlpha"), &maskAlpha);
-
-  for (int i = 0; i < 8; ++i) {
-    bool b;
-    JsValueRef index, element;
-    JsIntToNumber(i, &index);
-
-    JsGetIndexedProperty(maskRed, index, &element);
-    JsBooleanToBool(element, &b);
-    pipeline->color_write_mask_red[i] = b;
-
-    JsGetIndexedProperty(maskGreen, index, &element);
-    JsBooleanToBool(element, &b);
-    pipeline->color_write_mask_green[i] = b;
-
-    JsGetIndexedProperty(maskBlue, index, &element);
-    JsBooleanToBool(element, &b);
-    pipeline->color_write_mask_blue[i] = b;
-
-    JsGetIndexedProperty(maskAlpha, index, &element);
-    JsBooleanToBool(element, &b);
-    pipeline->color_write_mask_alpha[i] = b;
-  }
-
-  getPipeBool(conservativeRasterization);
-  pipeline->conservative_rasterization = conservativeRasterization;
-
-  kinc_g4_pipeline_compile(pipeline);
-
-  return JS_INVALID_REFERENCE;
+	kinc_g4_pipeline_compile(pipeline);
 }
 
 std::string shadersdir;
 
-JsValueRef CALLBACK krom_set_pipeline(JsValueRef callee,
-                                      bool isConstructCall,
-                                      JsValueRef* arguments,
-                                      unsigned short argumentCount,
-                                      void* callbackState) {
-  JsValueRef progobj = arguments[1];
-  kinc_g4_pipeline_t* pipeline;
-  JsGetExternalData(progobj, (void**)&pipeline);
+static void krom_set_pipeline(const FunctionCallbackInfo<Value> &args) {
+	node::Environment *env = node::Environment::GetCurrent(args);
 
-  if (debugMode) {
-    char vsname[256];
-    JsValueRef vsnameObj;
-    JsGetProperty(progobj, getId("vsname"), &vsnameObj);
-    size_t vslength;
-    JsCopyString(vsnameObj, vsname, 255, &vslength);
-    vsname[vslength] = 0;
+	Local<Object> progobj = args[0].As<Object>();
+	Local<External> progfield = Local<External>::Cast(progobj->GetInternalField(0));
+	kinc_g4_pipeline_t *pipeline = (kinc_g4_pipeline_t *)progfield->Value();
 
-    char fsname[256];
-    JsValueRef fsnameObj;
-    JsGetProperty(progobj, getId("fsname"), &fsnameObj);
-    size_t fslength;
-    JsCopyString(fsnameObj, fsname, 255, &fslength);
-    fsname[fslength] = 0;
+	if (debugMode) {
+		Local<Value> vsnameobj =
+		    progobj->Get(env->isolate()->GetCurrentContext(), String::NewFromUtf8(env->isolate(), "vsname").ToLocalChecked()).ToLocalChecked();
+		String::Utf8Value vsname(env->isolate(), vsnameobj);
 
-    bool shaderChanged = false;
+		Local<Value> fsnameobj =
+		    progobj->Get(env->isolate()->GetCurrentContext(), String::NewFromUtf8(env->isolate(), "fsname").ToLocalChecked()).ToLocalChecked();
+		String::Utf8Value fsname(env->isolate(), fsnameobj);
 
-    if (shaderChanges[vsname]) {
-      shaderChanged = true;
-      sendLogMessage("Reloading shader %s.", vsname);
-      std::string filename = shaderFileNames[vsname];
-      std::ifstream input((shadersdir + "/" + filename).c_str(),
-                          std::ios::binary);
-      std::vector<char> buffer((std::istreambuf_iterator<char>(input)),
-                               (std::istreambuf_iterator<char>()));
-      kinc_g4_shader_t* vertexShader =
-          (kinc_g4_shader_t*)malloc(sizeof(kinc_g4_shader_t));
-      kinc_g4_shader_init(vertexShader,
-                          buffer.data(),
-                          (int)buffer.size(),
-                          KINC_G4_SHADER_TYPE_VERTEX);
-      JsValueRef three;
-      JsIntToNumber(3, &three);
-      JsValueRef vsObj;
-      JsCreateExternalObject(vertexShader, nullptr, &vsObj);
-      JsSetIndexedProperty(progobj, three, vsObj);
-      shaderChanges[vsname] = false;
-    }
+		bool shaderChanged = false;
 
-    if (shaderChanges[fsname]) {
-      shaderChanged = true;
-      sendLogMessage("Reloading shader %s.", fsname);
-      std::string filename = shaderFileNames[fsname];
-      std::ifstream input((shadersdir + "/" + filename).c_str(),
-                          std::ios::binary);
-      std::vector<char> buffer((std::istreambuf_iterator<char>(input)),
-                               (std::istreambuf_iterator<char>()));
-      kinc_g4_shader_t* fragmentShader =
-          (kinc_g4_shader_t*)malloc(sizeof(kinc_g4_shader_t));
-      kinc_g4_shader_init(fragmentShader,
-                          buffer.data(),
-                          (int)buffer.size(),
-                          KINC_G4_SHADER_TYPE_FRAGMENT);
-      JsValueRef four;
-      JsIntToNumber(4, &four);
-      JsValueRef vsObj;
-      JsCreateExternalObject(fragmentShader, nullptr, &vsObj);
-      JsSetIndexedProperty(progobj, four, vsObj);
-      shaderChanges[vsname] = false;
-    }
+		if (shaderChanges[*vsname]) {
+			shaderChanged = true;
+			sendLogMessage("Reloading shader %s.", *vsname);
+			std::string filename = shaderFileNames[*vsname];
+			std::ifstream input((shadersdir + "/" + filename).c_str(), std::ios::binary);
+			std::vector<char> buffer((std::istreambuf_iterator<char>(input)), (std::istreambuf_iterator<char>()));
+			kinc_g4_shader_t *vertexShader = (kinc_g4_shader_t *)malloc(sizeof(kinc_g4_shader_t));
+			kinc_g4_shader_init(vertexShader, buffer.data(), (int)buffer.size(), KINC_G4_SHADER_TYPE_VERTEX);
+			progobj->SetInternalField(3, External::New(env->isolate(), vertexShader));
+			shaderChanges[*vsname] = false;
+		}
 
-    JsValueRef gsnameObj;
-    JsGetProperty(progobj, getId("gsname"), &gsnameObj);
-    JsValueType gsnameType;
-    JsGetValueType(gsnameObj, &gsnameType);
-    if (gsnameType != JsNull && gsnameType != JsUndefined) {
-      char gsname[256];
-      size_t gslength;
-      JsCopyString(gsnameObj, gsname, 255, &gslength);
-      gsname[gslength] = 0;
-      if (shaderChanges[gsname]) {
-        shaderChanged = true;
-        sendLogMessage("Reloading shader %s.", gsname);
-        std::string filename = shaderFileNames[gsname];
-        std::ifstream input((shadersdir + "/" + filename).c_str(),
-                            std::ios::binary);
-        std::vector<char> buffer((std::istreambuf_iterator<char>(input)),
-                                 (std::istreambuf_iterator<char>()));
-        kinc_g4_shader_t* geometryShader =
-            (kinc_g4_shader_t*)malloc(sizeof(kinc_g4_shader_t));
-        kinc_g4_shader_init(geometryShader,
-                            buffer.data(),
-                            (int)buffer.size(),
-                            KINC_G4_SHADER_TYPE_GEOMETRY);
-        JsValueRef five;
-        JsIntToNumber(5, &five);
-        JsValueRef gsObj;
-        JsCreateExternalObject(geometryShader, nullptr, &gsObj);
-        JsSetIndexedProperty(progobj, five, gsObj);
-        shaderChanges[gsname] = false;
-      }
-    }
+		if (shaderChanges[*fsname]) {
+			shaderChanged = true;
+			sendLogMessage("Reloading shader %s.", *fsname);
+			std::string filename = shaderFileNames[*fsname];
+			std::ifstream input((shadersdir + "/" + filename).c_str(), std::ios::binary);
+			std::vector<char> buffer((std::istreambuf_iterator<char>(input)), (std::istreambuf_iterator<char>()));
+			kinc_g4_shader_t *fragmentShader = (kinc_g4_shader_t *)malloc(sizeof(kinc_g4_shader_t));
+			kinc_g4_shader_init(fragmentShader, buffer.data(), (int)buffer.size(), KINC_G4_SHADER_TYPE_FRAGMENT);
+			progobj->SetInternalField(4, External::New(env->isolate(), fragmentShader));
+			shaderChanges[*fsname] = false;
+		}
 
-    JsValueRef tcsnameObj;
-    JsGetProperty(progobj, getId("tcsname"), &tcsnameObj);
-    JsValueType tcsnameType;
-    JsGetValueType(tcsnameObj, &tcsnameType);
-    if (tcsnameType != JsNull && tcsnameType != JsUndefined) {
-      char tcsname[256];
-      size_t tcslength;
-      JsCopyString(tcsnameObj, tcsname, 255, &tcslength);
-      tcsname[tcslength] = 0;
-      if (shaderChanges[tcsname]) {
-        shaderChanged = true;
-        sendLogMessage("Reloading shader %s.", tcsname);
-        std::string filename = shaderFileNames[tcsname];
-        std::ifstream input((shadersdir + "/" + filename).c_str(),
-                            std::ios::binary);
-        std::vector<char> buffer((std::istreambuf_iterator<char>(input)),
-                                 (std::istreambuf_iterator<char>()));
-        kinc_g4_shader_t* tessellationControlShader =
-            (kinc_g4_shader_t*)malloc(sizeof(kinc_g4_shader_t));
-        kinc_g4_shader_init(tessellationControlShader,
-                            buffer.data(),
-                            (int)buffer.size(),
-                            KINC_G4_SHADER_TYPE_TESSELLATION_CONTROL);
-        JsValueRef six;
-        JsIntToNumber(6, &six);
-        JsValueRef tcsObj;
-        JsCreateExternalObject(tessellationControlShader, nullptr, &tcsObj);
-        JsSetIndexedProperty(progobj, six, tcsObj);
-        shaderChanges[tcsname] = false;
-      }
-    }
+		Local<Value> gsnameobj =
+		    progobj->Get(env->isolate()->GetCurrentContext(), String::NewFromUtf8(env->isolate(), "gsname").ToLocalChecked()).ToLocalChecked();
+		if (!gsnameobj->IsNull() && !gsnameobj->IsUndefined()) {
+			String::Utf8Value gsname(env->isolate(), gsnameobj);
+			if (shaderChanges[*gsname]) {
+				shaderChanged = true;
+				sendLogMessage("Reloading shader %s.", *gsname);
+				std::string filename = shaderFileNames[*gsname];
+				std::ifstream input((shadersdir + "/" + filename).c_str(), std::ios::binary);
+				std::vector<char> buffer((std::istreambuf_iterator<char>(input)), (std::istreambuf_iterator<char>()));
+				kinc_g4_shader_t *geometryShader = (kinc_g4_shader_t *)malloc(sizeof(kinc_g4_shader_t));
+				kinc_g4_shader_init(geometryShader, buffer.data(), (int)buffer.size(), KINC_G4_SHADER_TYPE_GEOMETRY);
+				progobj->SetInternalField(5, External::New(env->isolate(), geometryShader));
+				shaderChanges[*gsname] = false;
+			}
+		}
 
-    JsValueRef tesnameObj;
-    JsGetProperty(progobj, getId("tesname"), &tesnameObj);
-    JsValueType tesnameType;
-    JsGetValueType(tesnameObj, &tesnameType);
-    if (tesnameType != JsNull && tesnameType != JsUndefined) {
-      char tesname[256];
-      size_t teslength;
-      JsCopyString(tcsnameObj, tesname, 255, &teslength);
-      tesname[teslength] = 0;
-      if (shaderChanges[tesname]) {
-        shaderChanged = true;
-        sendLogMessage("Reloading shader %s.", tesname);
-        std::string filename = shaderFileNames[tesname];
-        std::ifstream input((shadersdir + "/" + filename).c_str(),
-                            std::ios::binary);
-        std::vector<char> buffer((std::istreambuf_iterator<char>(input)),
-                                 (std::istreambuf_iterator<char>()));
-        kinc_g4_shader_t* tessellationEvaluationShader =
-            (kinc_g4_shader_t*)malloc(sizeof(kinc_g4_shader_t));
-        kinc_g4_shader_init(tessellationEvaluationShader,
-                            buffer.data(),
-                            (int)buffer.size(),
-                            KINC_G4_SHADER_TYPE_TESSELLATION_EVALUATION);
-        JsValueRef seven;
-        JsIntToNumber(7, &seven);
-        JsValueRef tesObj;
-        JsCreateExternalObject(tessellationEvaluationShader, nullptr, &tesObj);
-        JsSetIndexedProperty(progobj, seven, tesObj);
-        shaderChanges[tesname] = false;
-      }
-    }
+		Local<Value> tcsnameobj =
+		    progobj->Get(env->isolate()->GetCurrentContext(), String::NewFromUtf8(env->isolate(), "tcsname").ToLocalChecked()).ToLocalChecked();
+		if (!tcsnameobj->IsNull() && !tcsnameobj->IsUndefined()) {
+			String::Utf8Value tcsname(env->isolate(), tcsnameobj);
+			if (shaderChanges[*tcsname]) {
+				shaderChanged = true;
+				sendLogMessage("Reloading shader %s.", *tcsname);
+				std::string filename = shaderFileNames[*tcsname];
+				std::ifstream input((shadersdir + "/" + filename).c_str(), std::ios::binary);
+				std::vector<char> buffer((std::istreambuf_iterator<char>(input)), (std::istreambuf_iterator<char>()));
+				kinc_g4_shader_t *tessellationControlShader = (kinc_g4_shader_t *)malloc(sizeof(kinc_g4_shader_t));
+				kinc_g4_shader_init(tessellationControlShader, buffer.data(), (int)buffer.size(), KINC_G4_SHADER_TYPE_TESSELLATION_CONTROL);
+				progobj->SetInternalField(6, External::New(env->isolate(), tessellationControlShader));
+				shaderChanges[*tcsname] = false;
+			}
+		}
 
-    if (shaderChanged) {
-      recompilePipeline(progobj);
-      JsGetExternalData(progobj, (void**)&pipeline);
-    }
-  }
+		Local<Value> tesnameobj =
+		    progobj->Get(env->isolate()->GetCurrentContext(), String::NewFromUtf8(env->isolate(), "tesname").ToLocalChecked()).ToLocalChecked();
+		if (!tesnameobj->IsNull() && !tesnameobj->IsUndefined()) {
+			String::Utf8Value tesname(env->isolate(), tesnameobj);
+			if (shaderChanges[*tesname]) {
+				shaderChanged = true;
+				sendLogMessage("Reloading shader %s.", *tesname);
+				std::string filename = shaderFileNames[*tesname];
+				std::ifstream input((shadersdir + "/" + filename).c_str(), std::ios::binary);
+				std::vector<char> buffer((std::istreambuf_iterator<char>(input)), (std::istreambuf_iterator<char>()));
+				kinc_g4_shader_t *tessellationEvaluationShader = (kinc_g4_shader_t *)malloc(sizeof(kinc_g4_shader_t));
+				kinc_g4_shader_init(tessellationEvaluationShader, buffer.data(), (int)buffer.size(), KINC_G4_SHADER_TYPE_TESSELLATION_EVALUATION);
+				progobj->SetInternalField(7, External::New(env->isolate(), tessellationEvaluationShader));
+				shaderChanges[*tesname] = false;
+			}
+		}
 
-  kinc_g4_set_pipeline(pipeline);
-  return JS_INVALID_REFERENCE;
+		if (shaderChanged) {
+			recompilePipeline(args, progobj);
+			Local<External> progfield = Local<External>::Cast(progobj->GetInternalField(0));
+			pipeline = (kinc_g4_pipeline_t *)progfield->Value();
+		}
+	}
+
+	kinc_g4_set_pipeline(pipeline);
 }
 
-JsValueRef CALLBACK krom_load_image(JsValueRef callee,
-                                    bool isConstructCall,
-                                    JsValueRef* arguments,
-                                    unsigned short argumentCount,
-                                    void* callbackState) {
-  char filename[256];
-  size_t length;
-  JsCopyString(arguments[1], filename, 255, &length);
-  filename[length] = 0;
-  bool readable;
-  JsBooleanToBool(arguments[2], &readable);
+static void krom_load_image(const FunctionCallbackInfo<Value> &args) {
+	node::Environment *env = node::Environment::GetCurrent(args);
 
-  kinc_image_t image;
-  size_t size = kinc_image_size_from_file(filename);
-  void* memory = malloc(size);
-  kinc_image_init_from_file(&image, memory, filename);
+	String::Utf8Value filename(env->isolate(), args[0]);
+	bool readable = args[1].As<Boolean>()->Value();
 
-  kinc_g4_texture_t* texture =
-      (kinc_g4_texture_t*)malloc(sizeof(kinc_g4_texture_t));
-  kinc_g4_texture_init_from_image(texture, &image);
+	kinc_image_t image;
+	size_t size = kinc_image_size_from_file(*filename);
+	void *memory = malloc(size);
+	kinc_image_init_from_file(&image, memory, *filename);
 
-  JsValueRef obj;
-  JsCreateExternalObject(texture, nullptr, &obj);
-  JsValueRef width, height, realWidth, realHeight;
-  JsIntToNumber(image.width, &width);
-  JsSetProperty(obj, getId("width"), width, false);
-  JsIntToNumber(image.height, &height);
-  JsSetProperty(obj, getId("height"), height, false);
-  JsIntToNumber(texture->tex_width, &realWidth);
-  JsSetProperty(obj, getId("realWidth"), realWidth, false);
-  JsIntToNumber(texture->tex_height, &realHeight);
-  JsSetProperty(obj, getId("realHeight"), realHeight, false);
-  JsSetProperty(obj, getId("filename"), arguments[1], false);
+	kinc_g4_texture_t *texture = (kinc_g4_texture_t *)malloc(sizeof(kinc_g4_texture_t));
+	kinc_g4_texture_init_from_image(texture, &image);
 
-  if (readable) {
-    kinc_image_t* imagePtr = (kinc_image_t*)malloc(sizeof(kinc_image_t));
-    memcpy(imagePtr, &image, sizeof(image));
+	Local<ObjectTemplate> templ = ObjectTemplate::New(env->isolate());
+	templ->SetInternalFieldCount(1);
 
-    JsValueRef imageObject;
-    JsCreateExternalObject(imagePtr, nullptr, &imageObject);
-    JsSetProperty(obj, getId("image"), imageObject, false);
-  } else {
-    kinc_image_destroy(&image);
-    free(memory);
-  }
+	Local<Object> obj = templ->NewInstance(env->isolate()->GetCurrentContext()).ToLocalChecked();
+	obj->SetInternalField(0, External::New(env->isolate(), texture));
+	obj->Set(env->isolate()->GetCurrentContext(), String::NewFromUtf8(env->isolate(), "width").ToLocalChecked(), Int32::New(env->isolate(), image.width));
+	obj->Set(env->isolate()->GetCurrentContext(), String::NewFromUtf8(env->isolate(), "height").ToLocalChecked(), Int32::New(env->isolate(), image.height));
+	obj->Set(env->isolate()->GetCurrentContext(), String::NewFromUtf8(env->isolate(), "realWidth").ToLocalChecked(),
+	         Int32::New(env->isolate(), texture->tex_width));
+	obj->Set(env->isolate()->GetCurrentContext(), String::NewFromUtf8(env->isolate(), "realHeight").ToLocalChecked(),
+	         Int32::New(env->isolate(), texture->tex_height));
+	obj->Set(env->isolate()->GetCurrentContext(), String::NewFromUtf8(env->isolate(), "filename").ToLocalChecked(), args[0]);
 
-  return obj;
+	if (readable) {
+		kinc_image_t *imagePtr = (kinc_image_t *)malloc(sizeof(kinc_image_t));
+		memcpy(imagePtr, &image, sizeof(image));
+
+		Local<Object> imageObject = templ->NewInstance(env->isolate()->GetCurrentContext()).ToLocalChecked();
+		obj->SetInternalField(0, External::New(env->isolate(), imagePtr));
+
+		obj->Set(env->isolate()->GetCurrentContext(), String::NewFromUtf8(env->isolate(), "image").ToLocalChecked(), imageObject);
+	}
+	else {
+		kinc_image_destroy(&image);
+		free(memory);
+	}
+
+	args.GetReturnValue().Set(obj);
 }
 
-JsValueRef CALLBACK krom_unload_image(JsValueRef callee,
-                                      bool isConstructCall,
-                                      JsValueRef* arguments,
-                                      unsigned short argumentCount,
-                                      void* callbackState) {
-  JsValueType type;
-  JsGetValueType(arguments[1], &type);
-  if (type == JsNull || type == JsUndefined) return JS_INVALID_REFERENCE;
+static void krom_unload_image(const FunctionCallbackInfo<Value> &args) {
+	if (args[0]->IsNull() || args[0]->IsUndefined()) return;
 
-  JsValueRef tex, rt;
-  JsGetProperty(arguments[1], getId("texture_"), &tex);
-  JsGetProperty(arguments[1], getId("renderTarget_"), &rt);
-  JsValueType texType, rtType;
-  JsGetValueType(tex, &texType);
-  JsGetValueType(rt, &rtType);
+	node::Environment *env = node::Environment::GetCurrent(args);
 
-  if (texType == JsObject) {
-    kinc_g4_texture_t* texture;
-    JsGetExternalData(tex, (void**)&texture);
-    kinc_g4_texture_destroy(texture);
-    free(texture);
+	Local<Object> image = args[0].As<Object>();
+	Local<Value> tex = image->Get(env->isolate()->GetCurrentContext(), String::NewFromUtf8(env->isolate(), "texture_").ToLocalChecked()).ToLocalChecked();
+	Local<Value> rt = image->Get(env->isolate()->GetCurrentContext(), String::NewFromUtf8(env->isolate(), "renderTarget_").ToLocalChecked()).ToLocalChecked();
 
-    JsValueRef imageObj;
-    JsGetProperty(tex, getId("image"), &imageObj);
-    JsValueType type;
-    JsGetValueType(arguments[1], &type);
-    if (type != JsNull && type != JsUndefined) {
-      kinc_image_t* image;
-      JsGetExternalData(imageObj, (void**)&image);
-      free(image->data);
-      kinc_image_destroy(image);
-      free(image);
-    }
-  } else if (rtType == JsObject) {
-    kinc_g4_render_target_t* renderTarget;
-    JsGetExternalData(rt, (void**)&renderTarget);
-    kinc_g4_render_target_destroy(renderTarget);
-    free(renderTarget);
-  }
+	if (tex->IsObject()) {
+		Local<External> texfield = Local<External>::Cast(tex.As<Object>()->GetInternalField(0));
+		kinc_g4_texture_t *texture = (kinc_g4_texture_t *)texfield->Value();
+		kinc_g4_texture_destroy(texture);
+		free(texture);
 
-  return JS_INVALID_REFERENCE;
+		Local<Value> imageObj =
+		    tex.As<Object>()->Get(env->isolate()->GetCurrentContext(), String::NewFromUtf8(env->isolate(), "image").ToLocalChecked()).ToLocalChecked();
+		if (imageObj->IsNull() || imageObj->IsUndefined()) {
+			Local<External> field = Local<External>::Cast(imageObj.As<Object>()->GetInternalField(0));
+			kinc_image_t *image = (kinc_image_t *)field->Value();
+			free(image->data);
+			kinc_image_destroy(image);
+			free(image);
+		}
+	}
+	else if (rt->IsObject()) {
+		Local<External> rtfield = Local<External>::Cast(rt.As<Object>()->GetInternalField(0));
+		kinc_g4_render_target_t *renderTarget = (kinc_g4_render_target_t *)rtfield->Value();
+		kinc_g4_render_target_destroy(renderTarget);
+		free(renderTarget);
+	}
 }
 
-JsValueRef CALLBACK krom_load_sound(JsValueRef callee,
-                                    bool isConstructCall,
-                                    JsValueRef* arguments,
-                                    unsigned short argumentCount,
-                                    void* callbackState) {
-  char filename[256];
-  size_t length;
-  JsCopyString(arguments[1], filename, 255, &length);
-  filename[length] = 0;
+static void krom_load_sound(const FunctionCallbackInfo<Value> &args) {
+	node::Environment *env = node::Environment::GetCurrent(args);
 
-  kinc_a1_sound_t* sound = kinc_a1_sound_create(filename);
+	String::Utf8Value utf8_value(env->isolate(), args[0]);
 
-  JsValueRef array;
-  JsCreateArrayBuffer(sound->size * 2 * sizeof(float), &array);
+	kinc_a1_sound_t *sound = kinc_a1_sound_create(*utf8_value);
 
-  Kore::u8* tobytes;
-  unsigned bufferLength;
-  JsGetArrayBufferStorage(array, &tobytes, &bufferLength);
-  float* to = (float*)tobytes;
+	std::shared_ptr<v8::BackingStore> store = v8::ArrayBuffer::NewBackingStore(env->isolate(), sound->size * 2 * sizeof(float));
 
-  Kore::s16* left = (Kore::s16*)&sound->left[0];
-  Kore::s16* right = (Kore::s16*)&sound->right[0];
-  for (int i = 0; i < sound->size; i += 1) {
-    to[i * 2 + 0] = (float)(left[i] / 32767.0);
-    to[i * 2 + 1] = (float)(right[i] / 32767.0);
-  }
+	float *to = (float *)store->Data();
 
-  delete sound;
+	Kore::s16 *left = (Kore::s16 *)&sound->left[0];
+	Kore::s16 *right = (Kore::s16 *)&sound->right[0];
+	for (int i = 0; i < sound->size; i += 1) {
+		to[i * 2 + 0] = (float)(left[i] / 32767.0);
+		to[i * 2 + 1] = (float)(right[i] / 32767.0);
+	}
 
-  return array;
+	kinc_a1_sound_destroy(sound);
+
+	Local<ArrayBuffer> buffer = ArrayBuffer::New(env->isolate(), store);
+	args.GetReturnValue().Set(buffer);
 }
 
-JsValueRef CALLBACK krom_write_audio_buffer(JsValueRef callee,
-                                            bool isConstructCall,
-                                            JsValueRef* arguments,
-                                            unsigned short argumentCount,
-                                            void* callbackState) {
-  Kore::u8* buffer;
-  unsigned bufferLength;
-  JsGetArrayBufferStorage(arguments[1], &buffer, &bufferLength);
+static void krom_write_audio_buffer(const FunctionCallbackInfo<Value> &args) {
+	/*uint8_t *buffer;
+	unsigned bufferLength;
+	JsGetArrayBufferStorage(arguments[1], &buffer, &bufferLength);
 
-  int samples;
-  JsNumberToInt(arguments[2], &samples);
+	int samples;
+	JsNumberToInt(arguments[2], &samples);
 
-  for (int i = 0; i < samples; ++i) {
-    float value = *(float*)&buffer[audioReadLocation];
-    audioReadLocation += 4;
-    if (audioReadLocation >= bufferLength) audioReadLocation = 0;
+	for (int i = 0; i < samples; ++i) {
+	    float value = *(float *)&buffer[audioReadLocation];
+	    audioReadLocation += 4;
+	    if (audioReadLocation >= bufferLength) audioReadLocation = 0;
 
-    // TODO: This is madness
-    // *(float *)&Kore::Audio2::buffer.data[Kore::Audio2::buffer.writeLocation]
-    // = value; Kore::Audio2::buffer.writeLocation += 4; if
-    // (Kore::Audio2::buffer.writeLocation >= Kore::Audio2::buffer.dataSize)
-    // Kore::Audio2::buffer.writeLocation = 0;
-  }
-
-  return JS_INVALID_REFERENCE;
+	    // TODO: This is madness
+	    // *(float *)&Kore::Audio2::buffer.data[Kore::Audio2::buffer.writeLocation]
+	    // = value; Kore::Audio2::buffer.writeLocation += 4; if
+	    // (Kore::Audio2::buffer.writeLocation >= Kore::Audio2::buffer.dataSize)
+	    // Kore::Audio2::buffer.writeLocation = 0;
+	}*/
 }
 
-JsValueRef CALLBACK krom_load_blob(JsValueRef callee,
-                                   bool isConstructCall,
-                                   JsValueRef* arguments,
-                                   unsigned short argumentCount,
-                                   void* callbackState) {
-  char filename[256];
-  size_t length;
-  JsCopyString(arguments[1], filename, 255, &length);
-  filename[length] = 0;
+static void krom_load_blob(const FunctionCallbackInfo<Value> &args) {
+	node::Environment *env = node::Environment::GetCurrent(args);
 
-  kinc_file_reader_t reader;
-  if (!kinc_file_reader_open(&reader, filename, KINC_FILE_TYPE_ASSET))
-    return JS_INVALID_REFERENCE;
+	String::Utf8Value filename(env->isolate(), args[0]);
 
-  JsValueRef array;
-  JsCreateArrayBuffer(kinc_file_reader_size(&reader), &array);
+	kinc_file_reader_t reader;
+	if (!kinc_file_reader_open(&reader, *filename, KINC_FILE_TYPE_ASSET)) {
+		return;
+	}
 
-  Kore::u8* contents;
-  unsigned contentsLength;
-  JsGetArrayBufferStorage(array, &contents, &contentsLength);
+	std::shared_ptr<v8::BackingStore> store = v8::ArrayBuffer::NewBackingStore(env->isolate(), kinc_file_reader_size(&reader));
 
-  kinc_file_reader_read(&reader, contents, kinc_file_reader_size(&reader));
+	kinc_file_reader_read(&reader, store->Data(), kinc_file_reader_size(&reader));
 
-  kinc_file_reader_close(&reader);
+	kinc_file_reader_close(&reader);
 
-  return array;
+	Local<ArrayBuffer> buffer = ArrayBuffer::New(env->isolate(), store);
+	args.GetReturnValue().Set(buffer);
 }
 
-JsValueRef CALLBACK krom_get_constant_location(JsValueRef callee,
-                                               bool isConstructCall,
-                                               JsValueRef* arguments,
-                                               unsigned short argumentCount,
-                                               void* callbackState) {
-  kinc_g4_pipeline_t* pipeline;
-  JsGetExternalData(arguments[1], (void**)&pipeline);
+static void krom_get_constant_location(const FunctionCallbackInfo<Value> &args) {
+	node::Environment *env = node::Environment::GetCurrent(args);
 
-  char name[256];
-  size_t length;
-  JsCopyString(arguments[2], name, 255, &length);
-  name[length] = 0;
-  kinc_g4_constant_location_t location =
-      kinc_g4_pipeline_get_constant_location(pipeline, name);
-  kinc_g4_constant_location_t* locationPtr =
-      (kinc_g4_constant_location_t*)malloc(sizeof(kinc_g4_constant_location_t));
-  memcpy(locationPtr, &location, sizeof(location));
+	Local<External> progfield = Local<External>::Cast(args[0].As<Object>()->GetInternalField(0));
+	kinc_g4_pipeline_t *pipeline = (kinc_g4_pipeline_t *)progfield->Value();
 
-  JsValueRef obj;
-  JsCreateExternalObject(locationPtr, nullptr, &obj);
-  return obj;
+	String::Utf8Value utf8_value(env->isolate(), args[1]);
+	kinc_g4_constant_location_t location = kinc_g4_pipeline_get_constant_location(pipeline, *utf8_value);
+	kinc_g4_constant_location_t *locationPtr = (kinc_g4_constant_location_t *)malloc(sizeof(kinc_g4_constant_location_t));
+	memcpy(locationPtr, &location, sizeof(location));
+
+	Local<ObjectTemplate> templ = ObjectTemplate::New(env->isolate());
+	templ->SetInternalFieldCount(1);
+
+	Local<Object> obj = templ->NewInstance(env->isolate()->GetCurrentContext()).ToLocalChecked();
+	obj->SetInternalField(0, External::New(env->isolate(), locationPtr));
+	args.GetReturnValue().Set(obj);
 }
 
-JsValueRef CALLBACK krom_get_texture_unit(JsValueRef callee,
-                                          bool isConstructCall,
-                                          JsValueRef* arguments,
-                                          unsigned short argumentCount,
-                                          void* callbackState) {
-  kinc_g4_pipeline_t* pipeline;
-  JsGetExternalData(arguments[1], (void**)&pipeline);
+static void krom_get_texture_unit(const FunctionCallbackInfo<Value> &args) {
+	node::Environment *env = node::Environment::GetCurrent(args);
 
-  char name[256];
-  size_t length;
-  JsCopyString(arguments[2], name, 255, &length);
-  name[length] = 0;
-  kinc_g4_texture_unit_t unit =
-      kinc_g4_pipeline_get_texture_unit(pipeline, name);
-  kinc_g4_texture_unit_t* unitPtr =
-      (kinc_g4_texture_unit_t*)malloc(sizeof(kinc_g4_texture_unit_t));
-  memcpy(unitPtr, &unit, sizeof(unit));
+	Local<External> progfield = Local<External>::Cast(args[0].As<Object>()->GetInternalField(0));
+	kinc_g4_pipeline_t *pipeline = (kinc_g4_pipeline_t *)progfield->Value();
 
-  JsValueRef obj;
-  JsCreateExternalObject(unitPtr, nullptr, &obj);
-  return obj;
+	String::Utf8Value utf8_value(env->isolate(), args[1]);
+	kinc_g4_texture_unit_t unit = kinc_g4_pipeline_get_texture_unit(pipeline, *utf8_value);
+	kinc_g4_texture_unit_t *unitPtr = (kinc_g4_texture_unit_t *)malloc(sizeof(kinc_g4_texture_unit_t));
+	memcpy(unitPtr, &unit, sizeof(unit));
+
+	Local<ObjectTemplate> templ = ObjectTemplate::New(env->isolate());
+	templ->SetInternalFieldCount(1);
+
+	Local<Object> obj = templ->NewInstance(env->isolate()->GetCurrentContext()).ToLocalChecked();
+	obj->SetInternalField(0, External::New(env->isolate(), unitPtr));
+	args.GetReturnValue().Set(obj);
 }
 
-JsValueRef CALLBACK krom_set_texture(JsValueRef callee,
-                                     bool isConstructCall,
-                                     JsValueRef* arguments,
-                                     unsigned short argumentCount,
-                                     void* callbackState) {
-  kinc_g4_texture_unit_t* unit;
-  JsGetExternalData(arguments[1], (void**)&unit);
+static void krom_set_texture(const FunctionCallbackInfo<Value> &args) {
+	node::Environment *env = node::Environment::GetCurrent(args);
 
-  kinc_g4_texture_t* texture;
-  bool imageChanged = false;
-  if (debugMode) {
-    JsValueRef filenameObj;
-    JsGetProperty(arguments[2], getId("filename"), &filenameObj);
-    size_t length;
-    if (JsCopyString(filenameObj, tempString, tempStringSize, &length) ==
-        JsNoError) {
-      tempString[length] = 0;
-      if (imageChanges[tempString]) {
-        imageChanges[tempString] = false;
-        sendLogMessage("Image %s changed.", tempString);
+	Local<External> unitfield = Local<External>::Cast(args[0].As<Object>()->GetInternalField(0));
+	kinc_g4_texture_unit_t *unit = (kinc_g4_texture_unit_t *)unitfield->Value();
 
-        // TODO: Set all texture properties and free previous texture/image
+	kinc_g4_texture_t *texture;
+	bool imageChanged = false;
+	if (debugMode) {
+		String::Utf8Value filename(
+		    env->isolate(),
+		    args[1].As<Object>()->Get(env->isolate()->GetCurrentContext(), String::NewFromUtf8(env->isolate(), "filename").ToLocalChecked()).ToLocalChecked());
+		if (imageChanges[*filename]) {
+			imageChanges[*filename] = false;
+			sendLogMessage("Image %s changed.", *filename);
 
-        kinc_image_t image;
-        size_t size = kinc_image_size_from_file(tempString);
-        void* memory = malloc(size);
-        kinc_image_init_from_file(&image, memory, tempString);
+			// TODO: Set all texture properties and free previous texture/image
 
-        texture = (kinc_g4_texture_t*)malloc(sizeof(kinc_g4_texture_t));
-        kinc_g4_texture_init_from_image(texture, &image);
+			kinc_image_t image;
+			size_t size = kinc_image_size_from_file(*filename);
+			void *memory = malloc(size);
+			kinc_image_init_from_file(&image, memory, *filename);
 
-        JsSetExternalData(arguments[2], texture);
-        imageChanged = true;
-      }
-    }
-  }
-  if (!imageChanged) {
-    JsGetExternalData(arguments[2], (void**)&texture);
-  }
-  kinc_g4_set_texture(*unit, texture);
+			texture = (kinc_g4_texture_t *)malloc(sizeof(kinc_g4_texture_t));
+			kinc_g4_texture_init_from_image(texture, &image);
 
-  return JS_INVALID_REFERENCE;
+			args[1].As<Object>()->SetInternalField(0, External::New(env->isolate(), texture));
+			imageChanged = true;
+		}
+	}
+	if (!imageChanged) {
+		Local<External> texfield = Local<External>::Cast(args[1].As<Object>()->GetInternalField(0));
+		texture = (kinc_g4_texture_t *)texfield->Value();
+	}
+	kinc_g4_set_texture(*unit, texture);
 }
-
+#if 0
 JsValueRef CALLBACK krom_set_render_target(JsValueRef callee,
                                            bool isConstructCall,
                                            JsValueRef* arguments,
