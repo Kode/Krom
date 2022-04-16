@@ -1417,495 +1417,296 @@ static void krom_set_texture(const FunctionCallbackInfo<Value> &args) {
 	}
 	kinc_g4_set_texture(*unit, texture);
 }
+
+static void krom_set_render_target(const FunctionCallbackInfo<Value> &args) {
+	Local<External> unitfield = Local<External>::Cast(args[0].As<Object>()->GetInternalField(0));
+	kinc_g4_texture_unit_t *unit = (kinc_g4_texture_unit_t *)unitfield->Value();
+
+	Local<External> rtfield = Local<External>::Cast(args[1].As<Object>()->GetInternalField(0));
+	kinc_g4_render_target_t *renderTarget = (kinc_g4_render_target_t *)rtfield->Value();
+	kinc_g4_render_target_use_color_as_texture(renderTarget, *unit);
+}
+
+static void krom_set_texture_depth(const FunctionCallbackInfo<Value> &args) {
+	Local<External> unitfield = Local<External>::Cast(args[0].As<Object>()->GetInternalField(0));
+	kinc_g4_texture_unit_t *unit = (kinc_g4_texture_unit_t *)unitfield->Value();
+
+	Local<External> rtfield = Local<External>::Cast(args[1].As<Object>()->GetInternalField(0));
+	kinc_g4_render_target_t *renderTarget = (kinc_g4_render_target_t *)rtfield->Value();
+	kinc_g4_render_target_use_depth_as_texture(renderTarget, *unit);
+}
+
+static void krom_set_image_texture(const FunctionCallbackInfo<Value> &args) {
+	Local<External> unitfield = Local<External>::Cast(args[0].As<Object>()->GetInternalField(0));
+	kinc_g4_texture_unit_t *unit = (kinc_g4_texture_unit_t *)unitfield->Value();
+
+	Local<External> texfield = Local<External>::Cast(args[1].As<Object>()->GetInternalField(0));
+	kinc_g4_texture_t *texture = (kinc_g4_texture_t *)texfield->Value();
+	kinc_g4_set_image_texture(*unit, texture);
+}
+
+static void krom_set_texture_parameters(const FunctionCallbackInfo<Value> &args) {
+	Local<External> unitfield = Local<External>::Cast(args[0].As<Object>()->GetInternalField(0));
+	kinc_g4_texture_unit_t *unit = (kinc_g4_texture_unit_t *)unitfield->Value();
+
+	int u = args[1].As<Int32>()->Value();
+	int v = args[2].As<Int32>()->Value();
+	int min = args[3].As<Int32>()->Value();
+	int max = args[4].As<Int32>()->Value();
+	int mip = args[5].As<Int32>()->Value();
+
+	kinc_g4_set_texture_addressing(*unit, KINC_G4_TEXTURE_DIRECTION_U, (kinc_g4_texture_addressing_t)u);
+	kinc_g4_set_texture_addressing(*unit, KINC_G4_TEXTURE_DIRECTION_V, (kinc_g4_texture_addressing_t)v);
+	kinc_g4_set_texture_minification_filter(*unit, (kinc_g4_texture_filter_t)min);
+	kinc_g4_set_texture_magnification_filter(*unit, (kinc_g4_texture_filter_t)max);
+	kinc_g4_set_texture_mipmap_filter(*unit, (kinc_g4_mipmap_filter_t)mip);
+}
+
+static void krom_set_texture_3d_parameters(const FunctionCallbackInfo<Value> &args) {
+	Local<External> unitfield = Local<External>::Cast(args[0].As<Object>()->GetInternalField(0));
+	kinc_g4_texture_unit_t *unit = (kinc_g4_texture_unit_t *)unitfield->Value();
+
+	int u = args[1].As<Int32>()->Value();
+	int v = args[2].As<Int32>()->Value();
+	int w = args[3].As<Int32>()->Value();
+	int min = args[4].As<Int32>()->Value();
+	int max = args[5].As<Int32>()->Value();
+	int mip = args[6].As<Int32>()->Value();
+
+	kinc_g4_set_texture3d_addressing(*unit, KINC_G4_TEXTURE_DIRECTION_U, (kinc_g4_texture_addressing_t)u);
+	kinc_g4_set_texture3d_addressing(*unit, KINC_G4_TEXTURE_DIRECTION_V, (kinc_g4_texture_addressing_t)v);
+	kinc_g4_set_texture3d_addressing(*unit, KINC_G4_TEXTURE_DIRECTION_W, (kinc_g4_texture_addressing_t)w);
+	kinc_g4_set_texture3d_minification_filter(*unit, (kinc_g4_texture_filter_t)min);
+	kinc_g4_set_texture3d_magnification_filter(*unit, (kinc_g4_texture_filter_t)max);
+	kinc_g4_set_texture3d_mipmap_filter(*unit, (kinc_g4_mipmap_filter_t)mip);
+}
+
+static void krom_set_texture_compare_mode(const FunctionCallbackInfo<Value> &args) {
+	Local<External> unitfield = Local<External>::Cast(args[0].As<Object>()->GetInternalField(0));
+	kinc_g4_texture_unit_t *unit = (kinc_g4_texture_unit_t *)unitfield->Value();
+
+	bool enabled = args[1].As<Boolean>()->Value();
+
+	kinc_g4_set_texture_compare_mode(*unit, enabled);
+}
+
+static void krom_set_cube_map_compare_mode(const FunctionCallbackInfo<Value> &args) {
+	Local<External> unitfield = Local<External>::Cast(args[0].As<Object>()->GetInternalField(0));
+	kinc_g4_texture_unit_t *unit = (kinc_g4_texture_unit_t *)unitfield->Value();
+
+	bool enabled = args[1].As<Boolean>()->Value();
+
+	kinc_g4_set_cubemap_compare_mode(*unit, enabled);
+}
+
+static void krom_set_bool(const FunctionCallbackInfo<Value> &args) {
+	Local<External> locfield = Local<External>::Cast(args[0].As<Object>()->GetInternalField(0));
+	kinc_g4_constant_location_t *location = (kinc_g4_constant_location_t *)locfield->Value();
+
+	bool value = args[1].As<Boolean>()->Value();
+	kinc_g4_set_bool(*location, value);
+}
+
+static void krom_set_int(const FunctionCallbackInfo<Value> &args) {
+	Local<External> locfield = Local<External>::Cast(args[0].As<Object>()->GetInternalField(0));
+	kinc_g4_constant_location_t *location = (kinc_g4_constant_location_t *)locfield->Value();
+
+	int value = args[1].As<Int32>()->Value();
+	kinc_g4_set_int(*location, value);
+}
+
+static void krom_set_float(const FunctionCallbackInfo<Value> &args) {
+	Local<External> locfield = Local<External>::Cast(args[0].As<Object>()->GetInternalField(0));
+	kinc_g4_constant_location_t *location = (kinc_g4_constant_location_t *)locfield->Value();
+
+	float value = (float)args[1].As<Number>()->Value();
+	kinc_g4_set_float(*location, value);
+}
+
+static void krom_set_float2(const FunctionCallbackInfo<Value> &args) {
+	Local<External> locfield = Local<External>::Cast(args[0].As<Object>()->GetInternalField(0));
+	kinc_g4_constant_location_t *location = (kinc_g4_constant_location_t *)locfield->Value();
+
+	float value1 = (float)args[1].As<Number>()->Value();
+	float value2 = (float)args[2].As<Number>()->Value();
+	kinc_g4_set_float2(*location, value1, value2);
+}
+
+static void krom_set_float3(const FunctionCallbackInfo<Value> &args) {
+	Local<External> locfield = Local<External>::Cast(args[0].As<Object>()->GetInternalField(0));
+	kinc_g4_constant_location_t *location = (kinc_g4_constant_location_t *)locfield->Value();
+
+	float value1 = (float)args[1].As<Number>()->Value();
+	float value2 = (float)args[2].As<Number>()->Value();
+	float value3 = (float)args[3].As<Number>()->Value();
+	kinc_g4_set_float3(*location, value1, value2, value3);
+}
+
+static void krom_set_float4(const FunctionCallbackInfo<Value> &args) {
+	Local<External> locfield = Local<External>::Cast(args[0].As<Object>()->GetInternalField(0));
+	kinc_g4_constant_location_t *location = (kinc_g4_constant_location_t *)locfield->Value();
+
+	float value1 = (float)args[1].As<Number>()->Value();
+	float value2 = (float)args[2].As<Number>()->Value();
+	float value3 = (float)args[3].As<Number>()->Value();
+	float value4 = (float)args[4].As<Number>()->Value();
+	kinc_g4_set_float4(*location, value1, value2, value3, value4);
+}
+
+static void krom_set_floats(const FunctionCallbackInfo<Value> &args) {
+	Local<External> locfield = Local<External>::Cast(args[0].As<Object>()->GetInternalField(0));
+	kinc_g4_constant_location_t *location = (kinc_g4_constant_location_t *)locfield->Value();
+
+	Local<ArrayBuffer> buffer = Local<ArrayBuffer>::Cast(args[1]);
+	auto store = buffer->GetBackingStore();
+
+	float *from = (float *)store->Data();
+
+	kinc_g4_set_floats(*location, from, int(store->ByteLength() / 4));
+}
+
+static void krom_set_matrix(const FunctionCallbackInfo<Value> &args) {
+	Local<External> locfield = Local<External>::Cast(args[0].As<Object>()->GetInternalField(0));
+	kinc_g4_constant_location_t *location = (kinc_g4_constant_location_t *)locfield->Value();
+
+	Local<ArrayBuffer> buffer = Local<ArrayBuffer>::Cast(args[1]);
+	auto store = buffer->GetBackingStore();
+
+	float *from = (float *)store->Data();
+	kinc_matrix4x4_t m;
+	kinc_matrix4x4_set(&m, 0, 0, from[0]);
+	kinc_matrix4x4_set(&m, 1, 0, from[1]);
+	kinc_matrix4x4_set(&m, 2, 0, from[2]);
+	kinc_matrix4x4_set(&m, 3, 0, from[3]);
+	kinc_matrix4x4_set(&m, 0, 1, from[4]);
+	kinc_matrix4x4_set(&m, 1, 1, from[5]);
+	kinc_matrix4x4_set(&m, 2, 1, from[6]);
+	kinc_matrix4x4_set(&m, 3, 1, from[7]);
+	kinc_matrix4x4_set(&m, 0, 2, from[8]);
+	kinc_matrix4x4_set(&m, 1, 2, from[9]);
+	kinc_matrix4x4_set(&m, 2, 2, from[10]);
+	kinc_matrix4x4_set(&m, 3, 2, from[11]);
+	kinc_matrix4x4_set(&m, 0, 3, from[12]);
+	kinc_matrix4x4_set(&m, 1, 3, from[13]);
+	kinc_matrix4x4_set(&m, 2, 3, from[14]);
+	kinc_matrix4x4_set(&m, 3, 3, from[15]);
+
+	kinc_g4_set_matrix4(*location, &m);
+}
+
+static void krom_set_matrix3(const FunctionCallbackInfo<Value> &args) {
+	Local<External> locfield = Local<External>::Cast(args[0].As<Object>()->GetInternalField(0));
+	kinc_g4_constant_location_t *location = (kinc_g4_constant_location_t *)locfield->Value();
+
+	Local<ArrayBuffer> buffer = Local<ArrayBuffer>::Cast(args[1]);
+	auto store = buffer->GetBackingStore();
+
+	float *from = (float *)store->Data();
+	kinc_matrix3x3_t m;
+	kinc_matrix3x3_set(&m, 0, 0, from[0]);
+	kinc_matrix3x3_set(&m, 1, 0, from[1]);
+	kinc_matrix3x3_set(&m, 2, 0, from[2]);
+	kinc_matrix3x3_set(&m, 0, 1, from[3]);
+	kinc_matrix3x3_set(&m, 1, 1, from[4]);
+	kinc_matrix3x3_set(&m, 2, 1, from[5]);
+	kinc_matrix3x3_set(&m, 0, 2, from[6]);
+	kinc_matrix3x3_set(&m, 1, 2, from[7]);
+	kinc_matrix3x3_set(&m, 2, 2, from[8]);
+
+	kinc_g4_set_matrix3(*location, &m);
+}
+
+static void krom_get_time(const FunctionCallbackInfo<Value> &args) {
+	args.GetReturnValue().Set(kinc_time());
+}
+
+static void krom_window_width(const FunctionCallbackInfo<Value> &args) {
+	int windowId = args[0].As<Int32>()->Value();
+	args.GetReturnValue().Set(kinc_window_width(windowId));
+}
+
+static void krom_window_height(const FunctionCallbackInfo<Value> &args) {
+	int windowId = args[0].As<Int32>()->Value();
+	args.GetReturnValue().Set(kinc_window_height(windowId));
+}
+
+static void krom_set_window_title(const FunctionCallbackInfo<Value> &args) {
+	node::Environment *env = node::Environment::GetCurrent(args);
+	int windowId = args[0].As<Int32>()->Value();
+	node::Utf8Value title(env->isolate(), args[1]);
+	kinc_window_set_title(windowId, *title);
+}
+
+static void krom_screen_dpi(const FunctionCallbackInfo<Value> &args) {
+	args.GetReturnValue().Set(kinc_primary_display());
+}
+
+static void krom_system_id(const FunctionCallbackInfo<Value> &args) {
+	node::Environment *env = node::Environment::GetCurrent(args);
+	args.GetReturnValue().Set(String::NewFromUtf8(env->isolate(), kinc_system_id()).ToLocalChecked());
+}
+
+static void krom_request_shutdown(const FunctionCallbackInfo<Value> &args) {
+	kinc_stop();
+}
+
+static void krom_display_count(const FunctionCallbackInfo<Value> &args) {
+	args.GetReturnValue().Set(kinc_count_displays());
+}
+
+static void krom_display_width(const FunctionCallbackInfo<Value> &args) {
+	args.GetReturnValue().Set(kinc_display_current_mode(args[0].As<Int32>()->Value()).width);
+}
+
+static void krom_display_height(const FunctionCallbackInfo<Value> &args) {
+	args.GetReturnValue().Set(kinc_display_current_mode(args[0].As<Int32>()->Value()).height);
+}
+
+static void krom_display_x(const FunctionCallbackInfo<Value> &args) {
+	args.GetReturnValue().Set(kinc_display_current_mode(args[0].As<Int32>()->Value()).x);
+}
+
+static void krom_display_y(const FunctionCallbackInfo<Value> &args) {
+	args.GetReturnValue().Set(kinc_display_current_mode(args[0].As<Int32>()->Value()).y);
+}
+
+static void krom_display_is_primary(const FunctionCallbackInfo<Value> &args) {
+	args.GetReturnValue().Set(args[0].As<Int32>()->Value() == kinc_primary_display());
+}
+
+static void krom_write_storage(const FunctionCallbackInfo<Value> &args) {
+	node::Environment *env = node::Environment::GetCurrent(args);
+
+	node::Utf8Value filename(env->isolate(), args[0]);
+
+	Local<ArrayBuffer> buffer = Local<ArrayBuffer>::Cast(args[1]);
+	auto store = buffer->GetBackingStore();
+
+	kinc_file_writer_t writer;
+	if (!kinc_file_writer_open(&writer, *filename)) return;
+	kinc_file_writer_write(&writer, store->Data(), (int)store->ByteLength());
+	kinc_file_writer_close(&writer);
+}
+
+static void krom_read_storage(const FunctionCallbackInfo<Value> &args) {
+	node::Environment *env = node::Environment::GetCurrent(args);
+
+	node::Utf8Value filename(env->isolate(), args[0]);
+
+	kinc_file_reader_t reader;
+	if (!kinc_file_reader_open(&reader, *filename, KINC_FILE_TYPE_SAVE)) return;
+
+	void *buffer = malloc(kinc_file_reader_size(&reader));
+
+	kinc_file_reader_read(&reader, buffer, kinc_file_reader_size(&reader));
+	kinc_file_reader_close(&reader);
+
+	std::shared_ptr<v8::BackingStore> store = v8::ArrayBuffer::NewBackingStore(buffer, kinc_file_reader_size(&reader), do_not_actually_delete, nullptr);
+	Local<ArrayBuffer> abuffer = ArrayBuffer::New(env->isolate(), store);
+
+	args.GetReturnValue().Set(abuffer);
+}
 #if 0
-JsValueRef CALLBACK krom_set_render_target(JsValueRef callee,
-                                           bool isConstructCall,
-                                           JsValueRef* arguments,
-                                           unsigned short argumentCount,
-                                           void* callbackState) {
-  kinc_g4_texture_unit_t* unit;
-  JsGetExternalData(arguments[1], (void**)&unit);
-
-  kinc_g4_render_target_t* renderTarget;
-  JsGetExternalData(arguments[2], (void**)&renderTarget);
-  kinc_g4_render_target_use_color_as_texture(renderTarget, *unit);
-
-  return JS_INVALID_REFERENCE;
-}
-
-JsValueRef CALLBACK krom_set_texture_depth(JsValueRef callee,
-                                           bool isConstructCall,
-                                           JsValueRef* arguments,
-                                           unsigned short argumentCount,
-                                           void* callbackState) {
-  kinc_g4_texture_unit_t* unit;
-  JsGetExternalData(arguments[1], (void**)&unit);
-
-  kinc_g4_render_target_t* renderTarget;
-  JsGetExternalData(arguments[2], (void**)&renderTarget);
-  kinc_g4_render_target_use_depth_as_texture(renderTarget, *unit);
-
-  return JS_INVALID_REFERENCE;
-}
-
-JsValueRef CALLBACK krom_set_image_texture(JsValueRef callee,
-                                           bool isConstructCall,
-                                           JsValueRef* arguments,
-                                           unsigned short argumentCount,
-                                           void* callbackState) {
-  kinc_g4_texture_unit_t* unit;
-  JsGetExternalData(arguments[1], (void**)&unit);
-
-  kinc_g4_texture_t* texture;
-  JsGetExternalData(arguments[2], (void**)&texture);
-  kinc_g4_set_image_texture(*unit, texture);
-
-  return JS_INVALID_REFERENCE;
-}
-
-JsValueRef CALLBACK krom_set_texture_parameters(JsValueRef callee,
-                                                bool isConstructCall,
-                                                JsValueRef* arguments,
-                                                unsigned short argumentCount,
-                                                void* callbackState) {
-  kinc_g4_texture_unit_t* unit;
-  JsGetExternalData(arguments[1], (void**)&unit);
-  int u, v, min, max, mip;
-  JsNumberToInt(arguments[2], &u);
-  JsNumberToInt(arguments[3], &v);
-  JsNumberToInt(arguments[4], &min);
-  JsNumberToInt(arguments[5], &max);
-  JsNumberToInt(arguments[6], &mip);
-  kinc_g4_set_texture_addressing(
-      *unit, KINC_G4_TEXTURE_DIRECTION_U, (kinc_g4_texture_addressing_t)u);
-  kinc_g4_set_texture_addressing(
-      *unit, KINC_G4_TEXTURE_DIRECTION_V, (kinc_g4_texture_addressing_t)v);
-  kinc_g4_set_texture_minification_filter(*unit, (kinc_g4_texture_filter_t)min);
-  kinc_g4_set_texture_magnification_filter(*unit,
-                                           (kinc_g4_texture_filter_t)max);
-  kinc_g4_set_texture_mipmap_filter(*unit, (kinc_g4_mipmap_filter_t)mip);
-  return JS_INVALID_REFERENCE;
-}
-
-JsValueRef CALLBACK krom_set_texture_3d_parameters(JsValueRef callee,
-                                                   bool isConstructCall,
-                                                   JsValueRef* arguments,
-                                                   unsigned short argumentCount,
-                                                   void* callbackState) {
-  kinc_g4_texture_unit_t* unit;
-  JsGetExternalData(arguments[1], (void**)&unit);
-  int u, v, w, min, max, mip;
-  JsNumberToInt(arguments[2], &u);
-  JsNumberToInt(arguments[3], &v);
-  JsNumberToInt(arguments[4], &w);
-  JsNumberToInt(arguments[5], &min);
-  JsNumberToInt(arguments[6], &max);
-  JsNumberToInt(arguments[7], &mip);
-  kinc_g4_set_texture3d_addressing(
-      *unit, KINC_G4_TEXTURE_DIRECTION_U, (kinc_g4_texture_addressing_t)u);
-  kinc_g4_set_texture3d_addressing(
-      *unit, KINC_G4_TEXTURE_DIRECTION_V, (kinc_g4_texture_addressing_t)v);
-  kinc_g4_set_texture3d_addressing(
-      *unit, KINC_G4_TEXTURE_DIRECTION_W, (kinc_g4_texture_addressing_t)w);
-  kinc_g4_set_texture3d_minification_filter(*unit,
-                                            (kinc_g4_texture_filter_t)min);
-  kinc_g4_set_texture3d_magnification_filter(*unit,
-                                             (kinc_g4_texture_filter_t)max);
-  kinc_g4_set_texture3d_mipmap_filter(*unit, (kinc_g4_mipmap_filter_t)mip);
-  return JS_INVALID_REFERENCE;
-}
-
-JsValueRef CALLBACK krom_set_texture_compare_mode(JsValueRef callee,
-                                                  bool isConstructCall,
-                                                  JsValueRef* arguments,
-                                                  unsigned short argumentCount,
-                                                  void* callbackState) {
-  kinc_g4_texture_unit_t* unit;
-  JsGetExternalData(arguments[1], (void**)&unit);
-  bool enabled;
-  JsBooleanToBool(arguments[2], &enabled);
-  kinc_g4_set_texture_compare_mode(*unit, enabled);
-  return JS_INVALID_REFERENCE;
-}
-
-JsValueRef CALLBACK krom_set_cube_map_compare_mode(JsValueRef callee,
-                                                   bool isConstructCall,
-                                                   JsValueRef* arguments,
-                                                   unsigned short argumentCount,
-                                                   void* callbackState) {
-  kinc_g4_texture_unit_t* unit;
-  JsGetExternalData(arguments[1], (void**)&unit);
-  bool enabled;
-  JsBooleanToBool(arguments[2], &enabled);
-  kinc_g4_set_cubemap_compare_mode(*unit, enabled);
-  return JS_INVALID_REFERENCE;
-}
-
-JsValueRef CALLBACK krom_set_bool(JsValueRef callee,
-                                  bool isConstructCall,
-                                  JsValueRef* arguments,
-                                  unsigned short argumentCount,
-                                  void* callbackState) {
-  kinc_g4_constant_location_t* location;
-  JsGetExternalData(arguments[1], (void**)&location);
-  bool value;
-  JsBooleanToBool(arguments[2], &value);
-  kinc_g4_set_bool(*location, value);
-  return JS_INVALID_REFERENCE;
-}
-
-JsValueRef CALLBACK krom_set_int(JsValueRef callee,
-                                 bool isConstructCall,
-                                 JsValueRef* arguments,
-                                 unsigned short argumentCount,
-                                 void* callbackState) {
-  kinc_g4_constant_location_t* location;
-  JsGetExternalData(arguments[1], (void**)&location);
-  int value;
-  JsNumberToInt(arguments[2], &value);
-  kinc_g4_set_int(*location, value);
-  return JS_INVALID_REFERENCE;
-}
-
-JsValueRef CALLBACK krom_set_float(JsValueRef callee,
-                                   bool isConstructCall,
-                                   JsValueRef* arguments,
-                                   unsigned short argumentCount,
-                                   void* callbackState) {
-  kinc_g4_constant_location_t* location;
-  JsGetExternalData(arguments[1], (void**)&location);
-  double value;
-  JsNumberToDouble(arguments[2], &value);
-  kinc_g4_set_float(*location, value);
-  return JS_INVALID_REFERENCE;
-}
-
-JsValueRef CALLBACK krom_set_float2(JsValueRef callee,
-                                    bool isConstructCall,
-                                    JsValueRef* arguments,
-                                    unsigned short argumentCount,
-                                    void* callbackState) {
-  kinc_g4_constant_location_t* location;
-  JsGetExternalData(arguments[1], (void**)&location);
-  double value1, value2;
-  JsNumberToDouble(arguments[2], &value1);
-  JsNumberToDouble(arguments[3], &value2);
-  kinc_g4_set_float2(*location, value1, value2);
-  return JS_INVALID_REFERENCE;
-}
-
-JsValueRef CALLBACK krom_set_float3(JsValueRef callee,
-                                    bool isConstructCall,
-                                    JsValueRef* arguments,
-                                    unsigned short argumentCount,
-                                    void* callbackState) {
-  kinc_g4_constant_location_t* location;
-  JsGetExternalData(arguments[1], (void**)&location);
-  double value1, value2, value3;
-  JsNumberToDouble(arguments[2], &value1);
-  JsNumberToDouble(arguments[3], &value2);
-  JsNumberToDouble(arguments[4], &value3);
-  kinc_g4_set_float3(*location, value1, value2, value3);
-  return JS_INVALID_REFERENCE;
-}
-
-JsValueRef CALLBACK krom_set_float4(JsValueRef callee,
-                                    bool isConstructCall,
-                                    JsValueRef* arguments,
-                                    unsigned short argumentCount,
-                                    void* callbackState) {
-  kinc_g4_constant_location_t* location;
-  JsGetExternalData(arguments[1], (void**)&location);
-  double value1, value2, value3, value4;
-  JsNumberToDouble(arguments[2], &value1);
-  JsNumberToDouble(arguments[3], &value2);
-  JsNumberToDouble(arguments[4], &value3);
-  JsNumberToDouble(arguments[5], &value4);
-  kinc_g4_set_float4(*location, value1, value2, value3, value4);
-  return JS_INVALID_REFERENCE;
-}
-
-JsValueRef CALLBACK krom_set_floats(JsValueRef callee,
-                                    bool isConstructCall,
-                                    JsValueRef* arguments,
-                                    unsigned short argumentCount,
-                                    void* callbackState) {
-  kinc_g4_constant_location_t* location;
-  JsGetExternalData(arguments[1], (void**)&location);
-
-  Kore::u8* data;
-  unsigned bufferLength;
-  JsGetArrayBufferStorage(arguments[2], &data, &bufferLength);
-
-  float* from = (float*)data;
-
-  kinc_g4_set_floats(*location, from, int(bufferLength / 4));
-  return JS_INVALID_REFERENCE;
-}
-
-JsValueRef CALLBACK krom_set_matrix(JsValueRef callee,
-                                    bool isConstructCall,
-                                    JsValueRef* arguments,
-                                    unsigned short argumentCount,
-                                    void* callbackState) {
-  kinc_g4_constant_location_t* location;
-  JsGetExternalData(arguments[1], (void**)&location);
-
-  Kore::u8* data;
-  unsigned bufferLength;
-  JsGetArrayBufferStorage(arguments[2], &data, &bufferLength);
-
-  float* from = (float*)data;
-  kinc_matrix4x4_t m;
-  kinc_matrix4x4_set(&m, 0, 0, from[0]);
-  kinc_matrix4x4_set(&m, 1, 0, from[1]);
-  kinc_matrix4x4_set(&m, 2, 0, from[2]);
-  kinc_matrix4x4_set(&m, 3, 0, from[3]);
-  kinc_matrix4x4_set(&m, 0, 1, from[4]);
-  kinc_matrix4x4_set(&m, 1, 1, from[5]);
-  kinc_matrix4x4_set(&m, 2, 1, from[6]);
-  kinc_matrix4x4_set(&m, 3, 1, from[7]);
-  kinc_matrix4x4_set(&m, 0, 2, from[8]);
-  kinc_matrix4x4_set(&m, 1, 2, from[9]);
-  kinc_matrix4x4_set(&m, 2, 2, from[10]);
-  kinc_matrix4x4_set(&m, 3, 2, from[11]);
-  kinc_matrix4x4_set(&m, 0, 3, from[12]);
-  kinc_matrix4x4_set(&m, 1, 3, from[13]);
-  kinc_matrix4x4_set(&m, 2, 3, from[14]);
-  kinc_matrix4x4_set(&m, 3, 3, from[15]);
-
-  kinc_g4_set_matrix4(*location, &m);
-
-  return JS_INVALID_REFERENCE;
-}
-
-JsValueRef CALLBACK krom_set_matrix3(JsValueRef callee,
-                                     bool isConstructCall,
-                                     JsValueRef* arguments,
-                                     unsigned short argumentCount,
-                                     void* callbackState) {
-  kinc_g4_constant_location_t* location;
-  JsGetExternalData(arguments[1], (void**)&location);
-
-  Kore::u8* data;
-  unsigned bufferLength;
-  JsGetArrayBufferStorage(arguments[2], &data, &bufferLength);
-
-  float* from = (float*)data;
-  kinc_matrix3x3_t m;
-  kinc_matrix3x3_set(&m, 0, 0, from[0]);
-  kinc_matrix3x3_set(&m, 1, 0, from[1]);
-  kinc_matrix3x3_set(&m, 2, 0, from[2]);
-  kinc_matrix3x3_set(&m, 0, 1, from[3]);
-  kinc_matrix3x3_set(&m, 1, 1, from[4]);
-  kinc_matrix3x3_set(&m, 2, 1, from[5]);
-  kinc_matrix3x3_set(&m, 0, 2, from[6]);
-  kinc_matrix3x3_set(&m, 1, 2, from[7]);
-  kinc_matrix3x3_set(&m, 2, 2, from[8]);
-
-  kinc_g4_set_matrix3(*location, &m);
-
-  return JS_INVALID_REFERENCE;
-}
-
-JsValueRef CALLBACK krom_get_time(JsValueRef callee,
-                                  bool isConstructCall,
-                                  JsValueRef* arguments,
-                                  unsigned short argumentCount,
-                                  void* callbackState) {
-  JsValueRef obj;
-  JsDoubleToNumber(kinc_time(), &obj);
-  return obj;
-}
-
-JsValueRef CALLBACK krom_window_width(JsValueRef callee,
-                                      bool isConstructCall,
-                                      JsValueRef* arguments,
-                                      unsigned short argumentCount,
-                                      void* callbackState) {
-  int windowId;
-  JsNumberToInt(arguments[1], &windowId);
-  JsValueRef obj;
-  JsIntToNumber(kinc_window_width(windowId), &obj);
-  return obj;
-}
-
-JsValueRef CALLBACK krom_window_height(JsValueRef callee,
-                                       bool isConstructCall,
-                                       JsValueRef* arguments,
-                                       unsigned short argumentCount,
-                                       void* callbackState) {
-  int windowId;
-  JsNumberToInt(arguments[1], &windowId);
-  JsValueRef obj;
-  JsIntToNumber(kinc_window_height(windowId), &obj);
-  return obj;
-}
-
-JsValueRef CALLBACK krom_set_window_title(JsValueRef callee,
-                                          bool isConstructCall,
-                                          JsValueRef* arguments,
-                                          unsigned short argumentCount,
-                                          void* callbackState) {
-  int windowId;
-  JsNumberToInt(arguments[1], &windowId);
-  char title[256];
-  size_t length;
-  JsCopyString(arguments[2], title, 255, &length);
-  title[length] = 0;
-  kinc_window_set_title(windowId, title);
-  return JS_INVALID_REFERENCE;
-}
-
-JsValueRef CALLBACK krom_screen_dpi(JsValueRef callee,
-                                    bool isConstructCall,
-                                    JsValueRef* arguments,
-                                    unsigned short argumentCount,
-                                    void* callbackState) {
-  JsValueRef obj;
-  JsIntToNumber(
-      kinc_display_current_mode(kinc_primary_display()).pixels_per_inch, &obj);
-  return obj;
-}
-
-JsValueRef CALLBACK krom_system_id(JsValueRef callee,
-                                   bool isConstructCall,
-                                   JsValueRef* arguments,
-                                   unsigned short argumentCount,
-                                   void* callbackState) {
-  JsValueRef value;
-  JsCreateString(kinc_system_id(), strlen(kinc_system_id()), &value);
-  return value;
-}
-
-JsValueRef CALLBACK krom_request_shutdown(JsValueRef callee,
-                                          bool isConstructCall,
-                                          JsValueRef* arguments,
-                                          unsigned short argumentCount,
-                                          void* callbackState) {
-  kinc_stop();
-  return JS_INVALID_REFERENCE;
-}
-
-JsValueRef CALLBACK krom_display_count(JsValueRef callee,
-                                       bool isConstructCall,
-                                       JsValueRef* arguments,
-                                       unsigned short argumentCount,
-                                       void* callbackState) {
-  JsValueRef value;
-  JsIntToNumber(kinc_count_displays(), &value);
-  return value;
-}
-
-JsValueRef CALLBACK krom_display_width(JsValueRef callee,
-                                       bool isConstructCall,
-                                       JsValueRef* arguments,
-                                       unsigned short argumentCount,
-                                       void* callbackState) {
-  int index;
-  JsNumberToInt(arguments[1], &index);
-  JsValueRef value;
-  JsIntToNumber(kinc_display_current_mode(kinc_primary_display()).width,
-                &value);
-  return value;
-}
-
-JsValueRef CALLBACK krom_display_height(JsValueRef callee,
-                                        bool isConstructCall,
-                                        JsValueRef* arguments,
-                                        unsigned short argumentCount,
-                                        void* callbackState) {
-  int index;
-  JsNumberToInt(arguments[1], &index);
-  JsValueRef value;
-  JsIntToNumber(kinc_display_current_mode(kinc_primary_display()).height,
-                &value);
-  return value;
-}
-
-JsValueRef CALLBACK krom_display_x(JsValueRef callee,
-                                   bool isConstructCall,
-                                   JsValueRef* arguments,
-                                   unsigned short argumentCount,
-                                   void* callbackState) {
-  int index;
-  JsNumberToInt(arguments[1], &index);
-  JsValueRef value;
-  JsIntToNumber(kinc_display_current_mode(kinc_primary_display()).x, &value);
-  return value;
-}
-
-JsValueRef CALLBACK krom_display_y(JsValueRef callee,
-                                   bool isConstructCall,
-                                   JsValueRef* arguments,
-                                   unsigned short argumentCount,
-                                   void* callbackState) {
-  int index;
-  JsNumberToInt(arguments[1], &index);
-  JsValueRef value;
-  JsIntToNumber(kinc_display_current_mode(kinc_primary_display()).y, &value);
-  return value;
-}
-
-JsValueRef CALLBACK krom_display_is_primary(JsValueRef callee,
-                                            bool isConstructCall,
-                                            JsValueRef* arguments,
-                                            unsigned short argumentCount,
-                                            void* callbackState) {
-  int index;
-  JsNumberToInt(arguments[1], &index);
-  JsValueRef value;
-  JsBoolToBoolean(index == kinc_primary_display(), &value);
-  return value;
-}
-
-JsValueRef CALLBACK krom_write_storage(JsValueRef callee,
-                                       bool isConstructCall,
-                                       JsValueRef* arguments,
-                                       unsigned short argumentCount,
-                                       void* callbackState) {
-  size_t length;
-  JsCopyString(arguments[1], tempString, tempStringSize, &length);
-  tempString[length] = 0;
-
-  Kore::u8* buffer;
-  unsigned bufferLength;
-  JsGetArrayBufferStorage(arguments[2], &buffer, &bufferLength);
-
-  kinc_file_writer_t writer;
-  if (!kinc_file_writer_open(&writer, tempString)) return JS_INVALID_REFERENCE;
-  kinc_file_writer_write(&writer, buffer, (int)bufferLength);
-  kinc_file_writer_close(&writer);
-
-  return JS_INVALID_REFERENCE;
-}
-
-JsValueRef CALLBACK krom_read_storage(JsValueRef callee,
-                                      bool isConstructCall,
-                                      JsValueRef* arguments,
-                                      unsigned short argumentCount,
-                                      void* callbackState) {
-  size_t length;
-  JsCopyString(arguments[1], tempString, tempStringSize, &length);
-  tempString[length] = 0;
-
-  kinc_file_reader_t reader;
-  if (!kinc_file_reader_open(&reader, tempString, KINC_FILE_TYPE_SAVE))
-    return JS_INVALID_REFERENCE;
-
-  JsValueRef buffer;
-  JsCreateArrayBuffer(kinc_file_reader_size(&reader), &buffer);
-
-  Kore::u8* bufferData;
-  unsigned bufferLength;
-  JsGetArrayBufferStorage(buffer, &bufferData, &bufferLength);
-
-  kinc_file_reader_read(&reader, bufferData, kinc_file_reader_size(&reader));
-  kinc_file_reader_close(&reader);
-
-  return buffer;
-}
-
 JsValueRef CALLBACK krom_create_render_target(JsValueRef callee,
                                               bool isConstructCall,
                                               JsValueRef* arguments,
