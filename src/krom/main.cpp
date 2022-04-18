@@ -85,6 +85,7 @@ using v8::Number;
 using v8::Object;
 using v8::ObjectTemplate;
 using v8::String;
+using v8::TryCatch;
 using v8::Uint32Array;
 using v8::Value;
 
@@ -2534,9 +2535,1136 @@ static void krom_compute(const FunctionCallbackInfo<Value> &args) {
 	kinc_compute(x, y, z);
 }
 
+#if 0
+JsSourceContext cookie = 1234;
+JsValueRef script, source;
+
+void initKrom(char* scriptfile) {
+#ifdef KORE_WINDOWS
+  AttachProcess(GetModuleHandle(nullptr));
+#else
+  AttachProcess(nullptr);
+#endif
+
+#ifdef NDEBUG
+  JsCreateRuntime(JsRuntimeAttributeEnableIdleProcessing, nullptr, &runtime);
+#else
+  JsCreateRuntime(JsRuntimeAttributeAllowScriptInterrupt, nullptr, &runtime);
+#endif
+
+  JsCreateContext(runtime, &context);
+  JsAddRef(context, nullptr);
+
+  JsSetCurrentContext(context);
+
+  bindFunctions();
+  bindWorkerClass();
+
+  JsCreateExternalArrayBuffer(
+      (void*)scriptfile,
+      serialized ? serializedLength : (unsigned int)strlen(scriptfile),
+      nullptr,
+      nullptr,
+      &script);
+  JsCreateString("krom.js", strlen("krom.js"), &source);
+}
+
+void startKrom(char* scriptfile) {
+  JsValueRef result;
+  if (serialized) {
+    JsRunSerialized(
+        script,
+        [](JsSourceContext sourceContext,
+           JsValueRef* scriptBuffer,
+           JsParseScriptAttributes* parseAttributes) {
+          fprintf(stderr, "krom.bin does not match this Krom version");
+          return false;
+        },
+        cookie,
+        source,
+        &result);
+  } else {
+    JsRun(script, cookie, source, JsParseScriptAttributeNone, &result);
+  }
+}
+
+bool codechanged = false;
+
+void parseCode();
+
+void runJS() {
+  if (debugMode) {
+    Message message = receiveMessage();
+    handleDebugMessage(message, false);
+  }
+
+  if (codechanged) {
+    parseCode();
+    codechanged = false;
+  }
+
+  JsValueRef undef;
+  JsGetUndefinedValue(&undef);
+  JsValueRef result;
+  JsCallFunction(updateFunction, &undef, 1, &result);
+
+  handleWorkerMessages();
+
+  bool except;
+  JsHasException(&except);
+  if (except) {
+    JsValueRef meta;
+    JsValueRef exceptionObj;
+    JsGetAndClearExceptionWithMetadata(&meta);
+    JsGetProperty(meta, getId("exception"), &exceptionObj);
+    char buf[2048];
+    size_t length;
+
+    sendLogMessage("Uncaught exception:");
+    JsValueRef sourceObj;
+    JsGetProperty(meta, getId("source"), &sourceObj);
+    JsCopyString(sourceObj, nullptr, 0, &length);
+    if (length < 2048) {
+      JsCopyString(sourceObj, buf, 2047, &length);
+      buf[length] = 0;
+      sendLogMessage("%s", buf);
+
+      JsValueRef columnObj;
+      JsGetProperty(meta, getId("column"), &columnObj);
+      int column;
+      JsNumberToInt(columnObj, &column);
+      for (int i = 0; i < column; i++)
+        if (buf[i] != '\t') buf[i] = ' ';
+      buf[column] = '^';
+      buf[column + 1] = 0;
+      sendLogMessage("%s", buf);
+    }
+
+    JsValueRef stackObj;
+    JsGetProperty(exceptionObj, getId("stack"), &stackObj);
+    JsCopyString(stackObj, nullptr, 0, &length);
+    if (length < 2048) {
+      JsCopyString(stackObj, buf, 2047, &length);
+      buf[length] = 0;
+      sendLogMessage("%s\n", buf);
+    }
+  }
+}
+
+void serializeScript(char* code, char* outpath) {
+#ifdef KORE_WINDOWS
+  AttachProcess(GetModuleHandle(nullptr));
+#else
+  AttachProcess(nullptr);
+#endif
+  JsCreateRuntime(JsRuntimeAttributeNone, nullptr, &runtime);
+  JsContextRef context;
+  JsCreateContext(runtime, &context);
+  JsSetCurrentContext(context);
+
+  JsValueRef codeObj, bufferObj;
+  JsCreateExternalArrayBuffer(
+      (void*)code, (unsigned int)strlen(code), nullptr, nullptr, &codeObj);
+  JsSerialize(codeObj, &bufferObj, JsParseScriptAttributeNone);
+  Kore::u8* buffer;
+  unsigned bufferLength;
+  JsGetArrayBufferStorage(bufferObj, &buffer, &bufferLength);
+
+  FILE* file = fopen(outpath, "wb");
+  if (file == nullptr) return;
+  fwrite(buffer, 1, (int)bufferLength, file);
+  fclose(file);
+}
+#endif
+/*void endKrom() {
+    JsSetCurrentContext(JS_INVALID_REFERENCE);
+    JsDisposeRuntime(runtime);
+}*/
+
+static v8::Isolate *isolate;
+static Global<v8::Context> globalContext;
+
+void updateAudio(kinc_a2_buffer_t *buffer, int samples) {
+	kinc_mutex_lock(&audioMutex);
+	audioSamples += samples;
+	kinc_mutex_unlock(&audioMutex);
+}
+
+static void runV8() {
+	/*if (messageLoopPaused)
+	    return;
+
+	if (codechanged) {
+	    parseCode();
+	    codechanged = false;
+	}*/
+
+	v8::Locker locker{isolate};
+
+	Isolate::Scope isolate_scope(isolate);
+	v8::MicrotasksScope microtasks_scope(isolate, v8::MicrotasksScope::kRunMicrotasks);
+	HandleScope handle_scope(isolate);
+	Local<Context> context = Local<Context>::New(isolate, globalContext);
+	Context::Scope context_scope(context);
+
+	TryCatch try_catch(isolate);
+	Local<v8::Function> func = Local<v8::Function>::New(isolate, updateFunction);
+	Local<Value> result;
+
+	//**if (debugMode) v8inspector->willExecuteScript(context, func->ScriptId());
+	if (!func->Call(context, context->Global(), 0, NULL).ToLocal(&result)) {
+		v8::String::Utf8Value stack_trace(isolate, try_catch.StackTrace(context).ToLocalChecked());
+		sendLogMessage("Trace: %s", *stack_trace);
+	}
+	//**if (debugMode) v8inspector->didExecuteScript(context);
+}
+
+void update() {
+	/*if (enableSound) {
+	    kinc_a2_update();
+
+	    kinc_mutex_lock(&audioMutex);
+	    if (audioSamples > 0) {
+	        JsValueRef args[2];
+	        JsGetUndefinedValue(&args[0]);
+	        JsIntToNumber(audioSamples, &args[1]);
+	        JsValueRef result;
+	        JsCallFunction(audioFunction, args, 2, &result);
+	        audioSamples = 0;
+	    }
+	    kinc_mutex_unlock(&audioMutex);
+	}*/
+
+	kinc_g4_begin(0);
+
+	runV8();
+
+	kinc_g4_end(0);
+	kinc_g4_swap_buffers();
+}
+
+void dropFiles(wchar_t *filePath) {
+	v8::Locker locker{isolate};
+
+	Isolate::Scope isolate_scope(isolate);
+	HandleScope handle_scope(isolate);
+	v8::Local<v8::Context> context = v8::Local<v8::Context>::New(isolate, globalContext);
+	Context::Scope context_scope(context);
+
+	TryCatch try_catch(isolate);
+	v8::Local<v8::Function> func = v8::Local<v8::Function>::New(isolate, dropFilesFunction);
+	Local<Value> result;
+	const int argc = 1;
+	Local<Value> argv[argc];
+	if (sizeof(wchar_t) == 2) {
+		argv[0] = {String::NewFromTwoByte(isolate, (const uint16_t *)filePath).ToLocalChecked()};
+	}
+	else {
+		size_t len = wcslen(filePath);
+		uint16_t *str = new uint16_t[len + 1];
+		for (int i = 0; i < len; i++) str[i] = filePath[i];
+		str[len] = 0;
+		argv[0] = {String::NewFromTwoByte(isolate, str).ToLocalChecked()};
+		delete str;
+	}
+	if (!func->Call(context, context->Global(), argc, argv).ToLocal(&result)) {
+		v8::String::Utf8Value stack_trace(isolate, try_catch.StackTrace(context).ToLocalChecked());
+		sendLogMessage("Trace: %s", *stack_trace);
+	}
+}
+
+char cutCopyString[4096];
+
+char *copy() {
+	v8::Locker locker{isolate};
+
+	Isolate::Scope isolate_scope(isolate);
+	HandleScope handle_scope(isolate);
+	v8::Local<v8::Context> context = v8::Local<v8::Context>::New(isolate, globalContext);
+	Context::Scope context_scope(context);
+
+	TryCatch try_catch(isolate);
+	v8::Local<v8::Function> func = v8::Local<v8::Function>::New(isolate, copyFunction);
+	Local<Value> result;
+	if (!func->Call(context, context->Global(), 0, NULL).ToLocal(&result)) {
+		v8::String::Utf8Value stack_trace(isolate, try_catch.StackTrace(context).ToLocalChecked());
+		sendLogMessage("Trace: %s", *stack_trace);
+	}
+	String::Utf8Value cutCopyString(isolate, result);
+	return *cutCopyString;
+}
+
+char *cut() {
+	v8::Locker locker{isolate};
+
+	Isolate::Scope isolate_scope(isolate);
+	HandleScope handle_scope(isolate);
+	v8::Local<v8::Context> context = v8::Local<v8::Context>::New(isolate, globalContext);
+	Context::Scope context_scope(context);
+
+	TryCatch try_catch(isolate);
+	v8::Local<v8::Function> func = v8::Local<v8::Function>::New(isolate, cutFunction);
+	Local<Value> result;
+	if (!func->Call(context, context->Global(), 0, NULL).ToLocal(&result)) {
+		v8::String::Utf8Value stack_trace(isolate, try_catch.StackTrace(context).ToLocalChecked());
+		sendLogMessage("Trace: %s", *stack_trace);
+	}
+	String::Utf8Value cutCopyString(isolate, result);
+	return *cutCopyString;
+}
+
+void paste(char *data) {
+	v8::Locker locker{isolate};
+
+	Isolate::Scope isolate_scope(isolate);
+	HandleScope handle_scope(isolate);
+	v8::Local<v8::Context> context = v8::Local<v8::Context>::New(isolate, globalContext);
+	Context::Scope context_scope(context);
+
+	TryCatch try_catch(isolate);
+	v8::Local<v8::Function> func = v8::Local<v8::Function>::New(isolate, pasteFunction);
+	Local<Value> result;
+	const int argc = 1;
+	Local<Value> argv[argc] = {String::NewFromUtf8(isolate, data).ToLocalChecked()};
+	if (!func->Call(context, context->Global(), argc, argv).ToLocal(&result)) {
+		v8::String::Utf8Value stack_trace(isolate, try_catch.StackTrace(context).ToLocalChecked());
+		sendLogMessage("Trace: %s", *stack_trace);
+	}
+}
+
+void foreground() {
+	v8::Locker locker{isolate};
+
+	Isolate::Scope isolate_scope(isolate);
+	HandleScope handle_scope(isolate);
+	v8::Local<v8::Context> context = v8::Local<v8::Context>::New(isolate, globalContext);
+	Context::Scope context_scope(context);
+
+	TryCatch try_catch(isolate);
+	v8::Local<v8::Function> func = v8::Local<v8::Function>::New(isolate, foregroundFunction);
+	Local<Value> result;
+	if (!func->Call(context, context->Global(), 0, NULL).ToLocal(&result)) {
+		v8::String::Utf8Value stack_trace(isolate, try_catch.StackTrace(context).ToLocalChecked());
+		sendLogMessage("Trace: %s", *stack_trace);
+	}
+}
+
+void resume() {
+	v8::Locker locker{isolate};
+
+	Isolate::Scope isolate_scope(isolate);
+	HandleScope handle_scope(isolate);
+	v8::Local<v8::Context> context = v8::Local<v8::Context>::New(isolate, globalContext);
+	Context::Scope context_scope(context);
+
+	TryCatch try_catch(isolate);
+	v8::Local<v8::Function> func = v8::Local<v8::Function>::New(isolate, resumeFunction);
+	Local<Value> result;
+	if (!func->Call(context, context->Global(), 0, NULL).ToLocal(&result)) {
+		v8::String::Utf8Value stack_trace(isolate, try_catch.StackTrace(context).ToLocalChecked());
+		sendLogMessage("Trace: %s", *stack_trace);
+	}
+}
+
+void pause() {
+	v8::Locker locker{isolate};
+
+	Isolate::Scope isolate_scope(isolate);
+	HandleScope handle_scope(isolate);
+	v8::Local<v8::Context> context = v8::Local<v8::Context>::New(isolate, globalContext);
+	Context::Scope context_scope(context);
+
+	TryCatch try_catch(isolate);
+	v8::Local<v8::Function> func = v8::Local<v8::Function>::New(isolate, pauseFunction);
+	Local<Value> result;
+	if (!func->Call(context, context->Global(), 0, NULL).ToLocal(&result)) {
+		v8::String::Utf8Value stack_trace(isolate, try_catch.StackTrace(context).ToLocalChecked());
+		sendLogMessage("Trace: %s", *stack_trace);
+	}
+}
+
+void background() {
+	v8::Locker locker{isolate};
+
+	Isolate::Scope isolate_scope(isolate);
+	HandleScope handle_scope(isolate);
+	v8::Local<v8::Context> context = v8::Local<v8::Context>::New(isolate, globalContext);
+	Context::Scope context_scope(context);
+
+	TryCatch try_catch(isolate);
+	v8::Local<v8::Function> func = v8::Local<v8::Function>::New(isolate, backgroundFunction);
+	Local<Value> result;
+	if (!func->Call(context, context->Global(), 0, NULL).ToLocal(&result)) {
+		v8::String::Utf8Value stack_trace(isolate, try_catch.StackTrace(context).ToLocalChecked());
+		sendLogMessage("Trace: %s", *stack_trace);
+	}
+}
+
+void shutdown() {
+	v8::Locker locker{isolate};
+
+	Isolate::Scope isolate_scope(isolate);
+	HandleScope handle_scope(isolate);
+	v8::Local<v8::Context> context = v8::Local<v8::Context>::New(isolate, globalContext);
+	Context::Scope context_scope(context);
+
+	TryCatch try_catch(isolate);
+	v8::Local<v8::Function> func = v8::Local<v8::Function>::New(isolate, shutdownFunction);
+	Local<Value> result;
+	if (!func->Call(context, context->Global(), 0, NULL).ToLocal(&result)) {
+		v8::String::Utf8Value stack_trace(isolate, try_catch.StackTrace(context).ToLocalChecked());
+		sendLogMessage("Trace: %s", *stack_trace);
+	}
+}
+
+void keyDown(int code) {
+	v8::Locker locker{isolate};
+
+	Isolate::Scope isolate_scope(isolate);
+	HandleScope handle_scope(isolate);
+	v8::Local<v8::Context> context = v8::Local<v8::Context>::New(isolate, globalContext);
+	Context::Scope context_scope(context);
+
+	TryCatch try_catch(isolate);
+	v8::Local<v8::Function> func = v8::Local<v8::Function>::New(isolate, keyboardDownFunction);
+	Local<Value> result;
+	const int argc = 1;
+	Local<Value> argv[argc] = {Int32::New(isolate, (int)code)};
+	if (!func->Call(context, context->Global(), argc, argv).ToLocal(&result)) {
+		v8::String::Utf8Value stack_trace(isolate, try_catch.StackTrace(context).ToLocalChecked());
+		sendLogMessage("Trace: %s", *stack_trace);
+	}
+}
+
+void keyUp(int code) {
+	v8::Locker locker{isolate};
+
+	Isolate::Scope isolate_scope(isolate);
+	HandleScope handle_scope(isolate);
+	v8::Local<v8::Context> context = v8::Local<v8::Context>::New(isolate, globalContext);
+	Context::Scope context_scope(context);
+
+	TryCatch try_catch(isolate);
+	v8::Local<v8::Function> func = v8::Local<v8::Function>::New(isolate, keyboardUpFunction);
+	Local<Value> result;
+	const int argc = 1;
+	Local<Value> argv[argc] = {Int32::New(isolate, (int)code)};
+	if (!func->Call(context, context->Global(), argc, argv).ToLocal(&result)) {
+		v8::String::Utf8Value stack_trace(isolate, try_catch.StackTrace(context).ToLocalChecked());
+		sendLogMessage("Trace: %s", *stack_trace);
+	}
+}
+
+void keyPress(unsigned int character) {
+	v8::Locker locker{isolate};
+
+	Isolate::Scope isolate_scope(isolate);
+	HandleScope handle_scope(isolate);
+	v8::Local<v8::Context> context = v8::Local<v8::Context>::New(isolate, globalContext);
+	Context::Scope context_scope(context);
+
+	TryCatch try_catch(isolate);
+	v8::Local<v8::Function> func = v8::Local<v8::Function>::New(isolate, keyboardPressFunction);
+	Local<Value> result;
+	const int argc = 1;
+	Local<Value> argv[argc] = {Int32::New(isolate, (int)character)};
+	if (!func->Call(context, context->Global(), argc, argv).ToLocal(&result)) {
+		v8::String::Utf8Value stack_trace(isolate, try_catch.StackTrace(context).ToLocalChecked());
+		sendLogMessage("Trace: %s", *stack_trace);
+	}
+}
+
+void mouseMove(int window, int x, int y, int mx, int my) {
+	v8::Locker locker{isolate};
+
+	Isolate::Scope isolate_scope(isolate);
+	HandleScope handle_scope(isolate);
+	v8::Local<v8::Context> context = v8::Local<v8::Context>::New(isolate, globalContext);
+	Context::Scope context_scope(context);
+
+	TryCatch try_catch(isolate);
+	v8::Local<v8::Function> func = v8::Local<v8::Function>::New(isolate, mouseMoveFunction);
+	Local<Value> result;
+	const int argc = 4;
+	Local<Value> argv[argc] = {Int32::New(isolate, x), Int32::New(isolate, y), Int32::New(isolate, mx), Int32::New(isolate, my)};
+	if (!func->Call(context, context->Global(), argc, argv).ToLocal(&result)) {
+		v8::String::Utf8Value stack_trace(isolate, try_catch.StackTrace(context).ToLocalChecked());
+		sendLogMessage("Trace: %s", *stack_trace);
+	}
+}
+
+void mouseDown(int window, int button, int x, int y) {
+	v8::Locker locker{isolate};
+
+	Isolate::Scope isolate_scope(isolate);
+	HandleScope handle_scope(isolate);
+	v8::Local<v8::Context> context = v8::Local<v8::Context>::New(isolate, globalContext);
+	Context::Scope context_scope(context);
+
+	TryCatch try_catch(isolate);
+	v8::Local<v8::Function> func = v8::Local<v8::Function>::New(isolate, mouseDownFunction);
+	Local<Value> result;
+	const int argc = 3;
+	Local<Value> argv[argc] = {Int32::New(isolate, button), Int32::New(isolate, x), Int32::New(isolate, y)};
+	if (!func->Call(context, context->Global(), argc, argv).ToLocal(&result)) {
+		v8::String::Utf8Value stack_trace(isolate, try_catch.StackTrace(context).ToLocalChecked());
+		sendLogMessage("Trace: %s", *stack_trace);
+	}
+}
+
+void mouseUp(int window, int button, int x, int y) {
+	v8::Locker locker{isolate};
+
+	Isolate::Scope isolate_scope(isolate);
+	HandleScope handle_scope(isolate);
+	v8::Local<v8::Context> context = v8::Local<v8::Context>::New(isolate, globalContext);
+	Context::Scope context_scope(context);
+
+	TryCatch try_catch(isolate);
+	v8::Local<v8::Function> func = v8::Local<v8::Function>::New(isolate, mouseUpFunction);
+	Local<Value> result;
+	const int argc = 3;
+	Local<Value> argv[argc] = {Int32::New(isolate, button), Int32::New(isolate, x), Int32::New(isolate, y)};
+	if (!func->Call(context, context->Global(), argc, argv).ToLocal(&result)) {
+		v8::String::Utf8Value stack_trace(isolate, try_catch.StackTrace(context).ToLocalChecked());
+		sendLogMessage("Trace: %s", *stack_trace);
+	}
+}
+
+void mouseWheel(int window, int delta) {
+	v8::Locker locker{isolate};
+
+	Isolate::Scope isolate_scope(isolate);
+	HandleScope handle_scope(isolate);
+	v8::Local<v8::Context> context = v8::Local<v8::Context>::New(isolate, globalContext);
+	Context::Scope context_scope(context);
+
+	TryCatch try_catch(isolate);
+	v8::Local<v8::Function> func = v8::Local<v8::Function>::New(isolate, mouseWheelFunction);
+	Local<Value> result;
+	const int argc = 1;
+	Local<Value> argv[argc] = {Int32::New(isolate, delta)};
+	if (!func->Call(context, context->Global(), argc, argv).ToLocal(&result)) {
+		v8::String::Utf8Value stack_trace(isolate, try_catch.StackTrace(context).ToLocalChecked());
+		sendLogMessage("Trace: %s", *stack_trace);
+	}
+}
+
+void penDown(int window, int x, int y, float pressure) {
+	v8::Locker locker{isolate};
+
+	Isolate::Scope isolate_scope(isolate);
+	HandleScope handle_scope(isolate);
+	v8::Local<v8::Context> context = v8::Local<v8::Context>::New(isolate, globalContext);
+	Context::Scope context_scope(context);
+
+	TryCatch try_catch(isolate);
+	v8::Local<v8::Function> func = v8::Local<v8::Function>::New(isolate, penDownFunction);
+	Local<Value> result;
+	const int argc = 3;
+	Local<Value> argv[argc] = {Int32::New(isolate, x), Int32::New(isolate, y), Number::New(isolate, pressure)};
+	if (!func->Call(context, context->Global(), argc, argv).ToLocal(&result)) {
+		v8::String::Utf8Value stack_trace(isolate, try_catch.StackTrace(context).ToLocalChecked());
+		sendLogMessage("Trace: %s", *stack_trace);
+	}
+}
+
+void penUp(int window, int x, int y, float pressure) {
+	v8::Locker locker{isolate};
+
+	Isolate::Scope isolate_scope(isolate);
+	HandleScope handle_scope(isolate);
+	v8::Local<v8::Context> context = v8::Local<v8::Context>::New(isolate, globalContext);
+	Context::Scope context_scope(context);
+
+	TryCatch try_catch(isolate);
+	v8::Local<v8::Function> func = v8::Local<v8::Function>::New(isolate, penUpFunction);
+	Local<Value> result;
+	const int argc = 3;
+	Local<Value> argv[argc] = {Int32::New(isolate, x), Int32::New(isolate, y), Number::New(isolate, pressure)};
+	if (!func->Call(context, context->Global(), argc, argv).ToLocal(&result)) {
+		v8::String::Utf8Value stack_trace(isolate, try_catch.StackTrace(context).ToLocalChecked());
+		sendLogMessage("Trace: %s", *stack_trace);
+	}
+}
+
+void penMove(int window, int x, int y, float pressure) {
+	v8::Locker locker{isolate};
+
+	Isolate::Scope isolate_scope(isolate);
+	HandleScope handle_scope(isolate);
+	v8::Local<v8::Context> context = v8::Local<v8::Context>::New(isolate, globalContext);
+	Context::Scope context_scope(context);
+
+	TryCatch try_catch(isolate);
+	v8::Local<v8::Function> func = v8::Local<v8::Function>::New(isolate, penMoveFunction);
+	Local<Value> result;
+	const int argc = 3;
+	Local<Value> argv[argc] = {Int32::New(isolate, x), Int32::New(isolate, y), Number::New(isolate, pressure)};
+	if (!func->Call(context, context->Global(), argc, argv).ToLocal(&result)) {
+		v8::String::Utf8Value stack_trace(isolate, try_catch.StackTrace(context).ToLocalChecked());
+		sendLogMessage("Trace: %s", *stack_trace);
+	}
+}
+
+void gamepadAxis(int gamepad, int axis, float value) {
+	v8::Locker locker{isolate};
+
+	Isolate::Scope isolate_scope(isolate);
+	HandleScope handle_scope(isolate);
+	v8::Local<v8::Context> context = v8::Local<v8::Context>::New(isolate, globalContext);
+	Context::Scope context_scope(context);
+
+	TryCatch try_catch(isolate);
+	v8::Local<v8::Function> func = v8::Local<v8::Function>::New(isolate, gamepadAxisFunction);
+	Local<Value> result;
+	const int argc = 3;
+	Local<Value> argv[argc] = {Int32::New(isolate, gamepad), Int32::New(isolate, axis), Number::New(isolate, value)};
+	if (!func->Call(context, context->Global(), argc, argv).ToLocal(&result)) {
+		v8::String::Utf8Value stack_trace(isolate, try_catch.StackTrace(context).ToLocalChecked());
+		sendLogMessage("Trace: %s", *stack_trace);
+	}
+}
+
+void gamepadButton(int gamepad, int button, float value) {
+	v8::Locker locker{isolate};
+
+	Isolate::Scope isolate_scope(isolate);
+	HandleScope handle_scope(isolate);
+	v8::Local<v8::Context> context = v8::Local<v8::Context>::New(isolate, globalContext);
+	Context::Scope context_scope(context);
+
+	TryCatch try_catch(isolate);
+	v8::Local<v8::Function> func = v8::Local<v8::Function>::New(isolate, gamepadButtonFunction);
+	Local<Value> result;
+	const int argc = 3;
+	Local<Value> argv[argc] = {Int32::New(isolate, gamepad), Int32::New(isolate, button), Number::New(isolate, value)};
+	if (!func->Call(context, context->Global(), argc, argv).ToLocal(&result)) {
+		v8::String::Utf8Value stack_trace(isolate, try_catch.StackTrace(context).ToLocalChecked());
+		sendLogMessage("Trace: %s", *stack_trace);
+	}
+}
+
+bool startsWith(std::string str, std::string start) {
+	return str.substr(0, start.size()) == start;
+}
+
+bool endsWith(std::string str, std::string end) {
+	if (str.size() < end.size()) return false;
+	for (size_t i = str.size() - end.size(); i < str.size(); ++i) {
+		if (str[i] != end[i - (str.size() - end.size())]) return false;
+	}
+	return true;
+}
+
+std::string replaceAll(std::string str, const std::string &from, const std::string &to) {
+	size_t start_pos = 0;
+	while ((start_pos = str.find(from, start_pos)) != std::string::npos) {
+		str.replace(start_pos, from.length(), to);
+		start_pos += to.length();
+	}
+	return str;
+}
+
+#if 0
+std::string assetsdir;
+std::string kromjs;
+
+struct Func {
+	std::string name;
+	std::vector<std::string> parameters;
+	std::string body;
+};
+
+struct Klass {
+	std::string name;
+	std::string internal_name;
+	std::string parent;
+	std::string interfaces;
+	std::map<std::string, Func *> methods;
+	std::map<std::string, Func *> functions;
+};
+
+std::map<std::string, Klass *> classes;
+
+enum ParseMode { ParseRegular, ParseMethods, ParseMethod, ParseFunction, ParseConstructor };
+
+void patchCode(const char *newScript) {
+	JsSetCurrentContext(context);
+
+	JsCreateExternalArrayBuffer((void *)newScript, serialized ? serializedLength : (unsigned int)strlen(newScript), nullptr, nullptr, &script);
+	JsCreateString("krom.js", strlen("krom.js"), &source);
+	JsValueRef result;
+	JsRun(script, cookie, source, JsParseScriptAttributeNone, &result);
+}
+
+void parseCode() {
+	int types = 0;
+	ParseMode mode = ParseRegular;
+	Klass *currentClass = nullptr;
+	Func *currentFunction = nullptr;
+	std::string currentBody;
+	int brackets = 1;
+
+	std::ifstream infile(kromjs.c_str());
+	std::string line;
+	while (std::getline(infile, line)) {
+		switch (mode) {
+		case ParseRegular: {
+			if (line.find("__super__ =") != std::string::npos) {
+				size_t first = line.find_last_of(' = ');
+				size_t last = line.find_last_of(';');
+				currentClass->parent = line.substr(first + 1, last - first - 1);
+			}
+			else if (line.find("__interfaces__ =") != std::string::npos) {
+				size_t first = line.find_last_of(' = ');
+				size_t last = line.find_last_of(';');
+				currentClass->interfaces = line.substr(first + 1, last - first - 1);
+			}
+			else if (endsWith(line, ".prototype = {") || line.find(".prototype = $extend(") != std::string::npos) { // parse methods
+				mode = ParseMethods;
+			}
+			else if (line.find("$hxClasses[\"") != std::string::npos) {
+				size_t first = line.find('\"');
+				size_t last = line.find_last_of('\"');
+				std::string name = line.substr(first + 1, last - first - 1);
+				first = line.find('var') + 1;
+				last = line.find('=', first + 1) - 1;
+				std::string internal_name = line.substr(first + 1, last - first - 1);
+				if (classes.find(internal_name) == classes.end()) {
+					currentClass = new Klass;
+					currentClass->name = name;
+					currentClass->interfaces = "";
+					currentClass->parent = "";
+					currentClass->internal_name = internal_name;
+					classes[internal_name] = currentClass;
+					++types;
+				}
+				else {
+					currentClass = classes[internal_name];
+					currentClass->name = name;
+				}
+				// constructor
+				if (line.find(" = function(") != std::string::npos) {
+					if (currentClass->methods.find(internal_name) == currentClass->methods.end()) {
+						currentFunction = new Func;
+						currentFunction->name = internal_name;
+						first = line.find('(') + 1;
+						last = line.find_last_of(')');
+						size_t last_param_start = first;
+						for (size_t i = first; i <= last; ++i) {
+							if (line[i] == ',') {
+								currentFunction->parameters.push_back(line.substr(last_param_start, i - last_param_start));
+								last_param_start = i + 1;
+							}
+							if (line[i] == ')') {
+								currentFunction->parameters.push_back(line.substr(last_param_start, i - last_param_start));
+								break;
+							}
+						}
+						currentClass->methods[internal_name] = currentFunction;
+					}
+					else {
+						currentFunction = currentClass->methods[internal_name];
+					}
+					if (line.find("};") == std::string::npos) {
+						mode = ParseConstructor;
+						currentBody = "";
+						brackets = 1;
+					}
+				}
+			}
+			else if (line.find(" = function(") != std::string::npos && line.find("if") == std::string::npos) {
+				if (line.find("var ") == std::string::npos) {
+					size_t first = 0;
+					size_t last = line.find('.');
+					if (last == std::string::npos) {
+						last = line.find('[');
+					}
+					std::string internal_name = line.substr(first, last - first);
+					currentClass = classes[internal_name];
+
+					first = line.find('.') + 1;
+					last = line.find(' ');
+					std::string methodname = line.substr(first, last - first);
+					if (currentClass->methods.find(methodname) == currentClass->methods.end()) {
+						currentFunction = new Func;
+						currentFunction->name = methodname;
+						first = line.find('(') + 1;
+						last = line.find_last_of(')');
+						size_t last_param_start = first;
+						for (size_t i = first; i <= last; ++i) {
+							if (line[i] == ',') {
+								currentFunction->parameters.push_back(line.substr(last_param_start, i - last_param_start));
+								last_param_start = i + 1;
+							}
+							if (line[i] == ')') {
+								currentFunction->parameters.push_back(line.substr(last_param_start, i - last_param_start));
+								break;
+							}
+						}
+						currentClass->methods[methodname] = currentFunction;
+					}
+					else {
+						currentFunction = currentClass->methods[methodname];
+					}
+					mode = ParseFunction;
+					currentBody = "";
+					brackets = 1;
+				}
+			}
+			break;
+		}
+		case ParseMethods: {
+			if (endsWith(line, "{")) {
+				size_t first = 0;
+				while (line[first] == ' ' || line[first] == '\t' || line[first] == ',') {
+					++first;
+				}
+				size_t last = line.find(':');
+				std::string methodname = line.substr(first, last - first);
+				if (currentClass->methods.find(methodname) == currentClass->methods.end()) {
+					currentFunction = new Func;
+					currentFunction->name = methodname;
+					first = line.find('(') + 1;
+					if (first == std::string::npos) {
+						first = 0;
+					}
+					last = line.find_last_of(')');
+					if (last == std::string::npos) {
+						last = 0;
+					}
+					size_t last_param_start = first;
+					for (size_t i = first; i <= last; ++i) {
+						if (line[i] == ',') {
+							currentFunction->parameters.push_back(line.substr(last_param_start, i - last_param_start));
+							last_param_start = i + 1;
+						}
+						if (line[i] == ')') {
+							currentFunction->parameters.push_back(line.substr(last_param_start, i - last_param_start));
+							break;
+						}
+					}
+					currentClass->methods[methodname] = currentFunction;
+				}
+				else {
+					currentFunction = currentClass->methods[methodname];
+				}
+				mode = ParseMethod;
+				currentBody = "";
+				brackets = 1;
+			}
+			else if (endsWith(line, "};") || endsWith(line, "});")) { // Base or extended class
+				mode = ParseRegular;
+			}
+			break;
+		}
+		case ParseMethod: {
+			brackets += std::count(line.begin(), line.end(), '{');
+			brackets -= std::count(line.begin(), line.end(), '}');
+			if (brackets > 0) {
+				currentBody += line + " ";
+			}
+			else {
+				if (currentFunction->body == "") {
+					currentFunction->body = currentBody;
+				}
+				else if (currentFunction->body != currentBody) {
+					currentFunction->body = currentBody;
+
+					std::string script;
+					script += currentClass->internal_name;
+					script += ".prototype.";
+					script += currentFunction->name;
+					script += " = new Function([";
+					for (size_t i = 0; i < currentFunction->parameters.size(); ++i) {
+						script += "\"" + currentFunction->parameters[i] + "\"";
+						if (i < currentFunction->parameters.size() - 1) script += ",";
+					}
+					script += "], \"";
+					script += replaceAll(currentFunction->body, "\"", "\\\"");
+					script += "\");";
+
+					sendLogMessage("Patching method %s in class %s.", currentFunction->name.c_str(), currentClass->name.c_str());
+
+					patchCode(script.c_str());
+				}
+				mode = ParseMethods;
+			}
+			break;
+		}
+		case ParseFunction: {
+			brackets += std::count(line.begin(), line.end(), '{');
+			brackets -= std::count(line.begin(), line.end(), '}');
+			if (brackets > 0) {
+				currentBody += line + " ";
+			}
+			else {
+				if (currentFunction->body == "") {
+					currentFunction->body = currentBody;
+				}
+				else if (currentFunction->body != currentBody) {
+					currentFunction->body = currentBody;
+
+					std::string script;
+					script += currentClass->internal_name;
+					script += ".";
+					script += currentFunction->name;
+					script += " = new Function([";
+					for (size_t i = 0; i < currentFunction->parameters.size(); ++i) {
+						script += "\"" + currentFunction->parameters[i] + "\"";
+						if (i < currentFunction->parameters.size() - 1) script += ",";
+					}
+					script += "], \"";
+					script += replaceAll(currentFunction->body, "\"", "\\\"");
+					script += "\");";
+
+					sendLogMessage("Patching function %s in class %s.", currentFunction->name.c_str(), currentClass->name.c_str());
+
+					patchCode(script.c_str());
+				}
+				mode = ParseRegular;
+			}
+			break;
+		}
+		case ParseConstructor: {
+			brackets += std::count(line.begin(), line.end(), '{');
+			brackets -= std::count(line.begin(), line.end(), '}');
+			if (brackets > 0) {
+				currentBody += line + " ";
+			}
+			else {
+				if (currentFunction->body == "") {
+					currentFunction->body = currentBody;
+				}
+				else if (currentFunction->body != currentBody) {
+					std::map<std::string, Func *>::iterator it;
+					for (it = currentClass->methods.begin(); it != currentClass->methods.end(); it++) {
+						it->second->body = "invalidate it";
+					}
+
+					currentFunction->body = currentBody;
+
+					std::string script;
+					script += "var ";
+					script += currentClass->internal_name;
+					script += " = $hxClasses[\"" + currentClass->name + "\"]";
+					script += " = new Function([";
+					for (size_t i = 0; i < currentFunction->parameters.size(); ++i) {
+						script += "\"" + currentFunction->parameters[i] + "\"";
+						if (i < currentFunction->parameters.size() - 1) script += ",";
+					}
+					script += "], \"";
+					script += replaceAll(currentFunction->body, "\"", "\\\"");
+					script += "\");";
+
+					sendLogMessage("Patching constructor in class %s.", currentFunction->name.c_str());
+
+					script += currentClass->internal_name;
+					script += ".__name__ = \"" + currentClass->name + "\";";
+
+					if (currentClass->parent != "") {
+						script += currentClass->internal_name;
+						script += ".__super__ = " + currentClass->parent + ";";
+						script += currentClass->internal_name;
+						script += ".prototype = $extend(" + currentClass->parent + ".prototype , {__class__: " + currentClass->internal_name + "});";
+					}
+					if (currentClass->interfaces != "") {
+						script += currentClass->internal_name;
+						script += ".__interfaces__ = " + currentClass->interfaces + ";";
+					}
+					patchCode(script.c_str());
+				}
+				mode = ParseRegular;
+			}
+			break;
+		}
+		}
+	}
+	sendLogMessage("%i new types found.", types);
+	infile.close();
+}
+} // namespace
+
+extern "C" void watchDirectories(char *path1, char *path2);
+
+extern "C" void filechanged(char *path) {
+	std::string strpath = path;
+	if (endsWith(strpath, ".png")) {
+		std::string name = strpath.substr(strpath.find_last_of('/') + 1);
+		imageChanges[name] = true;
+	}
+	else if (endsWith(strpath, ".essl") || endsWith(strpath, ".glsl") || endsWith(strpath, ".d3d11")) {
+		std::string name = strpath.substr(strpath.find_last_of('/') + 1);
+		name = name.substr(0, name.find_last_of('.'));
+		name = replace(name, '.', '_');
+		name = replace(name, '-', '_');
+		sendLogMessage("Shader changed: %s.", name.c_str());
+		shaderFileNames[name] = strpath;
+		shaderChanges[name] = true;
+	}
+	else if (endsWith(strpath, "krom.js")) {
+		sendLogMessage("Code changed.");
+		codechanged = true;
+	}
+}
+
+//__declspec(dllimport) extern "C" void __stdcall Sleep(unsigned long
+// milliseconds);
+
+int kickstart(int argc, char **argv) {
+	_argc = argc;
+	_argv = argv;
+	std::string bindir(argv[0]);
+#ifdef KORE_WINDOWS
+	bindir = bindir.substr(0, bindir.find_last_of("\\"));
+#else
+	bindir = bindir.substr(0, bindir.find_last_of("/"));
+#endif
+	assetsdir = argc > 1 ? argv[1] : bindir;
+	shadersdir = argc > 2 ? argv[2] : bindir;
+
+	int optionIndex = 3;
+	if (shadersdir.rfind("--", 0) == 0) {
+		shadersdir = bindir;
+		optionIndex = 2;
+	}
+
+	bool readStdoutPath = false;
+	bool readConsolePid = false;
+	bool readPort = false;
+	bool writebin = false;
+	int port = 0;
+	for (int i = optionIndex; i < argc; ++i) {
+		if (readPort) {
+			port = atoi(argv[i]);
+			readPort = false;
+		}
+		else if (strcmp(argv[i], "--debug") == 0) {
+			debugMode = true;
+			readPort = true;
+		}
+		else if (strcmp(argv[i], "--watch") == 0) {
+			watch = true;
+		}
+		else if (strcmp(argv[i], "--sound") == 0) {
+			enableSound = true;
+		}
+		else if (strcmp(argv[i], "--nowindow") == 0) {
+			nowindow = true;
+		}
+		else if (readStdoutPath) {
+			freopen(argv[i], "w", stdout);
+			readStdoutPath = false;
+		}
+		else if (strcmp(argv[i], "--stdout") == 0) {
+			readStdoutPath = true;
+		}
+		else if (readConsolePid) {
+#ifdef KORE_WINDOWS
+			AttachConsole(atoi(argv[i]));
+#endif
+			readConsolePid = false;
+		}
+		else if (strcmp(argv[i], "--consolepid") == 0) {
+			readConsolePid = true;
+		}
+		else if (strcmp(argv[i], "--writebin") == 0) {
+			writebin = true;
+		}
+	}
+
+	kromjs = assetsdir + "/krom.js";
+	kinc_internal_set_files_location(&assetsdir[0u]);
+
+	kinc_file_reader_t reader;
+	if (!writebin && kinc_file_reader_open(&reader, "krom.bin", KINC_FILE_TYPE_ASSET)) {
+		serialized = true;
+		serializedLength = kinc_file_reader_size(&reader);
+		kinc_file_reader_close(&reader);
+	}
+
+	if (!serialized && !kinc_file_reader_open(&reader, "krom.js", KINC_FILE_TYPE_ASSET)) {
+		fprintf(stderr, "could not load krom.js. aborting.\n");
+		exit(1);
+	}
+
+	char *code = new char[kinc_file_reader_size(&reader) + 1];
+	kinc_file_reader_read(&reader, code, kinc_file_reader_size(&reader));
+	code[kinc_file_reader_size(&reader)] = 0;
+	kinc_file_reader_close(&reader);
+
+	if (writebin) {
+		std::string krombin = assetsdir + "/krom.bin";
+		serializeScript(code, &krombin[0u]);
+		return 0;
+	}
+
+	if (watch) {
+		parseCode();
+	}
+
+	kinc_threads_init();
+
+	if (watch) {
+		watchDirectories(argv[1], argv[2]);
+	}
+
+	initKrom(code);
+
+	if (debugMode) {
+		startDebugger(runtime, port);
+		for (;;) {
+			Message message = receiveMessage();
+			if (message.size > 0 && message.data[0] == DEBUGGER_MESSAGE_START) {
+				if (message.data[1] != KROM_DEBUG_API) {
+					const char *outdated;
+					if (message.data[1] < KROM_DEBUG_API) {
+						outdated = "your IDE";
+					}
+					else if (KROM_DEBUG_API < message.data[1]) {
+						outdated = "Krom";
+					}
+					sendLogMessage("Krom uses Debug API version %i but your IDE targets "
+					               "Debug API version %i. Please update %s.",
+					               KROM_DEBUG_API, message.data[1], outdated);
+					exit(1);
+				}
+				break;
+			}
+#ifdef KORE_WINDOWS
+			Sleep(100);
+#else
+			usleep(100 * 1000);
+#endif
+		}
+	}
+
+	startKrom(code);
+
+	kinc_start();
+
+	if (enableSound) {
+		kinc_a2_shutdown();
+		kinc_mutex_lock(&mutex); // Prevent audio thread from running
+	}
+
+	exit(0); // TODO
+
+	endKrom();
+
+	return 0;
+}
+#endif
+
+static void krom_start(const FunctionCallbackInfo<Value> &args) {
+	node::Environment *env = node::Environment::GetCurrent(args);
+	isolate = env->isolate();
+}
+
+static void bindFunctions(Local<Context> context, Local<Object> target) {
 #define addFunction(name, func) env->SetMethod(target, #name, func);
 
-void bindFunctions(Local<Context> context, Local<Object> target) {
 	node::Environment *env = node::Environment::GetCurrent(context);
 
 	addFunction(init, krom_init);
@@ -2680,13 +3808,14 @@ void bindFunctions(Local<Context> context, Local<Object> target) {
 	addFunction(getConstantLocationCompute, krom_get_constant_location_compute);
 	addFunction(getTextureUnitCompute, krom_get_texture_unit_compute);
 	addFunction(compute, krom_compute);
-}
+	addFunction(start, krom_start);
 
 #undef addFunction
+}
 
+static void registerFunctions(node::ExternalReferenceRegistry *registry) {
 #define registerFunction(name, func) registry->Register(func)
 
-void registerFunctions(node::ExternalReferenceRegistry *registry) {
 	registerFunction(init, krom_init);
 	registerFunction(log, krom_log);
 	registerFunction(clear, krom_graphics_clear);
@@ -2828,1055 +3957,10 @@ void registerFunctions(node::ExternalReferenceRegistry *registry) {
 	registerFunction(getConstantLocationCompute, krom_get_constant_location_compute);
 	registerFunction(getTextureUnitCompute, krom_get_texture_unit_compute);
 	registerFunction(compute, krom_compute);
-}
+	registerFunction(start, krom_start);
 
 #undef registerFunction
-
-#if 0
-JsSourceContext cookie = 1234;
-JsValueRef script, source;
-
-void initKrom(char* scriptfile) {
-#ifdef KORE_WINDOWS
-  AttachProcess(GetModuleHandle(nullptr));
-#else
-  AttachProcess(nullptr);
-#endif
-
-#ifdef NDEBUG
-  JsCreateRuntime(JsRuntimeAttributeEnableIdleProcessing, nullptr, &runtime);
-#else
-  JsCreateRuntime(JsRuntimeAttributeAllowScriptInterrupt, nullptr, &runtime);
-#endif
-
-  JsCreateContext(runtime, &context);
-  JsAddRef(context, nullptr);
-
-  JsSetCurrentContext(context);
-
-  bindFunctions();
-  bindWorkerClass();
-
-  JsCreateExternalArrayBuffer(
-      (void*)scriptfile,
-      serialized ? serializedLength : (unsigned int)strlen(scriptfile),
-      nullptr,
-      nullptr,
-      &script);
-  JsCreateString("krom.js", strlen("krom.js"), &source);
 }
-
-void startKrom(char* scriptfile) {
-  JsValueRef result;
-  if (serialized) {
-    JsRunSerialized(
-        script,
-        [](JsSourceContext sourceContext,
-           JsValueRef* scriptBuffer,
-           JsParseScriptAttributes* parseAttributes) {
-          fprintf(stderr, "krom.bin does not match this Krom version");
-          return false;
-        },
-        cookie,
-        source,
-        &result);
-  } else {
-    JsRun(script, cookie, source, JsParseScriptAttributeNone, &result);
-  }
-}
-
-bool codechanged = false;
-
-void parseCode();
-
-void runJS() {
-  if (debugMode) {
-    Message message = receiveMessage();
-    handleDebugMessage(message, false);
-  }
-
-  if (codechanged) {
-    parseCode();
-    codechanged = false;
-  }
-
-  JsValueRef undef;
-  JsGetUndefinedValue(&undef);
-  JsValueRef result;
-  JsCallFunction(updateFunction, &undef, 1, &result);
-
-  handleWorkerMessages();
-
-  bool except;
-  JsHasException(&except);
-  if (except) {
-    JsValueRef meta;
-    JsValueRef exceptionObj;
-    JsGetAndClearExceptionWithMetadata(&meta);
-    JsGetProperty(meta, getId("exception"), &exceptionObj);
-    char buf[2048];
-    size_t length;
-
-    sendLogMessage("Uncaught exception:");
-    JsValueRef sourceObj;
-    JsGetProperty(meta, getId("source"), &sourceObj);
-    JsCopyString(sourceObj, nullptr, 0, &length);
-    if (length < 2048) {
-      JsCopyString(sourceObj, buf, 2047, &length);
-      buf[length] = 0;
-      sendLogMessage("%s", buf);
-
-      JsValueRef columnObj;
-      JsGetProperty(meta, getId("column"), &columnObj);
-      int column;
-      JsNumberToInt(columnObj, &column);
-      for (int i = 0; i < column; i++)
-        if (buf[i] != '\t') buf[i] = ' ';
-      buf[column] = '^';
-      buf[column + 1] = 0;
-      sendLogMessage("%s", buf);
-    }
-
-    JsValueRef stackObj;
-    JsGetProperty(exceptionObj, getId("stack"), &stackObj);
-    JsCopyString(stackObj, nullptr, 0, &length);
-    if (length < 2048) {
-      JsCopyString(stackObj, buf, 2047, &length);
-      buf[length] = 0;
-      sendLogMessage("%s\n", buf);
-    }
-  }
-}
-
-void serializeScript(char* code, char* outpath) {
-#ifdef KORE_WINDOWS
-  AttachProcess(GetModuleHandle(nullptr));
-#else
-  AttachProcess(nullptr);
-#endif
-  JsCreateRuntime(JsRuntimeAttributeNone, nullptr, &runtime);
-  JsContextRef context;
-  JsCreateContext(runtime, &context);
-  JsSetCurrentContext(context);
-
-  JsValueRef codeObj, bufferObj;
-  JsCreateExternalArrayBuffer(
-      (void*)code, (unsigned int)strlen(code), nullptr, nullptr, &codeObj);
-  JsSerialize(codeObj, &bufferObj, JsParseScriptAttributeNone);
-  Kore::u8* buffer;
-  unsigned bufferLength;
-  JsGetArrayBufferStorage(bufferObj, &buffer, &bufferLength);
-
-  FILE* file = fopen(outpath, "wb");
-  if (file == nullptr) return;
-  fwrite(buffer, 1, (int)bufferLength, file);
-  fclose(file);
-}
-
-void endKrom() {
-  JsSetCurrentContext(JS_INVALID_REFERENCE);
-  JsDisposeRuntime(runtime);
-}
-
-void updateAudio(kinc_a2_buffer_t* buffer, int samples) {
-  kinc_mutex_lock(&audioMutex);
-  audioSamples += samples;
-  kinc_mutex_unlock(&audioMutex);
-}
-
-void update() {
-  kinc_mutex_lock(&mutex);
-  JsSetCurrentContext(context);
-
-  if (enableSound) {
-    kinc_a2_update();
-
-    kinc_mutex_lock(&audioMutex);
-    if (audioSamples > 0) {
-      JsValueRef args[2];
-      JsGetUndefinedValue(&args[0]);
-      JsIntToNumber(audioSamples, &args[1]);
-      JsValueRef result;
-      JsCallFunction(audioFunction, args, 2, &result);
-      audioSamples = 0;
-    }
-    kinc_mutex_unlock(&audioMutex);
-  }
-
-  kinc_g4_begin(0);
-
-  runJS();
-
-  JsSetCurrentContext(JS_INVALID_REFERENCE);
-  kinc_mutex_unlock(&mutex);
-
-  kinc_g4_end(0);
-
-  unsigned int nextIdleTick;
-  JsIdle(&nextIdleTick);
-
-  kinc_g4_swap_buffers();
-}
-
-void dropFiles(wchar_t* filePath) {
-  kinc_mutex_lock(&mutex);
-  JsSetCurrentContext(context);
-
-  JsValueRef args[2];
-  JsGetUndefinedValue(&args[0]);
-  size_t len = wcslen(filePath);
-  if (sizeof(wchar_t) == 2) {
-    JsCreateStringUtf16((const uint16_t*)filePath, len, &args[1]);
-  } else {
-    uint16_t* str = new uint16_t[len + 1];
-    for (int i = 0; i < len; i++) str[i] = filePath[i];
-    str[len] = 0;
-    JsCreateStringUtf16(str, len, &args[1]);
-    delete[] str;
-  }
-  JsValueRef result;
-  JsCallFunction(dropFilesFunction, args, 2, &result);
-
-  JsSetCurrentContext(JS_INVALID_REFERENCE);
-  kinc_mutex_unlock(&mutex);
-}
-
-char cutCopyString[4096];
-
-char* copy() {
-  kinc_mutex_lock(&mutex);
-  JsSetCurrentContext(context);
-
-  JsValueRef args[1];
-  JsGetUndefinedValue(&args[0]);
-  JsValueRef result;
-  JsCallFunction(copyFunction, args, 1, &result);
-
-  JsValueRef stringValue;
-  JsConvertValueToString(result, &stringValue);
-  size_t length;
-  JsCopyString(stringValue, nullptr, 0, &length);
-  if (length > 4095) return nullptr;
-  JsCopyString(stringValue, cutCopyString, 4095, &length);
-  cutCopyString[length] = 0;
-
-  JsSetCurrentContext(JS_INVALID_REFERENCE);
-  kinc_mutex_unlock(&mutex);
-
-  return cutCopyString;
-}
-
-char* cut() {
-  kinc_mutex_lock(&mutex);
-  JsSetCurrentContext(context);
-
-  JsValueRef args[1];
-  JsGetUndefinedValue(&args[0]);
-  JsValueRef result;
-  JsCallFunction(cutFunction, args, 1, &result);
-
-  JsValueRef stringValue;
-  JsConvertValueToString(result, &stringValue);
-  size_t length;
-  JsCopyString(stringValue, nullptr, 0, &length);
-  if (length > 4095) return nullptr;
-  JsCopyString(stringValue, cutCopyString, 4095, &length);
-  cutCopyString[length] = 0;
-
-  JsSetCurrentContext(JS_INVALID_REFERENCE);
-  kinc_mutex_unlock(&mutex);
-
-  return cutCopyString;
-}
-
-void paste(char* data) {
-  kinc_mutex_lock(&mutex);
-  JsSetCurrentContext(context);
-
-  JsValueRef args[2];
-  JsGetUndefinedValue(&args[0]);
-  JsCreateString(data, strlen(data), &args[1]);
-  JsValueRef result;
-  JsCallFunction(pasteFunction, args, 2, &result);
-
-  JsSetCurrentContext(JS_INVALID_REFERENCE);
-  kinc_mutex_unlock(&mutex);
-}
-
-void foreground() {
-  kinc_mutex_lock(&mutex);
-  JsSetCurrentContext(context);
-
-  JsValueRef args[1];
-  JsGetUndefinedValue(&args[0]);
-  JsValueRef result;
-  JsCallFunction(foregroundFunction, args, 1, &result);
-
-  JsSetCurrentContext(JS_INVALID_REFERENCE);
-  kinc_mutex_unlock(&mutex);
-}
-
-void resume() {
-  kinc_mutex_lock(&mutex);
-  JsSetCurrentContext(context);
-
-  JsValueRef args[1];
-  JsGetUndefinedValue(&args[0]);
-  JsValueRef result;
-  JsCallFunction(resumeFunction, args, 1, &result);
-
-  JsSetCurrentContext(JS_INVALID_REFERENCE);
-  kinc_mutex_unlock(&mutex);
-}
-
-void pause() {
-  kinc_mutex_lock(&mutex);
-  JsSetCurrentContext(context);
-
-  JsValueRef args[1];
-  JsGetUndefinedValue(&args[0]);
-  JsValueRef result;
-  JsCallFunction(pauseFunction, args, 1, &result);
-
-  JsSetCurrentContext(JS_INVALID_REFERENCE);
-  kinc_mutex_unlock(&mutex);
-}
-
-void background() {
-  kinc_mutex_lock(&mutex);
-  JsSetCurrentContext(context);
-
-  JsValueRef args[1];
-  JsGetUndefinedValue(&args[0]);
-  JsValueRef result;
-  JsCallFunction(backgroundFunction, args, 1, &result);
-
-  JsSetCurrentContext(JS_INVALID_REFERENCE);
-  kinc_mutex_unlock(&mutex);
-}
-
-void shutdown() {
-  kinc_mutex_lock(&mutex);
-  JsSetCurrentContext(context);
-
-  JsValueRef args[1];
-  JsGetUndefinedValue(&args[0]);
-  JsValueRef result;
-  JsCallFunction(shutdownFunction, args, 1, &result);
-
-  JsSetCurrentContext(JS_INVALID_REFERENCE);
-  kinc_mutex_unlock(&mutex);
-}
-
-void keyDown(int code) {
-  kinc_mutex_lock(&mutex);
-  JsSetCurrentContext(context);
-
-  JsValueRef args[2];
-  JsGetUndefinedValue(&args[0]);
-  JsIntToNumber((int)code, &args[1]);
-  JsValueRef result;
-  JsCallFunction(keyboardDownFunction, args, 2, &result);
-
-  JsSetCurrentContext(JS_INVALID_REFERENCE);
-  kinc_mutex_unlock(&mutex);
-}
-
-void keyUp(int code) {
-  kinc_mutex_lock(&mutex);
-  JsSetCurrentContext(context);
-
-  JsValueRef args[2];
-  JsGetUndefinedValue(&args[0]);
-  JsIntToNumber((int)code, &args[1]);
-  JsValueRef result;
-  JsCallFunction(keyboardUpFunction, args, 2, &result);
-
-  JsSetCurrentContext(JS_INVALID_REFERENCE);
-  kinc_mutex_unlock(&mutex);
-}
-
-void keyPress(unsigned int character) {
-  kinc_mutex_lock(&mutex);
-  JsSetCurrentContext(context);
-
-  JsValueRef args[2];
-  JsGetUndefinedValue(&args[0]);
-  JsIntToNumber((int)character, &args[1]);
-  JsValueRef result;
-  JsCallFunction(keyboardPressFunction, args, 2, &result);
-
-  JsSetCurrentContext(JS_INVALID_REFERENCE);
-  kinc_mutex_unlock(&mutex);
-}
-
-void mouseMove(int window, int x, int y, int mx, int my) {
-  kinc_mutex_lock(&mutex);
-  JsSetCurrentContext(context);
-
-  JsValueRef args[5];
-  JsGetUndefinedValue(&args[0]);
-  JsIntToNumber(x, &args[1]);
-  JsIntToNumber(y, &args[2]);
-  JsIntToNumber(mx, &args[3]);
-  JsIntToNumber(my, &args[4]);
-  JsValueRef result;
-  JsCallFunction(mouseMoveFunction, args, 5, &result);
-
-  JsSetCurrentContext(JS_INVALID_REFERENCE);
-  kinc_mutex_unlock(&mutex);
-}
-
-void mouseDown(int window, int button, int x, int y) {
-  kinc_mutex_lock(&mutex);
-  JsSetCurrentContext(context);
-
-  JsValueRef args[4];
-  JsGetUndefinedValue(&args[0]);
-  JsIntToNumber(button, &args[1]);
-  JsIntToNumber(x, &args[2]);
-  JsIntToNumber(y, &args[3]);
-  JsValueRef result;
-  JsCallFunction(mouseDownFunction, args, 4, &result);
-
-  JsSetCurrentContext(JS_INVALID_REFERENCE);
-  kinc_mutex_unlock(&mutex);
-}
-
-void mouseUp(int window, int button, int x, int y) {
-  kinc_mutex_lock(&mutex);
-  JsSetCurrentContext(context);
-
-  JsValueRef args[4];
-  JsGetUndefinedValue(&args[0]);
-  JsIntToNumber(button, &args[1]);
-  JsIntToNumber(x, &args[2]);
-  JsIntToNumber(y, &args[3]);
-  JsValueRef result;
-  JsCallFunction(mouseUpFunction, args, 4, &result);
-
-  JsSetCurrentContext(JS_INVALID_REFERENCE);
-  kinc_mutex_unlock(&mutex);
-}
-
-void mouseWheel(int window, int delta) {
-  kinc_mutex_lock(&mutex);
-  JsSetCurrentContext(context);
-
-  JsValueRef args[2];
-  JsGetUndefinedValue(&args[0]);
-  JsIntToNumber(delta, &args[1]);
-  JsValueRef result;
-  JsCallFunction(mouseWheelFunction, args, 2, &result);
-
-  JsSetCurrentContext(JS_INVALID_REFERENCE);
-  kinc_mutex_unlock(&mutex);
-}
-
-void penDown(int window, int x, int y, float pressure) {
-  kinc_mutex_lock(&mutex);
-  JsSetCurrentContext(context);
-
-  JsValueRef args[4];
-  JsGetUndefinedValue(&args[0]);
-  JsIntToNumber(x, &args[1]);
-  JsIntToNumber(y, &args[2]);
-  JsDoubleToNumber(pressure, &args[3]);
-  JsValueRef result;
-  JsCallFunction(penDownFunction, args, 4, &result);
-
-  JsSetCurrentContext(JS_INVALID_REFERENCE);
-  kinc_mutex_unlock(&mutex);
-}
-
-void penUp(int window, int x, int y, float pressure) {
-  kinc_mutex_lock(&mutex);
-  JsSetCurrentContext(context);
-
-  JsValueRef args[4];
-  JsGetUndefinedValue(&args[0]);
-  JsIntToNumber(x, &args[1]);
-  JsIntToNumber(y, &args[2]);
-  JsDoubleToNumber(pressure, &args[3]);
-  JsValueRef result;
-  JsCallFunction(penUpFunction, args, 4, &result);
-
-  JsSetCurrentContext(JS_INVALID_REFERENCE);
-  kinc_mutex_unlock(&mutex);
-}
-
-void penMove(int window, int x, int y, float pressure) {
-  kinc_mutex_lock(&mutex);
-  JsSetCurrentContext(context);
-
-  JsValueRef args[4];
-  JsGetUndefinedValue(&args[0]);
-  JsIntToNumber(x, &args[1]);
-  JsIntToNumber(y, &args[2]);
-  JsDoubleToNumber(pressure, &args[3]);
-  JsValueRef result;
-  JsCallFunction(penMoveFunction, args, 4, &result);
-
-  JsSetCurrentContext(JS_INVALID_REFERENCE);
-  kinc_mutex_unlock(&mutex);
-}
-
-void gamepadAxis(int gamepad, int axis, float value) {
-  kinc_mutex_lock(&mutex);
-  JsSetCurrentContext(context);
-
-  JsValueRef args[4];
-  JsGetUndefinedValue(&args[0]);
-  JsIntToNumber(gamepad, &args[1]);
-  JsIntToNumber(axis, &args[2]);
-  JsDoubleToNumber(value, &args[3]);
-  JsValueRef result;
-  JsCallFunction(gamepadAxisFunction, args, 4, &result);
-
-  JsSetCurrentContext(JS_INVALID_REFERENCE);
-  kinc_mutex_unlock(&mutex);
-}
-
-void gamepadButton(int gamepad, int button, float value) {
-  kinc_mutex_lock(&mutex);
-  JsSetCurrentContext(context);
-
-  JsValueRef args[4];
-  JsGetUndefinedValue(&args[0]);
-  JsIntToNumber(gamepad, &args[1]);
-  JsIntToNumber(button, &args[2]);
-  JsDoubleToNumber(value, &args[3]);
-  JsValueRef result;
-  JsCallFunction(gamepadButtonFunction, args, 4, &result);
-
-  JsSetCurrentContext(JS_INVALID_REFERENCE);
-  kinc_mutex_unlock(&mutex);
-}
-
-bool startsWith(std::string str, std::string start) {
-  return str.substr(0, start.size()) == start;
-}
-
-bool endsWith(std::string str, std::string end) {
-  if (str.size() < end.size()) return false;
-  for (size_t i = str.size() - end.size(); i < str.size(); ++i) {
-    if (str[i] != end[i - (str.size() - end.size())]) return false;
-  }
-  return true;
-}
-
-std::string replaceAll(std::string str,
-                       const std::string& from,
-                       const std::string& to) {
-  size_t start_pos = 0;
-  while ((start_pos = str.find(from, start_pos)) != std::string::npos) {
-    str.replace(start_pos, from.length(), to);
-    start_pos += to.length();
-  }
-  return str;
-}
-
-std::string assetsdir;
-std::string kromjs;
-
-struct Func {
-  std::string name;
-  std::vector<std::string> parameters;
-  std::string body;
-};
-
-struct Klass {
-  std::string name;
-  std::string internal_name;
-  std::string parent;
-  std::string interfaces;
-  std::map<std::string, Func*> methods;
-  std::map<std::string, Func*> functions;
-};
-
-std::map<std::string, Klass*> classes;
-
-enum ParseMode {
-  ParseRegular,
-  ParseMethods,
-  ParseMethod,
-  ParseFunction,
-  ParseConstructor
-};
-
-void patchCode(const char* newScript) {
-  JsSetCurrentContext(context);
-
-  JsCreateExternalArrayBuffer(
-      (void*)newScript,
-      serialized ? serializedLength : (unsigned int)strlen(newScript),
-      nullptr,
-      nullptr,
-      &script);
-  JsCreateString("krom.js", strlen("krom.js"), &source);
-  JsValueRef result;
-  JsRun(script, cookie, source, JsParseScriptAttributeNone, &result);
-}
-void parseCode() {
-  int types = 0;
-  ParseMode mode = ParseRegular;
-  Klass* currentClass = nullptr;
-  Func* currentFunction = nullptr;
-  std::string currentBody;
-  int brackets = 1;
-
-  std::ifstream infile(kromjs.c_str());
-  std::string line;
-  while (std::getline(infile, line)) {
-    switch (mode) {
-      case ParseRegular: {
-        if (line.find("__super__ =") != std::string::npos) {
-          size_t first = line.find_last_of(' = ');
-          size_t last = line.find_last_of(';');
-          currentClass->parent = line.substr(first + 1, last - first - 1);
-        } else if (line.find("__interfaces__ =") != std::string::npos) {
-          size_t first = line.find_last_of(' = ');
-          size_t last = line.find_last_of(';');
-          currentClass->interfaces = line.substr(first + 1, last - first - 1);
-        } else if (endsWith(line, ".prototype = {") ||
-                   line.find(".prototype = $extend(") !=
-                       std::string::npos) {  // parse methods
-          mode = ParseMethods;
-        } else if (line.find("$hxClasses[\"") != std::string::npos) {
-          size_t first = line.find('\"');
-          size_t last = line.find_last_of('\"');
-          std::string name = line.substr(first + 1, last - first - 1);
-          first = line.find('var') + 1;
-          last = line.find('=', first + 1) - 1;
-          std::string internal_name = line.substr(first + 1, last - first - 1);
-          if (classes.find(internal_name) == classes.end()) {
-            currentClass = new Klass;
-            currentClass->name = name;
-            currentClass->interfaces = "";
-            currentClass->parent = "";
-            currentClass->internal_name = internal_name;
-            classes[internal_name] = currentClass;
-            ++types;
-          } else {
-            currentClass = classes[internal_name];
-            currentClass->name = name;
-          }
-          // constructor
-          if (line.find(" = function(") != std::string::npos) {
-            if (currentClass->methods.find(internal_name) ==
-                currentClass->methods.end()) {
-              currentFunction = new Func;
-              currentFunction->name = internal_name;
-              first = line.find('(') + 1;
-              last = line.find_last_of(')');
-              size_t last_param_start = first;
-              for (size_t i = first; i <= last; ++i) {
-                if (line[i] == ',') {
-                  currentFunction->parameters.push_back(
-                      line.substr(last_param_start, i - last_param_start));
-                  last_param_start = i + 1;
-                }
-                if (line[i] == ')') {
-                  currentFunction->parameters.push_back(
-                      line.substr(last_param_start, i - last_param_start));
-                  break;
-                }
-              }
-              currentClass->methods[internal_name] = currentFunction;
-            } else {
-              currentFunction = currentClass->methods[internal_name];
-            }
-            if (line.find("};") == std::string::npos) {
-              mode = ParseConstructor;
-              currentBody = "";
-              brackets = 1;
-            }
-          }
-        } else if (line.find(" = function(") != std::string::npos &&
-                   line.find("if") == std::string::npos) {
-          if (line.find("var ") == std::string::npos) {
-            size_t first = 0;
-            size_t last = line.find('.');
-            if (last == std::string::npos) {
-              last = line.find('[');
-            }
-            std::string internal_name = line.substr(first, last - first);
-            currentClass = classes[internal_name];
-
-            first = line.find('.') + 1;
-            last = line.find(' ');
-            std::string methodname = line.substr(first, last - first);
-            if (currentClass->methods.find(methodname) ==
-                currentClass->methods.end()) {
-              currentFunction = new Func;
-              currentFunction->name = methodname;
-              first = line.find('(') + 1;
-              last = line.find_last_of(')');
-              size_t last_param_start = first;
-              for (size_t i = first; i <= last; ++i) {
-                if (line[i] == ',') {
-                  currentFunction->parameters.push_back(
-                      line.substr(last_param_start, i - last_param_start));
-                  last_param_start = i + 1;
-                }
-                if (line[i] == ')') {
-                  currentFunction->parameters.push_back(
-                      line.substr(last_param_start, i - last_param_start));
-                  break;
-                }
-              }
-              currentClass->methods[methodname] = currentFunction;
-            } else {
-              currentFunction = currentClass->methods[methodname];
-            }
-            mode = ParseFunction;
-            currentBody = "";
-            brackets = 1;
-          }
-        }
-        break;
-      }
-      case ParseMethods: {
-        if (endsWith(line, "{")) {
-          size_t first = 0;
-          while (line[first] == ' ' || line[first] == '\t' ||
-                 line[first] == ',') {
-            ++first;
-          }
-          size_t last = line.find(':');
-          std::string methodname = line.substr(first, last - first);
-          if (currentClass->methods.find(methodname) ==
-              currentClass->methods.end()) {
-            currentFunction = new Func;
-            currentFunction->name = methodname;
-            first = line.find('(') + 1;
-            if (first == std::string::npos) {
-              first = 0;
-            }
-            last = line.find_last_of(')');
-            if (last == std::string::npos) {
-              last = 0;
-            }
-            size_t last_param_start = first;
-            for (size_t i = first; i <= last; ++i) {
-              if (line[i] == ',') {
-                currentFunction->parameters.push_back(
-                    line.substr(last_param_start, i - last_param_start));
-                last_param_start = i + 1;
-              }
-              if (line[i] == ')') {
-                currentFunction->parameters.push_back(
-                    line.substr(last_param_start, i - last_param_start));
-                break;
-              }
-            }
-            currentClass->methods[methodname] = currentFunction;
-          } else {
-            currentFunction = currentClass->methods[methodname];
-          }
-          mode = ParseMethod;
-          currentBody = "";
-          brackets = 1;
-        } else if (endsWith(line, "};") ||
-                   endsWith(line, "});")) {  // Base or extended class
-          mode = ParseRegular;
-        }
-        break;
-      }
-      case ParseMethod: {
-        brackets += std::count(line.begin(), line.end(), '{');
-        brackets -= std::count(line.begin(), line.end(), '}');
-        if (brackets > 0) {
-          currentBody += line + " ";
-        } else {
-          if (currentFunction->body == "") {
-            currentFunction->body = currentBody;
-          } else if (currentFunction->body != currentBody) {
-            currentFunction->body = currentBody;
-
-            std::string script;
-            script += currentClass->internal_name;
-            script += ".prototype.";
-            script += currentFunction->name;
-            script += " = new Function([";
-            for (size_t i = 0; i < currentFunction->parameters.size(); ++i) {
-              script += "\"" + currentFunction->parameters[i] + "\"";
-              if (i < currentFunction->parameters.size() - 1) script += ",";
-            }
-            script += "], \"";
-            script += replaceAll(currentFunction->body, "\"", "\\\"");
-            script += "\");";
-
-            sendLogMessage("Patching method %s in class %s.",
-                           currentFunction->name.c_str(),
-                           currentClass->name.c_str());
-
-            patchCode(script.c_str());
-          }
-          mode = ParseMethods;
-        }
-        break;
-      }
-      case ParseFunction: {
-        brackets += std::count(line.begin(), line.end(), '{');
-        brackets -= std::count(line.begin(), line.end(), '}');
-        if (brackets > 0) {
-          currentBody += line + " ";
-        } else {
-          if (currentFunction->body == "") {
-            currentFunction->body = currentBody;
-          } else if (currentFunction->body != currentBody) {
-            currentFunction->body = currentBody;
-
-            std::string script;
-            script += currentClass->internal_name;
-            script += ".";
-            script += currentFunction->name;
-            script += " = new Function([";
-            for (size_t i = 0; i < currentFunction->parameters.size(); ++i) {
-              script += "\"" + currentFunction->parameters[i] + "\"";
-              if (i < currentFunction->parameters.size() - 1) script += ",";
-            }
-            script += "], \"";
-            script += replaceAll(currentFunction->body, "\"", "\\\"");
-            script += "\");";
-
-            sendLogMessage("Patching function %s in class %s.",
-                           currentFunction->name.c_str(),
-                           currentClass->name.c_str());
-
-            patchCode(script.c_str());
-          }
-          mode = ParseRegular;
-        }
-        break;
-      }
-      case ParseConstructor: {
-        brackets += std::count(line.begin(), line.end(), '{');
-        brackets -= std::count(line.begin(), line.end(), '}');
-        if (brackets > 0) {
-          currentBody += line + " ";
-        } else {
-          if (currentFunction->body == "") {
-            currentFunction->body = currentBody;
-          } else if (currentFunction->body != currentBody) {
-            std::map<std::string, Func*>::iterator it;
-            for (it = currentClass->methods.begin();
-                 it != currentClass->methods.end();
-                 it++) {
-              it->second->body = "invalidate it";
-            }
-
-            currentFunction->body = currentBody;
-
-            std::string script;
-            script += "var ";
-            script += currentClass->internal_name;
-            script += " = $hxClasses[\"" + currentClass->name + "\"]";
-            script += " = new Function([";
-            for (size_t i = 0; i < currentFunction->parameters.size(); ++i) {
-              script += "\"" + currentFunction->parameters[i] + "\"";
-              if (i < currentFunction->parameters.size() - 1) script += ",";
-            }
-            script += "], \"";
-            script += replaceAll(currentFunction->body, "\"", "\\\"");
-            script += "\");";
-
-            sendLogMessage("Patching constructor in class %s.",
-                           currentFunction->name.c_str());
-
-            script += currentClass->internal_name;
-            script += ".__name__ = \"" + currentClass->name + "\";";
-
-            if (currentClass->parent != "") {
-              script += currentClass->internal_name;
-              script += ".__super__ = " + currentClass->parent + ";";
-              script += currentClass->internal_name;
-              script +=
-                  ".prototype = $extend(" + currentClass->parent +
-                  ".prototype , {__class__: " + currentClass->internal_name +
-                  "});";
-            }
-            if (currentClass->interfaces != "") {
-              script += currentClass->internal_name;
-              script += ".__interfaces__ = " + currentClass->interfaces + ";";
-            }
-            patchCode(script.c_str());
-          }
-          mode = ParseRegular;
-        }
-        break;
-      }
-    }
-  }
-  sendLogMessage("%i new types found.", types);
-  infile.close();
-}
-}  // namespace
-
-extern "C" void watchDirectories(char* path1, char* path2);
-
-extern "C" void filechanged(char* path) {
-  std::string strpath = path;
-  if (endsWith(strpath, ".png")) {
-    std::string name = strpath.substr(strpath.find_last_of('/') + 1);
-    imageChanges[name] = true;
-  } else if (endsWith(strpath, ".essl") || endsWith(strpath, ".glsl") ||
-             endsWith(strpath, ".d3d11")) {
-    std::string name = strpath.substr(strpath.find_last_of('/') + 1);
-    name = name.substr(0, name.find_last_of('.'));
-    name = replace(name, '.', '_');
-    name = replace(name, '-', '_');
-    sendLogMessage("Shader changed: %s.", name.c_str());
-    shaderFileNames[name] = strpath;
-    shaderChanges[name] = true;
-  } else if (endsWith(strpath, "krom.js")) {
-    sendLogMessage("Code changed.");
-    codechanged = true;
-  }
-}
-
-//__declspec(dllimport) extern "C" void __stdcall Sleep(unsigned long
-// milliseconds);
-
-int kickstart(int argc, char** argv) {
-  _argc = argc;
-  _argv = argv;
-  std::string bindir(argv[0]);
-#ifdef KORE_WINDOWS
-  bindir = bindir.substr(0, bindir.find_last_of("\\"));
-#else
-  bindir = bindir.substr(0, bindir.find_last_of("/"));
-#endif
-  assetsdir = argc > 1 ? argv[1] : bindir;
-  shadersdir = argc > 2 ? argv[2] : bindir;
-
-  int optionIndex = 3;
-  if (shadersdir.rfind("--", 0) == 0) {
-    shadersdir = bindir;
-    optionIndex = 2;
-  }
-
-  bool readStdoutPath = false;
-  bool readConsolePid = false;
-  bool readPort = false;
-  bool writebin = false;
-  int port = 0;
-  for (int i = optionIndex; i < argc; ++i) {
-    if (readPort) {
-      port = atoi(argv[i]);
-      readPort = false;
-    } else if (strcmp(argv[i], "--debug") == 0) {
-      debugMode = true;
-      readPort = true;
-    } else if (strcmp(argv[i], "--watch") == 0) {
-      watch = true;
-    } else if (strcmp(argv[i], "--sound") == 0) {
-      enableSound = true;
-    } else if (strcmp(argv[i], "--nowindow") == 0) {
-      nowindow = true;
-    } else if (readStdoutPath) {
-      freopen(argv[i], "w", stdout);
-      readStdoutPath = false;
-    } else if (strcmp(argv[i], "--stdout") == 0) {
-      readStdoutPath = true;
-    } else if (readConsolePid) {
-#ifdef KORE_WINDOWS
-      AttachConsole(atoi(argv[i]));
-#endif
-      readConsolePid = false;
-    } else if (strcmp(argv[i], "--consolepid") == 0) {
-      readConsolePid = true;
-    } else if (strcmp(argv[i], "--writebin") == 0) {
-      writebin = true;
-    }
-  }
-
-  kromjs = assetsdir + "/krom.js";
-  kinc_internal_set_files_location(&assetsdir[0u]);
-
-  kinc_file_reader_t reader;
-  if (!writebin &&
-      kinc_file_reader_open(&reader, "krom.bin", KINC_FILE_TYPE_ASSET)) {
-    serialized = true;
-    serializedLength = kinc_file_reader_size(&reader);
-    kinc_file_reader_close(&reader);
-  }
-
-  if (!serialized &&
-      !kinc_file_reader_open(&reader, "krom.js", KINC_FILE_TYPE_ASSET)) {
-    fprintf(stderr, "could not load krom.js. aborting.\n");
-    exit(1);
-  }
-
-  char* code = new char[kinc_file_reader_size(&reader) + 1];
-  kinc_file_reader_read(&reader, code, kinc_file_reader_size(&reader));
-  code[kinc_file_reader_size(&reader)] = 0;
-  kinc_file_reader_close(&reader);
-
-  if (writebin) {
-    std::string krombin = assetsdir + "/krom.bin";
-    serializeScript(code, &krombin[0u]);
-    return 0;
-  }
-
-  if (watch) {
-    parseCode();
-  }
-
-  kinc_threads_init();
-
-  if (watch) {
-    watchDirectories(argv[1], argv[2]);
-  }
-
-  initKrom(code);
-
-  if (debugMode) {
-    startDebugger(runtime, port);
-    for (;;) {
-      Message message = receiveMessage();
-      if (message.size > 0 && message.data[0] == DEBUGGER_MESSAGE_START) {
-        if (message.data[1] != KROM_DEBUG_API) {
-          const char* outdated;
-          if (message.data[1] < KROM_DEBUG_API) {
-            outdated = "your IDE";
-          } else if (KROM_DEBUG_API < message.data[1]) {
-            outdated = "Krom";
-          }
-          sendLogMessage("Krom uses Debug API version %i but your IDE targets "
-                         "Debug API version %i. Please update %s.",
-                         KROM_DEBUG_API,
-                         message.data[1],
-                         outdated);
-          exit(1);
-        }
-        break;
-      }
-#ifdef KORE_WINDOWS
-      Sleep(100);
-#else
-      usleep(100 * 1000);
-#endif
-    }
-  }
-
-  startKrom(code);
-
-  kinc_start();
-
-  if (enableSound) {
-    kinc_a2_shutdown();
-    kinc_mutex_lock(&mutex);  // Prevent audio thread from running
-  }
-
-  exit(0);  // TODO
-
-  endKrom();
-
-  return 0;
-}
-#endif
 
 namespace krom {
 	void Initialize(Local<Object> target, Local<Value> unused, Local<Context> context, void *priv) {
