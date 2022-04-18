@@ -2533,179 +2533,306 @@ static void krom_compute(const FunctionCallbackInfo<Value> &args) {
 	int z = args[2].As<Int32>()->Value();
 	kinc_compute(x, y, z);
 }
-#if 0
-#define addFunction(name, funcName)                                                                                                                            \
-	JsPropertyIdRef name##Id;                                                                                                                                  \
-	JsValueRef name##Func;                                                                                                                                     \
-	JsCreateFunction(funcName, nullptr, &name##Func);                                                                                                          \
-	JsCreatePropertyId(#name, strlen(#name), &name##Id);                                                                                                       \
-	JsSetProperty(krom, name##Id, name##Func, false)
 
-#define createId(name) JsCreatePropertyId(#name, strlen(#name), &name##_id)
+#define addFunction(name, func) env->SetMethod(target, #name, func);
 
-void bindFunctions() {
-  createId(buffer);
+void bindFunctions(Local<Context> context, Local<Object> target) {
+	node::Environment *env = node::Environment::GetCurrent(context);
 
-  JsValueRef krom;
-  JsCreateObject(&krom);
-
-  addFunction(init, krom_init);
-  addFunction(log, krom_log);
-  addFunction(clear, krom_graphics_clear);
-  addFunction(setCallback, krom_set_callback);
-  addFunction(setDropFilesCallback, krom_set_drop_files_callback);
-  addFunction(setCutCopyPasteCallback, krom_set_cut_copy_paste_callback);
-  addFunction(setApplicationStateCallback, krom_set_application_state_callback);
-  addFunction(setKeyboardDownCallback, krom_set_keyboard_down_callback);
-  addFunction(setKeyboardUpCallback, krom_set_keyboard_up_callback);
-  addFunction(setKeyboardPressCallback, krom_set_keyboard_press_callback);
-  addFunction(setMouseDownCallback, krom_set_mouse_down_callback);
-  addFunction(setMouseUpCallback, krom_set_mouse_up_callback);
-  addFunction(setMouseMoveCallback, krom_set_mouse_move_callback);
-  addFunction(setMouseWheelCallback, krom_set_mouse_wheel_callback);
-  addFunction(setPenDownCallback, krom_set_pen_down_callback);
-  addFunction(setPenUpCallback, krom_set_pen_up_callback);
-  addFunction(setPenMoveCallback, krom_set_pen_move_callback);
-  addFunction(setGamepadAxisCallback, krom_set_gamepad_axis_callback);
-  addFunction(setGamepadButtonCallback, krom_set_gamepad_button_callback);
-  addFunction(lockMouse, krom_lock_mouse);
-  addFunction(unlockMouse, krom_unlock_mouse);
-  addFunction(canLockMouse, krom_can_lock_mouse);
-  addFunction(isMouseLocked, krom_is_mouse_locked);
-  addFunction(setMousePosition, krom_set_mouse_position);
-  addFunction(showMouse, krom_show_mouse);
-  addFunction(createIndexBuffer, krom_create_indexbuffer);
-  addFunction(deleteIndexBuffer, krom_delete_indexbuffer);
-  addFunction(lockIndexBuffer, krom_lock_index_buffer);
-  addFunction(unlockIndexBuffer, krom_unlock_index_buffer);
-  addFunction(setIndexBuffer, krom_set_indexbuffer);
-  addFunction(createVertexBuffer, krom_create_vertexbuffer);
-  addFunction(deleteVertexBuffer, krom_delete_vertexbuffer);
-  addFunction(lockVertexBuffer, krom_lock_vertex_buffer);
-  addFunction(unlockVertexBuffer, krom_unlock_vertex_buffer);
-  addFunction(setVertexBuffer, krom_set_vertexbuffer);
-  addFunction(setVertexBuffers, krom_set_vertexbuffers);
-  addFunction(drawIndexedVertices, krom_draw_indexed_vertices);
-  addFunction(drawIndexedVerticesInstanced,
-              krom_draw_indexed_vertices_instanced);
-  addFunction(createVertexShader, krom_create_vertex_shader);
-  addFunction(createVertexShaderFromSource,
-              krom_create_vertex_shader_from_source);
-  addFunction(createFragmentShader, krom_create_fragment_shader);
-  addFunction(createFragmentShaderFromSource,
-              krom_create_fragment_shader_from_source);
-  addFunction(createGeometryShader, krom_create_geometry_shader);
-  addFunction(createTessellationControlShader,
-              krom_create_tessellation_control_shader);
-  addFunction(createTessellationEvaluationShader,
-              krom_create_tessellation_evaluation_shader);
-  addFunction(deleteShader, krom_delete_shader);
-  addFunction(createPipeline, krom_create_pipeline);
-  addFunction(deletePipeline, krom_delete_pipeline);
-  addFunction(compilePipeline, krom_compile_pipeline);
-  addFunction(setPipeline, krom_set_pipeline);
-  addFunction(loadImage, krom_load_image);
-  addFunction(unloadImage, krom_unload_image);
-  addFunction(loadSound, krom_load_sound);
-  addFunction(setAudioCallback, krom_set_audio_callback);
-  addFunction(writeAudioBuffer, krom_write_audio_buffer);
-  addFunction(loadBlob, krom_load_blob);
-  addFunction(getConstantLocation, krom_get_constant_location);
-  addFunction(getTextureUnit, krom_get_texture_unit);
-  addFunction(setTexture, krom_set_texture);
-  addFunction(setRenderTarget, krom_set_render_target);
-  addFunction(setTextureDepth, krom_set_texture_depth);
-  addFunction(setImageTexture, krom_set_image_texture);
-  addFunction(setTextureParameters, krom_set_texture_parameters);
-  addFunction(setTexture3DParameters, krom_set_texture_3d_parameters);
-  addFunction(setTextureCompareMode, krom_set_texture_compare_mode);
-  addFunction(setCubeMapCompareMode, krom_set_cube_map_compare_mode);
-  addFunction(setBool, krom_set_bool);
-  addFunction(setInt, krom_set_int);
-  addFunction(setFloat, krom_set_float);
-  addFunction(setFloat2, krom_set_float2);
-  addFunction(setFloat3, krom_set_float3);
-  addFunction(setFloat4, krom_set_float4);
-  addFunction(setFloats, krom_set_floats);
-  addFunction(setMatrix, krom_set_matrix);
-  addFunction(setMatrix3, krom_set_matrix3);
-  addFunction(getTime, krom_get_time);
-  addFunction(windowWidth, krom_window_width);
-  addFunction(windowHeight, krom_window_height);
-  addFunction(setWindowTitle, krom_set_window_title);
-  addFunction(screenDpi, krom_screen_dpi);
-  addFunction(systemId, krom_system_id);
-  addFunction(requestShutdown, krom_request_shutdown);
-  addFunction(displayCount, krom_display_count);
-  addFunction(displayWidth, krom_display_width);
-  addFunction(displayHeight, krom_display_height);
-  addFunction(displayX, krom_display_x);
-  addFunction(displayY, krom_display_y);
-  addFunction(displayIsPrimary, krom_display_is_primary);
-  addFunction(writeStorage, krom_write_storage);
-  addFunction(readStorage, krom_read_storage);
-  addFunction(createRenderTarget, krom_create_render_target);
-  addFunction(createRenderTargetCubeMap, krom_create_render_target_cube_map);
-  addFunction(createTexture, krom_create_texture);
-  addFunction(createTexture3D, krom_create_texture_3d);
-  addFunction(createTextureFromBytes, krom_create_texture_from_bytes);
-  addFunction(createTextureFromBytes3D, krom_create_texture_from_bytes_3d);
-  addFunction(createTextureFromEncodedBytes,
-              krom_create_texture_from_encoded_bytes);
-  addFunction(getTexturePixels, krom_get_texture_pixels);
-  addFunction(getRenderTargetPixels, krom_get_render_target_pixels);
-  addFunction(lockTexture, krom_lock_texture);
-  addFunction(unlockTexture, krom_unlock_texture);
-  addFunction(clearTexture, krom_clear_texture);
-  addFunction(generateTextureMipmaps, krom_generate_texture_mipmaps);
-  addFunction(generateRenderTargetMipmaps, krom_generate_render_target_mipmaps);
-  addFunction(setMipmaps, krom_set_mipmaps);
-  addFunction(setDepthStencilFrom, krom_set_depth_stencil_from);
-  addFunction(viewport, krom_viewport);
-  addFunction(scissor, krom_scissor);
-  addFunction(disableScissor, krom_disable_scissor);
-  addFunction(renderTargetsInvertedY, krom_render_targets_inverted_y);
-  addFunction(begin, krom_begin);
-  addFunction(beginFace, krom_begin_face);
-  addFunction(end, krom_end);
-  addFunction(fileSaveBytes, krom_file_save_bytes);
-  addFunction(sysCommand, krom_sys_command);
-  addFunction(savePath, krom_save_path);
-  addFunction(getArgCount, krom_get_arg_count);
-  addFunction(getArg, krom_get_arg);
-  addFunction(getFilesLocation, krom_get_files_location);
-  addFunction(setBoolCompute, krom_set_bool_compute);
-  addFunction(setIntCompute, krom_set_int_compute);
-  addFunction(setFloatCompute, krom_set_float_compute);
-  addFunction(setFloat2Compute, krom_set_float2_compute);
-  addFunction(setFloat3Compute, krom_set_float3_compute);
-  addFunction(setFloat4Compute, krom_set_float4_compute);
-  addFunction(setFloatsCompute, krom_set_floats_compute);
-  addFunction(setMatrixCompute, krom_set_matrix_compute);
-  addFunction(setMatrix3Compute, krom_set_matrix3_compute);
-  addFunction(setTextureCompute, krom_set_texture_compute);
-  addFunction(setRenderTargetCompute, krom_set_render_target_compute);
-  addFunction(setSampledTextureCompute, krom_set_sampled_texture_compute);
-  addFunction(setSampledRenderTargetCompute,
-              krom_set_sampled_render_target_compute);
-  addFunction(setSampledDepthTextureCompute,
-              krom_set_sampled_depth_texture_compute);
-  addFunction(setTextureParametersCompute, krom_set_texture_parameters_compute);
-  addFunction(setTexture3DParametersCompute,
-              krom_set_texture_3d_parameters_compute);
-  addFunction(setShaderCompute, krom_set_shader_compute);
-  addFunction(deleteShaderCompute, krom_delete_shader_compute);
-  addFunction(createShaderCompute, krom_create_shader_compute);
-  addFunction(getConstantLocationCompute, krom_get_constant_location_compute);
-  addFunction(getTextureUnitCompute, krom_get_texture_unit_compute);
-  addFunction(compute, krom_compute);
-
-  JsValueRef global;
-  JsGetGlobalObject(&global);
-
-  JsSetProperty(global, getId("Krom"), krom, false);
+	addFunction(init, krom_init);
+	addFunction(log, krom_log);
+	addFunction(clear, krom_graphics_clear);
+	addFunction(setCallback, krom_set_callback);
+	addFunction(setDropFilesCallback, krom_set_drop_files_callback);
+	addFunction(setCutCopyPasteCallback, krom_set_cut_copy_paste_callback);
+	addFunction(setApplicationStateCallback, krom_set_application_state_callback);
+	addFunction(setKeyboardDownCallback, krom_set_keyboard_down_callback);
+	addFunction(setKeyboardUpCallback, krom_set_keyboard_up_callback);
+	addFunction(setKeyboardPressCallback, krom_set_keyboard_press_callback);
+	addFunction(setMouseDownCallback, krom_set_mouse_down_callback);
+	addFunction(setMouseUpCallback, krom_set_mouse_up_callback);
+	addFunction(setMouseMoveCallback, krom_set_mouse_move_callback);
+	addFunction(setMouseWheelCallback, krom_set_mouse_wheel_callback);
+	addFunction(setPenDownCallback, krom_set_pen_down_callback);
+	addFunction(setPenUpCallback, krom_set_pen_up_callback);
+	addFunction(setPenMoveCallback, krom_set_pen_move_callback);
+	addFunction(setGamepadAxisCallback, krom_set_gamepad_axis_callback);
+	addFunction(setGamepadButtonCallback, krom_set_gamepad_button_callback);
+	addFunction(lockMouse, krom_lock_mouse);
+	addFunction(unlockMouse, krom_unlock_mouse);
+	addFunction(canLockMouse, krom_can_lock_mouse);
+	addFunction(isMouseLocked, krom_is_mouse_locked);
+	addFunction(setMousePosition, krom_set_mouse_position);
+	addFunction(showMouse, krom_show_mouse);
+	addFunction(createIndexBuffer, krom_create_indexbuffer);
+	addFunction(deleteIndexBuffer, krom_delete_indexbuffer);
+	addFunction(lockIndexBuffer, krom_lock_index_buffer);
+	addFunction(unlockIndexBuffer, krom_unlock_index_buffer);
+	addFunction(setIndexBuffer, krom_set_indexbuffer);
+	addFunction(createVertexBuffer, krom_create_vertexbuffer);
+	addFunction(deleteVertexBuffer, krom_delete_vertexbuffer);
+	addFunction(lockVertexBuffer, krom_lock_vertex_buffer);
+	addFunction(unlockVertexBuffer, krom_unlock_vertex_buffer);
+	addFunction(setVertexBuffer, krom_set_vertexbuffer);
+	addFunction(setVertexBuffers, krom_set_vertexbuffers);
+	addFunction(drawIndexedVertices, krom_draw_indexed_vertices);
+	addFunction(drawIndexedVerticesInstanced, krom_draw_indexed_vertices_instanced);
+	addFunction(createVertexShader, krom_create_vertex_shader);
+	addFunction(createVertexShaderFromSource, krom_create_vertex_shader_from_source);
+	addFunction(createFragmentShader, krom_create_fragment_shader);
+	addFunction(createFragmentShaderFromSource, krom_create_fragment_shader_from_source);
+	addFunction(createGeometryShader, krom_create_geometry_shader);
+	addFunction(createTessellationControlShader, krom_create_tessellation_control_shader);
+	addFunction(createTessellationEvaluationShader, krom_create_tessellation_evaluation_shader);
+	addFunction(deleteShader, krom_delete_shader);
+	addFunction(createPipeline, krom_create_pipeline);
+	addFunction(deletePipeline, krom_delete_pipeline);
+	addFunction(compilePipeline, krom_compile_pipeline);
+	addFunction(setPipeline, krom_set_pipeline);
+	addFunction(loadImage, krom_load_image);
+	addFunction(unloadImage, krom_unload_image);
+	addFunction(loadSound, krom_load_sound);
+	addFunction(setAudioCallback, krom_set_audio_callback);
+	addFunction(writeAudioBuffer, krom_write_audio_buffer);
+	addFunction(loadBlob, krom_load_blob);
+	addFunction(getConstantLocation, krom_get_constant_location);
+	addFunction(getTextureUnit, krom_get_texture_unit);
+	addFunction(setTexture, krom_set_texture);
+	addFunction(setRenderTarget, krom_set_render_target);
+	addFunction(setTextureDepth, krom_set_texture_depth);
+	addFunction(setImageTexture, krom_set_image_texture);
+	addFunction(setTextureParameters, krom_set_texture_parameters);
+	addFunction(setTexture3DParameters, krom_set_texture_3d_parameters);
+	addFunction(setTextureCompareMode, krom_set_texture_compare_mode);
+	addFunction(setCubeMapCompareMode, krom_set_cube_map_compare_mode);
+	addFunction(setBool, krom_set_bool);
+	addFunction(setInt, krom_set_int);
+	addFunction(setFloat, krom_set_float);
+	addFunction(setFloat2, krom_set_float2);
+	addFunction(setFloat3, krom_set_float3);
+	addFunction(setFloat4, krom_set_float4);
+	addFunction(setFloats, krom_set_floats);
+	addFunction(setMatrix, krom_set_matrix);
+	addFunction(setMatrix3, krom_set_matrix3);
+	addFunction(getTime, krom_get_time);
+	addFunction(windowWidth, krom_window_width);
+	addFunction(windowHeight, krom_window_height);
+	addFunction(setWindowTitle, krom_set_window_title);
+	addFunction(screenDpi, krom_screen_dpi);
+	addFunction(systemId, krom_system_id);
+	addFunction(requestShutdown, krom_request_shutdown);
+	addFunction(displayCount, krom_display_count);
+	addFunction(displayWidth, krom_display_width);
+	addFunction(displayHeight, krom_display_height);
+	addFunction(displayX, krom_display_x);
+	addFunction(displayY, krom_display_y);
+	addFunction(displayIsPrimary, krom_display_is_primary);
+	addFunction(writeStorage, krom_write_storage);
+	addFunction(readStorage, krom_read_storage);
+	addFunction(createRenderTarget, krom_create_render_target);
+	addFunction(createRenderTargetCubeMap, krom_create_render_target_cube_map);
+	addFunction(createTexture, krom_create_texture);
+	addFunction(createTexture3D, krom_create_texture_3d);
+	addFunction(createTextureFromBytes, krom_create_texture_from_bytes);
+	addFunction(createTextureFromBytes3D, krom_create_texture_from_bytes_3d);
+	addFunction(createTextureFromEncodedBytes, krom_create_texture_from_encoded_bytes);
+	addFunction(getTexturePixels, krom_get_texture_pixels);
+	addFunction(getRenderTargetPixels, krom_get_render_target_pixels);
+	addFunction(lockTexture, krom_lock_texture);
+	addFunction(unlockTexture, krom_unlock_texture);
+	addFunction(clearTexture, krom_clear_texture);
+	addFunction(generateTextureMipmaps, krom_generate_texture_mipmaps);
+	addFunction(generateRenderTargetMipmaps, krom_generate_render_target_mipmaps);
+	addFunction(setMipmaps, krom_set_mipmaps);
+	addFunction(setDepthStencilFrom, krom_set_depth_stencil_from);
+	addFunction(viewport, krom_viewport);
+	addFunction(scissor, krom_scissor);
+	addFunction(disableScissor, krom_disable_scissor);
+	addFunction(renderTargetsInvertedY, krom_render_targets_inverted_y);
+	addFunction(begin, krom_begin);
+	addFunction(beginFace, krom_begin_face);
+	addFunction(end, krom_end);
+	addFunction(fileSaveBytes, krom_file_save_bytes);
+	addFunction(sysCommand, krom_sys_command);
+	addFunction(savePath, krom_save_path);
+	addFunction(getArgCount, krom_get_arg_count);
+	addFunction(getArg, krom_get_arg);
+	addFunction(getFilesLocation, krom_get_files_location);
+	addFunction(setBoolCompute, krom_set_bool_compute);
+	addFunction(setIntCompute, krom_set_int_compute);
+	addFunction(setFloatCompute, krom_set_float_compute);
+	addFunction(setFloat2Compute, krom_set_float2_compute);
+	addFunction(setFloat3Compute, krom_set_float3_compute);
+	addFunction(setFloat4Compute, krom_set_float4_compute);
+	addFunction(setFloatsCompute, krom_set_floats_compute);
+	addFunction(setMatrixCompute, krom_set_matrix_compute);
+	addFunction(setMatrix3Compute, krom_set_matrix3_compute);
+	addFunction(setTextureCompute, krom_set_texture_compute);
+	addFunction(setRenderTargetCompute, krom_set_render_target_compute);
+	addFunction(setSampledTextureCompute, krom_set_sampled_texture_compute);
+	addFunction(setSampledRenderTargetCompute, krom_set_sampled_render_target_compute);
+	addFunction(setSampledDepthTextureCompute, krom_set_sampled_depth_texture_compute);
+	addFunction(setTextureParametersCompute, krom_set_texture_parameters_compute);
+	addFunction(setTexture3DParametersCompute, krom_set_texture_3d_parameters_compute);
+	addFunction(setShaderCompute, krom_set_shader_compute);
+	addFunction(deleteShaderCompute, krom_delete_shader_compute);
+	addFunction(createShaderCompute, krom_create_shader_compute);
+	addFunction(getConstantLocationCompute, krom_get_constant_location_compute);
+	addFunction(getTextureUnitCompute, krom_get_texture_unit_compute);
+	addFunction(compute, krom_compute);
 }
 
+#undef addFunction
+
+#define registerFunction(name, func) registry->Register(func)
+
+void registerFunctions(node::ExternalReferenceRegistry *registry) {
+	registerFunction(init, krom_init);
+	registerFunction(log, krom_log);
+	registerFunction(clear, krom_graphics_clear);
+	registerFunction(setCallback, krom_set_callback);
+	registerFunction(setDropFilesCallback, krom_set_drop_files_callback);
+	registerFunction(setCutCopyPasteCallback, krom_set_cut_copy_paste_callback);
+	registerFunction(setApplicationStateCallback, krom_set_application_state_callback);
+	registerFunction(setKeyboardDownCallback, krom_set_keyboard_down_callback);
+	registerFunction(setKeyboardUpCallback, krom_set_keyboard_up_callback);
+	registerFunction(setKeyboardPressCallback, krom_set_keyboard_press_callback);
+	registerFunction(setMouseDownCallback, krom_set_mouse_down_callback);
+	registerFunction(setMouseUpCallback, krom_set_mouse_up_callback);
+	registerFunction(setMouseMoveCallback, krom_set_mouse_move_callback);
+	registerFunction(setMouseWheelCallback, krom_set_mouse_wheel_callback);
+	registerFunction(setPenDownCallback, krom_set_pen_down_callback);
+	registerFunction(setPenUpCallback, krom_set_pen_up_callback);
+	registerFunction(setPenMoveCallback, krom_set_pen_move_callback);
+	registerFunction(setGamepadAxisCallback, krom_set_gamepad_axis_callback);
+	registerFunction(setGamepadButtonCallback, krom_set_gamepad_button_callback);
+	registerFunction(lockMouse, krom_lock_mouse);
+	registerFunction(unlockMouse, krom_unlock_mouse);
+	registerFunction(canLockMouse, krom_can_lock_mouse);
+	registerFunction(isMouseLocked, krom_is_mouse_locked);
+	registerFunction(setMousePosition, krom_set_mouse_position);
+	registerFunction(showMouse, krom_show_mouse);
+	registerFunction(createIndexBuffer, krom_create_indexbuffer);
+	registerFunction(deleteIndexBuffer, krom_delete_indexbuffer);
+	registerFunction(lockIndexBuffer, krom_lock_index_buffer);
+	registerFunction(unlockIndexBuffer, krom_unlock_index_buffer);
+	registerFunction(setIndexBuffer, krom_set_indexbuffer);
+	registerFunction(createVertexBuffer, krom_create_vertexbuffer);
+	registerFunction(deleteVertexBuffer, krom_delete_vertexbuffer);
+	registerFunction(lockVertexBuffer, krom_lock_vertex_buffer);
+	registerFunction(unlockVertexBuffer, krom_unlock_vertex_buffer);
+	registerFunction(setVertexBuffer, krom_set_vertexbuffer);
+	registerFunction(setVertexBuffers, krom_set_vertexbuffers);
+	registerFunction(drawIndexedVertices, krom_draw_indexed_vertices);
+	registerFunction(drawIndexedVerticesInstanced, krom_draw_indexed_vertices_instanced);
+	registerFunction(createVertexShader, krom_create_vertex_shader);
+	registerFunction(createVertexShaderFromSource, krom_create_vertex_shader_from_source);
+	registerFunction(createFragmentShader, krom_create_fragment_shader);
+	registerFunction(createFragmentShaderFromSource, krom_create_fragment_shader_from_source);
+	registerFunction(createGeometryShader, krom_create_geometry_shader);
+	registerFunction(createTessellationControlShader, krom_create_tessellation_control_shader);
+	registerFunction(createTessellationEvaluationShader, krom_create_tessellation_evaluation_shader);
+	registerFunction(deleteShader, krom_delete_shader);
+	registerFunction(createPipeline, krom_create_pipeline);
+	registerFunction(deletePipeline, krom_delete_pipeline);
+	registerFunction(compilePipeline, krom_compile_pipeline);
+	registerFunction(setPipeline, krom_set_pipeline);
+	registerFunction(loadImage, krom_load_image);
+	registerFunction(unloadImage, krom_unload_image);
+	registerFunction(loadSound, krom_load_sound);
+	registerFunction(setAudioCallback, krom_set_audio_callback);
+	registerFunction(writeAudioBuffer, krom_write_audio_buffer);
+	registerFunction(loadBlob, krom_load_blob);
+	registerFunction(getConstantLocation, krom_get_constant_location);
+	registerFunction(getTextureUnit, krom_get_texture_unit);
+	registerFunction(setTexture, krom_set_texture);
+	registerFunction(setRenderTarget, krom_set_render_target);
+	registerFunction(setTextureDepth, krom_set_texture_depth);
+	registerFunction(setImageTexture, krom_set_image_texture);
+	registerFunction(setTextureParameters, krom_set_texture_parameters);
+	registerFunction(setTexture3DParameters, krom_set_texture_3d_parameters);
+	registerFunction(setTextureCompareMode, krom_set_texture_compare_mode);
+	registerFunction(setCubeMapCompareMode, krom_set_cube_map_compare_mode);
+	registerFunction(setBool, krom_set_bool);
+	registerFunction(setInt, krom_set_int);
+	registerFunction(setFloat, krom_set_float);
+	registerFunction(setFloat2, krom_set_float2);
+	registerFunction(setFloat3, krom_set_float3);
+	registerFunction(setFloat4, krom_set_float4);
+	registerFunction(setFloats, krom_set_floats);
+	registerFunction(setMatrix, krom_set_matrix);
+	registerFunction(setMatrix3, krom_set_matrix3);
+	registerFunction(getTime, krom_get_time);
+	registerFunction(windowWidth, krom_window_width);
+	registerFunction(windowHeight, krom_window_height);
+	registerFunction(setWindowTitle, krom_set_window_title);
+	registerFunction(screenDpi, krom_screen_dpi);
+	registerFunction(systemId, krom_system_id);
+	registerFunction(requestShutdown, krom_request_shutdown);
+	registerFunction(displayCount, krom_display_count);
+	registerFunction(displayWidth, krom_display_width);
+	registerFunction(displayHeight, krom_display_height);
+	registerFunction(displayX, krom_display_x);
+	registerFunction(displayY, krom_display_y);
+	registerFunction(displayIsPrimary, krom_display_is_primary);
+	registerFunction(writeStorage, krom_write_storage);
+	registerFunction(readStorage, krom_read_storage);
+	registerFunction(createRenderTarget, krom_create_render_target);
+	registerFunction(createRenderTargetCubeMap, krom_create_render_target_cube_map);
+	registerFunction(createTexture, krom_create_texture);
+	registerFunction(createTexture3D, krom_create_texture_3d);
+	registerFunction(createTextureFromBytes, krom_create_texture_from_bytes);
+	registerFunction(createTextureFromBytes3D, krom_create_texture_from_bytes_3d);
+	registerFunction(createTextureFromEncodedBytes, krom_create_texture_from_encoded_bytes);
+	registerFunction(getTexturePixels, krom_get_texture_pixels);
+	registerFunction(getRenderTargetPixels, krom_get_render_target_pixels);
+	registerFunction(lockTexture, krom_lock_texture);
+	registerFunction(unlockTexture, krom_unlock_texture);
+	registerFunction(clearTexture, krom_clear_texture);
+	registerFunction(generateTextureMipmaps, krom_generate_texture_mipmaps);
+	registerFunction(generateRenderTargetMipmaps, krom_generate_render_target_mipmaps);
+	registerFunction(setMipmaps, krom_set_mipmaps);
+	registerFunction(setDepthStencilFrom, krom_set_depth_stencil_from);
+	registerFunction(viewport, krom_viewport);
+	registerFunction(scissor, krom_scissor);
+	registerFunction(disableScissor, krom_disable_scissor);
+	registerFunction(renderTargetsInvertedY, krom_render_targets_inverted_y);
+	registerFunction(begin, krom_begin);
+	registerFunction(beginFace, krom_begin_face);
+	registerFunction(end, krom_end);
+	registerFunction(fileSaveBytes, krom_file_save_bytes);
+	registerFunction(sysCommand, krom_sys_command);
+	registerFunction(savePath, krom_save_path);
+	registerFunction(getArgCount, krom_get_arg_count);
+	registerFunction(getArg, krom_get_arg);
+	registerFunction(getFilesLocation, krom_get_files_location);
+	registerFunction(setBoolCompute, krom_set_bool_compute);
+	registerFunction(setIntCompute, krom_set_int_compute);
+	registerFunction(setFloatCompute, krom_set_float_compute);
+	registerFunction(setFloat2Compute, krom_set_float2_compute);
+	registerFunction(setFloat3Compute, krom_set_float3_compute);
+	registerFunction(setFloat4Compute, krom_set_float4_compute);
+	registerFunction(setFloatsCompute, krom_set_floats_compute);
+	registerFunction(setMatrixCompute, krom_set_matrix_compute);
+	registerFunction(setMatrix3Compute, krom_set_matrix3_compute);
+	registerFunction(setTextureCompute, krom_set_texture_compute);
+	registerFunction(setRenderTargetCompute, krom_set_render_target_compute);
+	registerFunction(setSampledTextureCompute, krom_set_sampled_texture_compute);
+	registerFunction(setSampledRenderTargetCompute, krom_set_sampled_render_target_compute);
+	registerFunction(setSampledDepthTextureCompute, krom_set_sampled_depth_texture_compute);
+	registerFunction(setTextureParametersCompute, krom_set_texture_parameters_compute);
+	registerFunction(setTexture3DParametersCompute, krom_set_texture_3d_parameters_compute);
+	registerFunction(setShaderCompute, krom_set_shader_compute);
+	registerFunction(deleteShaderCompute, krom_delete_shader_compute);
+	registerFunction(createShaderCompute, krom_create_shader_compute);
+	registerFunction(getConstantLocationCompute, krom_get_constant_location_compute);
+	registerFunction(getTextureUnitCompute, krom_get_texture_unit_compute);
+	registerFunction(compute, krom_compute);
+}
+
+#undef registerFunction
+
+#if 0
 JsSourceContext cookie = 1234;
 JsValueRef script, source;
 
@@ -3752,17 +3879,14 @@ int kickstart(int argc, char** argv) {
 #endif
 
 namespace krom {
-
 	void Initialize(Local<Object> target, Local<Value> unused, Local<Context> context, void *priv) {
-		node::Environment *env = node::Environment::GetCurrent(context);
-		env->SetMethod(target, "init", krom_init);
+		bindFunctions(context, target);
 	}
 
 	void RegisterExternalReferences(node::ExternalReferenceRegistry *registry) {
-		registry->Register(krom_init);
+		registerFunctions(registry);
 	}
-
-} // namespace krom
+}
 
 NODE_MODULE_CONTEXT_AWARE_INTERNAL(krom, krom::Initialize)
 NODE_MODULE_EXTERNAL_REFERENCE(krom, krom::RegisterExternalReferences)
