@@ -290,8 +290,14 @@ static void krom_log(const FunctionCallbackInfo<Value> &args) {
 static void krom_graphics_clear(const FunctionCallbackInfo<Value> &args) {
 	int flags = args[0].As<Int32>()->Value();
 	int color = args[1].As<Int32>()->Value();
-	double depth = args[2].As<Number>()->Value();
-	int stencil = args[3].As<Int32>()->Value();
+	double depth = 0.0f;
+	if (!args[2]->IsUndefined()) {
+		depth = args[2].As<Number>()->Value();
+	}
+	int stencil = 0;
+	if (!args[3]->IsUndefined()) {
+		stencil = args[3].As<Int32>()->Value();
+	}
 	kinc_g4_clear(flags, color, (float)depth, stencil);
 }
 
@@ -2685,8 +2691,7 @@ void serializeScript(char* code, char* outpath) {
     JsDisposeRuntime(runtime);
 }*/
 
-static v8::Isolate *isolate;
-static Global<v8::Context> globalContext;
+static node::Environment *globalEnv;
 
 void updateAudio(kinc_a2_buffer_t *buffer, int samples) {
 	kinc_mutex_lock(&audioMutex);
@@ -2703,21 +2708,22 @@ static void runV8() {
 	    codechanged = false;
 	}*/
 
-	v8::Locker locker{isolate};
+	/*v8::Locker locker{isolate};
 
 	Isolate::Scope isolate_scope(isolate);
 	v8::MicrotasksScope microtasks_scope(isolate, v8::MicrotasksScope::kRunMicrotasks);
 	HandleScope handle_scope(isolate);
 	Local<Context> context = Local<Context>::New(isolate, globalContext);
-	Context::Scope context_scope(context);
+	Context::Scope context_scope(context);*/
 
-	TryCatch try_catch(isolate);
-	Local<v8::Function> func = Local<v8::Function>::New(isolate, updateFunction);
+	TryCatch try_catch(globalEnv->isolate());
+	Local<v8::Function> func = Local<v8::Function>::New(globalEnv->isolate(), updateFunction);
 	Local<Value> result;
 
 	//**if (debugMode) v8inspector->willExecuteScript(context, func->ScriptId());
+	Local<Context> context = globalEnv->isolate()->GetCurrentContext();
 	if (!func->Call(context, context->Global(), 0, NULL).ToLocal(&result)) {
-		v8::String::Utf8Value stack_trace(isolate, try_catch.StackTrace(context).ToLocalChecked());
+		v8::String::Utf8Value stack_trace(globalEnv->isolate(), try_catch.StackTrace(context).ToLocalChecked());
 		sendLogMessage("Trace: %s", *stack_trace);
 	}
 	//**if (debugMode) v8inspector->didExecuteScript(context);
@@ -2748,31 +2754,31 @@ void update() {
 }
 
 void dropFiles(wchar_t *filePath) {
-	v8::Locker locker{isolate};
+	v8::Locker locker{globalEnv->isolate()};
 
-	Isolate::Scope isolate_scope(isolate);
-	HandleScope handle_scope(isolate);
-	v8::Local<v8::Context> context = v8::Local<v8::Context>::New(isolate, globalContext);
+	Isolate::Scope isolate_scope(globalEnv->isolate());
+	HandleScope handle_scope(globalEnv->isolate());
+	v8::Local<v8::Context> context = v8::Local<v8::Context>::New(globalEnv->isolate(), globalEnv->isolate()->GetCurrentContext());
 	Context::Scope context_scope(context);
 
-	TryCatch try_catch(isolate);
-	v8::Local<v8::Function> func = v8::Local<v8::Function>::New(isolate, dropFilesFunction);
+	TryCatch try_catch(globalEnv->isolate());
+	v8::Local<v8::Function> func = v8::Local<v8::Function>::New(globalEnv->isolate(), dropFilesFunction);
 	Local<Value> result;
 	const int argc = 1;
 	Local<Value> argv[argc];
 	if (sizeof(wchar_t) == 2) {
-		argv[0] = {String::NewFromTwoByte(isolate, (const uint16_t *)filePath).ToLocalChecked()};
+		argv[0] = {String::NewFromTwoByte(globalEnv->isolate(), (const uint16_t *)filePath).ToLocalChecked()};
 	}
 	else {
 		size_t len = wcslen(filePath);
 		uint16_t *str = new uint16_t[len + 1];
 		for (int i = 0; i < len; i++) str[i] = filePath[i];
 		str[len] = 0;
-		argv[0] = {String::NewFromTwoByte(isolate, str).ToLocalChecked()};
+		argv[0] = {String::NewFromTwoByte(globalEnv->isolate(), str).ToLocalChecked()};
 		delete str;
 	}
 	if (!func->Call(context, context->Global(), argc, argv).ToLocal(&result)) {
-		v8::String::Utf8Value stack_trace(isolate, try_catch.StackTrace(context).ToLocalChecked());
+		v8::String::Utf8Value stack_trace(globalEnv->isolate(), try_catch.StackTrace(context).ToLocalChecked());
 		sendLogMessage("Trace: %s", *stack_trace);
 	}
 }
@@ -2780,371 +2786,372 @@ void dropFiles(wchar_t *filePath) {
 char cutCopyString[4096];
 
 char *copy() {
-	v8::Locker locker{isolate};
+	v8::Locker locker{globalEnv->isolate()};
 
-	Isolate::Scope isolate_scope(isolate);
-	HandleScope handle_scope(isolate);
-	v8::Local<v8::Context> context = v8::Local<v8::Context>::New(isolate, globalContext);
+	Isolate::Scope isolate_scope(globalEnv->isolate());
+	HandleScope handle_scope(globalEnv->isolate());
+	v8::Local<v8::Context> context = v8::Local<v8::Context>::New(globalEnv->isolate(), globalEnv->isolate()->GetCurrentContext());
 	Context::Scope context_scope(context);
 
-	TryCatch try_catch(isolate);
-	v8::Local<v8::Function> func = v8::Local<v8::Function>::New(isolate, copyFunction);
+	TryCatch try_catch(globalEnv->isolate());
+	v8::Local<v8::Function> func = v8::Local<v8::Function>::New(globalEnv->isolate(), copyFunction);
 	Local<Value> result;
 	if (!func->Call(context, context->Global(), 0, NULL).ToLocal(&result)) {
-		v8::String::Utf8Value stack_trace(isolate, try_catch.StackTrace(context).ToLocalChecked());
+		v8::String::Utf8Value stack_trace(globalEnv->isolate(), try_catch.StackTrace(context).ToLocalChecked());
 		sendLogMessage("Trace: %s", *stack_trace);
 	}
-	String::Utf8Value cutCopyString(isolate, result);
+	String::Utf8Value cutCopyString(globalEnv->isolate(), result);
 	return *cutCopyString;
 }
 
 char *cut() {
-	v8::Locker locker{isolate};
+	v8::Locker locker{globalEnv->isolate()};
 
-	Isolate::Scope isolate_scope(isolate);
-	HandleScope handle_scope(isolate);
-	v8::Local<v8::Context> context = v8::Local<v8::Context>::New(isolate, globalContext);
+	Isolate::Scope isolate_scope(globalEnv->isolate());
+	HandleScope handle_scope(globalEnv->isolate());
+	v8::Local<v8::Context> context = v8::Local<v8::Context>::New(globalEnv->isolate(), globalEnv->isolate()->GetCurrentContext());
 	Context::Scope context_scope(context);
 
-	TryCatch try_catch(isolate);
-	v8::Local<v8::Function> func = v8::Local<v8::Function>::New(isolate, cutFunction);
+	TryCatch try_catch(globalEnv->isolate());
+	v8::Local<v8::Function> func = v8::Local<v8::Function>::New(globalEnv->isolate(), cutFunction);
 	Local<Value> result;
 	if (!func->Call(context, context->Global(), 0, NULL).ToLocal(&result)) {
-		v8::String::Utf8Value stack_trace(isolate, try_catch.StackTrace(context).ToLocalChecked());
+		v8::String::Utf8Value stack_trace(globalEnv->isolate(), try_catch.StackTrace(context).ToLocalChecked());
 		sendLogMessage("Trace: %s", *stack_trace);
 	}
-	String::Utf8Value cutCopyString(isolate, result);
+	String::Utf8Value cutCopyString(globalEnv->isolate(), result);
 	return *cutCopyString;
 }
 
 void paste(char *data) {
-	v8::Locker locker{isolate};
+	v8::Locker locker{globalEnv->isolate()};
 
-	Isolate::Scope isolate_scope(isolate);
-	HandleScope handle_scope(isolate);
-	v8::Local<v8::Context> context = v8::Local<v8::Context>::New(isolate, globalContext);
+	Isolate::Scope isolate_scope(globalEnv->isolate());
+	HandleScope handle_scope(globalEnv->isolate());
+	v8::Local<v8::Context> context = v8::Local<v8::Context>::New(globalEnv->isolate(), globalEnv->isolate()->GetCurrentContext());
 	Context::Scope context_scope(context);
 
-	TryCatch try_catch(isolate);
-	v8::Local<v8::Function> func = v8::Local<v8::Function>::New(isolate, pasteFunction);
+	TryCatch try_catch(globalEnv->isolate());
+	v8::Local<v8::Function> func = v8::Local<v8::Function>::New(globalEnv->isolate(), pasteFunction);
 	Local<Value> result;
 	const int argc = 1;
-	Local<Value> argv[argc] = {String::NewFromUtf8(isolate, data).ToLocalChecked()};
+	Local<Value> argv[argc] = {String::NewFromUtf8(globalEnv->isolate(), data).ToLocalChecked()};
 	if (!func->Call(context, context->Global(), argc, argv).ToLocal(&result)) {
-		v8::String::Utf8Value stack_trace(isolate, try_catch.StackTrace(context).ToLocalChecked());
+		v8::String::Utf8Value stack_trace(globalEnv->isolate(), try_catch.StackTrace(context).ToLocalChecked());
 		sendLogMessage("Trace: %s", *stack_trace);
 	}
 }
 
 void foreground() {
-	v8::Locker locker{isolate};
+	v8::Locker locker{globalEnv->isolate()};
 
-	Isolate::Scope isolate_scope(isolate);
-	HandleScope handle_scope(isolate);
-	v8::Local<v8::Context> context = v8::Local<v8::Context>::New(isolate, globalContext);
+	Isolate::Scope isolate_scope(globalEnv->isolate());
+	HandleScope handle_scope(globalEnv->isolate());
+	v8::Local<v8::Context> context = v8::Local<v8::Context>::New(globalEnv->isolate(), globalEnv->isolate()->GetCurrentContext());
 	Context::Scope context_scope(context);
 
-	TryCatch try_catch(isolate);
-	v8::Local<v8::Function> func = v8::Local<v8::Function>::New(isolate, foregroundFunction);
+	TryCatch try_catch(globalEnv->isolate());
+	v8::Local<v8::Function> func = v8::Local<v8::Function>::New(globalEnv->isolate(), foregroundFunction);
 	Local<Value> result;
 	if (!func->Call(context, context->Global(), 0, NULL).ToLocal(&result)) {
-		v8::String::Utf8Value stack_trace(isolate, try_catch.StackTrace(context).ToLocalChecked());
+		v8::String::Utf8Value stack_trace(globalEnv->isolate(), try_catch.StackTrace(context).ToLocalChecked());
 		sendLogMessage("Trace: %s", *stack_trace);
 	}
 }
 
 void resume() {
-	v8::Locker locker{isolate};
+	v8::Locker locker{globalEnv->isolate()};
 
-	Isolate::Scope isolate_scope(isolate);
-	HandleScope handle_scope(isolate);
-	v8::Local<v8::Context> context = v8::Local<v8::Context>::New(isolate, globalContext);
+	Isolate::Scope isolate_scope(globalEnv->isolate());
+	HandleScope handle_scope(globalEnv->isolate());
+	v8::Local<v8::Context> context = v8::Local<v8::Context>::New(globalEnv->isolate(), globalEnv->isolate()->GetCurrentContext());
 	Context::Scope context_scope(context);
 
-	TryCatch try_catch(isolate);
-	v8::Local<v8::Function> func = v8::Local<v8::Function>::New(isolate, resumeFunction);
+	TryCatch try_catch(globalEnv->isolate());
+	v8::Local<v8::Function> func = v8::Local<v8::Function>::New(globalEnv->isolate(), resumeFunction);
 	Local<Value> result;
 	if (!func->Call(context, context->Global(), 0, NULL).ToLocal(&result)) {
-		v8::String::Utf8Value stack_trace(isolate, try_catch.StackTrace(context).ToLocalChecked());
+		v8::String::Utf8Value stack_trace(globalEnv->isolate(), try_catch.StackTrace(context).ToLocalChecked());
 		sendLogMessage("Trace: %s", *stack_trace);
 	}
 }
 
 void pause() {
-	v8::Locker locker{isolate};
+	v8::Locker locker{globalEnv->isolate()};
 
-	Isolate::Scope isolate_scope(isolate);
-	HandleScope handle_scope(isolate);
-	v8::Local<v8::Context> context = v8::Local<v8::Context>::New(isolate, globalContext);
+	Isolate::Scope isolate_scope(globalEnv->isolate());
+	HandleScope handle_scope(globalEnv->isolate());
+	v8::Local<v8::Context> context = v8::Local<v8::Context>::New(globalEnv->isolate(), globalEnv->isolate()->GetCurrentContext());
 	Context::Scope context_scope(context);
 
-	TryCatch try_catch(isolate);
-	v8::Local<v8::Function> func = v8::Local<v8::Function>::New(isolate, pauseFunction);
+	TryCatch try_catch(globalEnv->isolate());
+	v8::Local<v8::Function> func = v8::Local<v8::Function>::New(globalEnv->isolate(), pauseFunction);
 	Local<Value> result;
 	if (!func->Call(context, context->Global(), 0, NULL).ToLocal(&result)) {
-		v8::String::Utf8Value stack_trace(isolate, try_catch.StackTrace(context).ToLocalChecked());
+		v8::String::Utf8Value stack_trace(globalEnv->isolate(), try_catch.StackTrace(context).ToLocalChecked());
 		sendLogMessage("Trace: %s", *stack_trace);
 	}
 }
 
 void background() {
-	v8::Locker locker{isolate};
+	v8::Locker locker{globalEnv->isolate()};
 
-	Isolate::Scope isolate_scope(isolate);
-	HandleScope handle_scope(isolate);
-	v8::Local<v8::Context> context = v8::Local<v8::Context>::New(isolate, globalContext);
+	Isolate::Scope isolate_scope(globalEnv->isolate());
+	HandleScope handle_scope(globalEnv->isolate());
+	v8::Local<v8::Context> context = v8::Local<v8::Context>::New(globalEnv->isolate(), globalEnv->isolate()->GetCurrentContext());
 	Context::Scope context_scope(context);
 
-	TryCatch try_catch(isolate);
-	v8::Local<v8::Function> func = v8::Local<v8::Function>::New(isolate, backgroundFunction);
+	TryCatch try_catch(globalEnv->isolate());
+	v8::Local<v8::Function> func = v8::Local<v8::Function>::New(globalEnv->isolate(), backgroundFunction);
 	Local<Value> result;
 	if (!func->Call(context, context->Global(), 0, NULL).ToLocal(&result)) {
-		v8::String::Utf8Value stack_trace(isolate, try_catch.StackTrace(context).ToLocalChecked());
+		v8::String::Utf8Value stack_trace(globalEnv->isolate(), try_catch.StackTrace(context).ToLocalChecked());
 		sendLogMessage("Trace: %s", *stack_trace);
 	}
 }
 
 void shutdown() {
-	v8::Locker locker{isolate};
+	v8::Locker locker{globalEnv->isolate()};
 
-	Isolate::Scope isolate_scope(isolate);
-	HandleScope handle_scope(isolate);
-	v8::Local<v8::Context> context = v8::Local<v8::Context>::New(isolate, globalContext);
+	Isolate::Scope isolate_scope(globalEnv->isolate());
+	HandleScope handle_scope(globalEnv->isolate());
+	v8::Local<v8::Context> context = v8::Local<v8::Context>::New(globalEnv->isolate(), globalEnv->isolate()->GetCurrentContext());
 	Context::Scope context_scope(context);
 
-	TryCatch try_catch(isolate);
-	v8::Local<v8::Function> func = v8::Local<v8::Function>::New(isolate, shutdownFunction);
+	TryCatch try_catch(globalEnv->isolate());
+	v8::Local<v8::Function> func = v8::Local<v8::Function>::New(globalEnv->isolate(), shutdownFunction);
 	Local<Value> result;
 	if (!func->Call(context, context->Global(), 0, NULL).ToLocal(&result)) {
-		v8::String::Utf8Value stack_trace(isolate, try_catch.StackTrace(context).ToLocalChecked());
+		v8::String::Utf8Value stack_trace(globalEnv->isolate(), try_catch.StackTrace(context).ToLocalChecked());
 		sendLogMessage("Trace: %s", *stack_trace);
 	}
 }
 
 void keyDown(int code) {
-	v8::Locker locker{isolate};
+	v8::Locker locker{globalEnv->isolate()};
 
-	Isolate::Scope isolate_scope(isolate);
-	HandleScope handle_scope(isolate);
-	v8::Local<v8::Context> context = v8::Local<v8::Context>::New(isolate, globalContext);
+	Isolate::Scope isolate_scope(globalEnv->isolate());
+	HandleScope handle_scope(globalEnv->isolate());
+	v8::Local<v8::Context> context = v8::Local<v8::Context>::New(globalEnv->isolate(), globalEnv->isolate()->GetCurrentContext());
 	Context::Scope context_scope(context);
 
-	TryCatch try_catch(isolate);
-	v8::Local<v8::Function> func = v8::Local<v8::Function>::New(isolate, keyboardDownFunction);
+	TryCatch try_catch(globalEnv->isolate());
+	v8::Local<v8::Function> func = v8::Local<v8::Function>::New(globalEnv->isolate(), keyboardDownFunction);
 	Local<Value> result;
 	const int argc = 1;
-	Local<Value> argv[argc] = {Int32::New(isolate, (int)code)};
+	Local<Value> argv[argc] = {Int32::New(globalEnv->isolate(), (int)code)};
 	if (!func->Call(context, context->Global(), argc, argv).ToLocal(&result)) {
-		v8::String::Utf8Value stack_trace(isolate, try_catch.StackTrace(context).ToLocalChecked());
+		v8::String::Utf8Value stack_trace(globalEnv->isolate(), try_catch.StackTrace(context).ToLocalChecked());
 		sendLogMessage("Trace: %s", *stack_trace);
 	}
 }
 
 void keyUp(int code) {
-	v8::Locker locker{isolate};
+	v8::Locker locker{globalEnv->isolate()};
 
-	Isolate::Scope isolate_scope(isolate);
-	HandleScope handle_scope(isolate);
-	v8::Local<v8::Context> context = v8::Local<v8::Context>::New(isolate, globalContext);
+	Isolate::Scope isolate_scope(globalEnv->isolate());
+	HandleScope handle_scope(globalEnv->isolate());
+	v8::Local<v8::Context> context = v8::Local<v8::Context>::New(globalEnv->isolate(), globalEnv->isolate()->GetCurrentContext());
 	Context::Scope context_scope(context);
 
-	TryCatch try_catch(isolate);
-	v8::Local<v8::Function> func = v8::Local<v8::Function>::New(isolate, keyboardUpFunction);
+	TryCatch try_catch(globalEnv->isolate());
+	v8::Local<v8::Function> func = v8::Local<v8::Function>::New(globalEnv->isolate(), keyboardUpFunction);
 	Local<Value> result;
 	const int argc = 1;
-	Local<Value> argv[argc] = {Int32::New(isolate, (int)code)};
+	Local<Value> argv[argc] = {Int32::New(globalEnv->isolate(), (int)code)};
 	if (!func->Call(context, context->Global(), argc, argv).ToLocal(&result)) {
-		v8::String::Utf8Value stack_trace(isolate, try_catch.StackTrace(context).ToLocalChecked());
+		v8::String::Utf8Value stack_trace(globalEnv->isolate(), try_catch.StackTrace(context).ToLocalChecked());
 		sendLogMessage("Trace: %s", *stack_trace);
 	}
 }
 
 void keyPress(unsigned int character) {
-	v8::Locker locker{isolate};
+	v8::Locker locker{globalEnv->isolate()};
 
-	Isolate::Scope isolate_scope(isolate);
-	HandleScope handle_scope(isolate);
-	v8::Local<v8::Context> context = v8::Local<v8::Context>::New(isolate, globalContext);
+	Isolate::Scope isolate_scope(globalEnv->isolate());
+	HandleScope handle_scope(globalEnv->isolate());
+	v8::Local<v8::Context> context = v8::Local<v8::Context>::New(globalEnv->isolate(), globalEnv->isolate()->GetCurrentContext());
 	Context::Scope context_scope(context);
 
-	TryCatch try_catch(isolate);
-	v8::Local<v8::Function> func = v8::Local<v8::Function>::New(isolate, keyboardPressFunction);
+	TryCatch try_catch(globalEnv->isolate());
+	v8::Local<v8::Function> func = v8::Local<v8::Function>::New(globalEnv->isolate(), keyboardPressFunction);
 	Local<Value> result;
 	const int argc = 1;
-	Local<Value> argv[argc] = {Int32::New(isolate, (int)character)};
+	Local<Value> argv[argc] = {Int32::New(globalEnv->isolate(), (int)character)};
 	if (!func->Call(context, context->Global(), argc, argv).ToLocal(&result)) {
-		v8::String::Utf8Value stack_trace(isolate, try_catch.StackTrace(context).ToLocalChecked());
+		v8::String::Utf8Value stack_trace(globalEnv->isolate(), try_catch.StackTrace(context).ToLocalChecked());
 		sendLogMessage("Trace: %s", *stack_trace);
 	}
 }
 
 void mouseMove(int window, int x, int y, int mx, int my) {
-	v8::Locker locker{isolate};
+	v8::Locker locker{globalEnv->isolate()};
 
-	Isolate::Scope isolate_scope(isolate);
-	HandleScope handle_scope(isolate);
-	v8::Local<v8::Context> context = v8::Local<v8::Context>::New(isolate, globalContext);
+	Isolate::Scope isolate_scope(globalEnv->isolate());
+	HandleScope handle_scope(globalEnv->isolate());
+	v8::Local<v8::Context> context = v8::Local<v8::Context>::New(globalEnv->isolate(), globalEnv->isolate()->GetCurrentContext());
 	Context::Scope context_scope(context);
 
-	TryCatch try_catch(isolate);
-	v8::Local<v8::Function> func = v8::Local<v8::Function>::New(isolate, mouseMoveFunction);
+	TryCatch try_catch(globalEnv->isolate());
+	v8::Local<v8::Function> func = v8::Local<v8::Function>::New(globalEnv->isolate(), mouseMoveFunction);
 	Local<Value> result;
 	const int argc = 4;
-	Local<Value> argv[argc] = {Int32::New(isolate, x), Int32::New(isolate, y), Int32::New(isolate, mx), Int32::New(isolate, my)};
+	Local<Value> argv[argc] = {Int32::New(globalEnv->isolate(), x), Int32::New(globalEnv->isolate(), y), Int32::New(globalEnv->isolate(), mx),
+	                           Int32::New(globalEnv->isolate(), my)};
 	if (!func->Call(context, context->Global(), argc, argv).ToLocal(&result)) {
-		v8::String::Utf8Value stack_trace(isolate, try_catch.StackTrace(context).ToLocalChecked());
+		v8::String::Utf8Value stack_trace(globalEnv->isolate(), try_catch.StackTrace(context).ToLocalChecked());
 		sendLogMessage("Trace: %s", *stack_trace);
 	}
 }
 
 void mouseDown(int window, int button, int x, int y) {
-	v8::Locker locker{isolate};
+	v8::Locker locker{globalEnv->isolate()};
 
-	Isolate::Scope isolate_scope(isolate);
-	HandleScope handle_scope(isolate);
-	v8::Local<v8::Context> context = v8::Local<v8::Context>::New(isolate, globalContext);
+	Isolate::Scope isolate_scope(globalEnv->isolate());
+	HandleScope handle_scope(globalEnv->isolate());
+	v8::Local<v8::Context> context = v8::Local<v8::Context>::New(globalEnv->isolate(), globalEnv->isolate()->GetCurrentContext());
 	Context::Scope context_scope(context);
 
-	TryCatch try_catch(isolate);
-	v8::Local<v8::Function> func = v8::Local<v8::Function>::New(isolate, mouseDownFunction);
+	TryCatch try_catch(globalEnv->isolate());
+	v8::Local<v8::Function> func = v8::Local<v8::Function>::New(globalEnv->isolate(), mouseDownFunction);
 	Local<Value> result;
 	const int argc = 3;
-	Local<Value> argv[argc] = {Int32::New(isolate, button), Int32::New(isolate, x), Int32::New(isolate, y)};
+	Local<Value> argv[argc] = {Int32::New(globalEnv->isolate(), button), Int32::New(globalEnv->isolate(), x), Int32::New(globalEnv->isolate(), y)};
 	if (!func->Call(context, context->Global(), argc, argv).ToLocal(&result)) {
-		v8::String::Utf8Value stack_trace(isolate, try_catch.StackTrace(context).ToLocalChecked());
+		v8::String::Utf8Value stack_trace(globalEnv->isolate(), try_catch.StackTrace(context).ToLocalChecked());
 		sendLogMessage("Trace: %s", *stack_trace);
 	}
 }
 
 void mouseUp(int window, int button, int x, int y) {
-	v8::Locker locker{isolate};
+	v8::Locker locker{globalEnv->isolate()};
 
-	Isolate::Scope isolate_scope(isolate);
-	HandleScope handle_scope(isolate);
-	v8::Local<v8::Context> context = v8::Local<v8::Context>::New(isolate, globalContext);
+	Isolate::Scope isolate_scope(globalEnv->isolate());
+	HandleScope handle_scope(globalEnv->isolate());
+	v8::Local<v8::Context> context = v8::Local<v8::Context>::New(globalEnv->isolate(), globalEnv->isolate()->GetCurrentContext());
 	Context::Scope context_scope(context);
 
-	TryCatch try_catch(isolate);
-	v8::Local<v8::Function> func = v8::Local<v8::Function>::New(isolate, mouseUpFunction);
+	TryCatch try_catch(globalEnv->isolate());
+	v8::Local<v8::Function> func = v8::Local<v8::Function>::New(globalEnv->isolate(), mouseUpFunction);
 	Local<Value> result;
 	const int argc = 3;
-	Local<Value> argv[argc] = {Int32::New(isolate, button), Int32::New(isolate, x), Int32::New(isolate, y)};
+	Local<Value> argv[argc] = {Int32::New(globalEnv->isolate(), button), Int32::New(globalEnv->isolate(), x), Int32::New(globalEnv->isolate(), y)};
 	if (!func->Call(context, context->Global(), argc, argv).ToLocal(&result)) {
-		v8::String::Utf8Value stack_trace(isolate, try_catch.StackTrace(context).ToLocalChecked());
+		v8::String::Utf8Value stack_trace(globalEnv->isolate(), try_catch.StackTrace(context).ToLocalChecked());
 		sendLogMessage("Trace: %s", *stack_trace);
 	}
 }
 
 void mouseWheel(int window, int delta) {
-	v8::Locker locker{isolate};
+	v8::Locker locker{globalEnv->isolate()};
 
-	Isolate::Scope isolate_scope(isolate);
-	HandleScope handle_scope(isolate);
-	v8::Local<v8::Context> context = v8::Local<v8::Context>::New(isolate, globalContext);
+	Isolate::Scope isolate_scope(globalEnv->isolate());
+	HandleScope handle_scope(globalEnv->isolate());
+	v8::Local<v8::Context> context = v8::Local<v8::Context>::New(globalEnv->isolate(), globalEnv->isolate()->GetCurrentContext());
 	Context::Scope context_scope(context);
 
-	TryCatch try_catch(isolate);
-	v8::Local<v8::Function> func = v8::Local<v8::Function>::New(isolate, mouseWheelFunction);
+	TryCatch try_catch(globalEnv->isolate());
+	v8::Local<v8::Function> func = v8::Local<v8::Function>::New(globalEnv->isolate(), mouseWheelFunction);
 	Local<Value> result;
 	const int argc = 1;
-	Local<Value> argv[argc] = {Int32::New(isolate, delta)};
+	Local<Value> argv[argc] = {Int32::New(globalEnv->isolate(), delta)};
 	if (!func->Call(context, context->Global(), argc, argv).ToLocal(&result)) {
-		v8::String::Utf8Value stack_trace(isolate, try_catch.StackTrace(context).ToLocalChecked());
+		v8::String::Utf8Value stack_trace(globalEnv->isolate(), try_catch.StackTrace(context).ToLocalChecked());
 		sendLogMessage("Trace: %s", *stack_trace);
 	}
 }
 
 void penDown(int window, int x, int y, float pressure) {
-	v8::Locker locker{isolate};
+	v8::Locker locker{globalEnv->isolate()};
 
-	Isolate::Scope isolate_scope(isolate);
-	HandleScope handle_scope(isolate);
-	v8::Local<v8::Context> context = v8::Local<v8::Context>::New(isolate, globalContext);
+	Isolate::Scope isolate_scope(globalEnv->isolate());
+	HandleScope handle_scope(globalEnv->isolate());
+	v8::Local<v8::Context> context = v8::Local<v8::Context>::New(globalEnv->isolate(), globalEnv->isolate()->GetCurrentContext());
 	Context::Scope context_scope(context);
 
-	TryCatch try_catch(isolate);
-	v8::Local<v8::Function> func = v8::Local<v8::Function>::New(isolate, penDownFunction);
+	TryCatch try_catch(globalEnv->isolate());
+	v8::Local<v8::Function> func = v8::Local<v8::Function>::New(globalEnv->isolate(), penDownFunction);
 	Local<Value> result;
 	const int argc = 3;
-	Local<Value> argv[argc] = {Int32::New(isolate, x), Int32::New(isolate, y), Number::New(isolate, pressure)};
+	Local<Value> argv[argc] = {Int32::New(globalEnv->isolate(), x), Int32::New(globalEnv->isolate(), y), Number::New(globalEnv->isolate(), pressure)};
 	if (!func->Call(context, context->Global(), argc, argv).ToLocal(&result)) {
-		v8::String::Utf8Value stack_trace(isolate, try_catch.StackTrace(context).ToLocalChecked());
+		v8::String::Utf8Value stack_trace(globalEnv->isolate(), try_catch.StackTrace(context).ToLocalChecked());
 		sendLogMessage("Trace: %s", *stack_trace);
 	}
 }
 
 void penUp(int window, int x, int y, float pressure) {
-	v8::Locker locker{isolate};
+	v8::Locker locker{globalEnv->isolate()};
 
-	Isolate::Scope isolate_scope(isolate);
-	HandleScope handle_scope(isolate);
-	v8::Local<v8::Context> context = v8::Local<v8::Context>::New(isolate, globalContext);
+	Isolate::Scope isolate_scope(globalEnv->isolate());
+	HandleScope handle_scope(globalEnv->isolate());
+	v8::Local<v8::Context> context = v8::Local<v8::Context>::New(globalEnv->isolate(), globalEnv->isolate()->GetCurrentContext());
 	Context::Scope context_scope(context);
 
-	TryCatch try_catch(isolate);
-	v8::Local<v8::Function> func = v8::Local<v8::Function>::New(isolate, penUpFunction);
+	TryCatch try_catch(globalEnv->isolate());
+	v8::Local<v8::Function> func = v8::Local<v8::Function>::New(globalEnv->isolate(), penUpFunction);
 	Local<Value> result;
 	const int argc = 3;
-	Local<Value> argv[argc] = {Int32::New(isolate, x), Int32::New(isolate, y), Number::New(isolate, pressure)};
+	Local<Value> argv[argc] = {Int32::New(globalEnv->isolate(), x), Int32::New(globalEnv->isolate(), y), Number::New(globalEnv->isolate(), pressure)};
 	if (!func->Call(context, context->Global(), argc, argv).ToLocal(&result)) {
-		v8::String::Utf8Value stack_trace(isolate, try_catch.StackTrace(context).ToLocalChecked());
+		v8::String::Utf8Value stack_trace(globalEnv->isolate(), try_catch.StackTrace(context).ToLocalChecked());
 		sendLogMessage("Trace: %s", *stack_trace);
 	}
 }
 
 void penMove(int window, int x, int y, float pressure) {
-	v8::Locker locker{isolate};
+	v8::Locker locker{globalEnv->isolate()};
 
-	Isolate::Scope isolate_scope(isolate);
-	HandleScope handle_scope(isolate);
-	v8::Local<v8::Context> context = v8::Local<v8::Context>::New(isolate, globalContext);
+	Isolate::Scope isolate_scope(globalEnv->isolate());
+	HandleScope handle_scope(globalEnv->isolate());
+	v8::Local<v8::Context> context = v8::Local<v8::Context>::New(globalEnv->isolate(), globalEnv->isolate()->GetCurrentContext());
 	Context::Scope context_scope(context);
 
-	TryCatch try_catch(isolate);
-	v8::Local<v8::Function> func = v8::Local<v8::Function>::New(isolate, penMoveFunction);
+	TryCatch try_catch(globalEnv->isolate());
+	v8::Local<v8::Function> func = v8::Local<v8::Function>::New(globalEnv->isolate(), penMoveFunction);
 	Local<Value> result;
 	const int argc = 3;
-	Local<Value> argv[argc] = {Int32::New(isolate, x), Int32::New(isolate, y), Number::New(isolate, pressure)};
+	Local<Value> argv[argc] = {Int32::New(globalEnv->isolate(), x), Int32::New(globalEnv->isolate(), y), Number::New(globalEnv->isolate(), pressure)};
 	if (!func->Call(context, context->Global(), argc, argv).ToLocal(&result)) {
-		v8::String::Utf8Value stack_trace(isolate, try_catch.StackTrace(context).ToLocalChecked());
+		v8::String::Utf8Value stack_trace(globalEnv->isolate(), try_catch.StackTrace(context).ToLocalChecked());
 		sendLogMessage("Trace: %s", *stack_trace);
 	}
 }
 
 void gamepadAxis(int gamepad, int axis, float value) {
-	v8::Locker locker{isolate};
+	v8::Locker locker{globalEnv->isolate()};
 
-	Isolate::Scope isolate_scope(isolate);
-	HandleScope handle_scope(isolate);
-	v8::Local<v8::Context> context = v8::Local<v8::Context>::New(isolate, globalContext);
+	Isolate::Scope isolate_scope(globalEnv->isolate());
+	HandleScope handle_scope(globalEnv->isolate());
+	v8::Local<v8::Context> context = v8::Local<v8::Context>::New(globalEnv->isolate(), globalEnv->isolate()->GetCurrentContext());
 	Context::Scope context_scope(context);
 
-	TryCatch try_catch(isolate);
-	v8::Local<v8::Function> func = v8::Local<v8::Function>::New(isolate, gamepadAxisFunction);
+	TryCatch try_catch(globalEnv->isolate());
+	v8::Local<v8::Function> func = v8::Local<v8::Function>::New(globalEnv->isolate(), gamepadAxisFunction);
 	Local<Value> result;
 	const int argc = 3;
-	Local<Value> argv[argc] = {Int32::New(isolate, gamepad), Int32::New(isolate, axis), Number::New(isolate, value)};
+	Local<Value> argv[argc] = {Int32::New(globalEnv->isolate(), gamepad), Int32::New(globalEnv->isolate(), axis), Number::New(globalEnv->isolate(), value)};
 	if (!func->Call(context, context->Global(), argc, argv).ToLocal(&result)) {
-		v8::String::Utf8Value stack_trace(isolate, try_catch.StackTrace(context).ToLocalChecked());
+		v8::String::Utf8Value stack_trace(globalEnv->isolate(), try_catch.StackTrace(context).ToLocalChecked());
 		sendLogMessage("Trace: %s", *stack_trace);
 	}
 }
 
 void gamepadButton(int gamepad, int button, float value) {
-	v8::Locker locker{isolate};
+	v8::Locker locker{globalEnv->isolate()};
 
-	Isolate::Scope isolate_scope(isolate);
-	HandleScope handle_scope(isolate);
-	v8::Local<v8::Context> context = v8::Local<v8::Context>::New(isolate, globalContext);
+	Isolate::Scope isolate_scope(globalEnv->isolate());
+	HandleScope handle_scope(globalEnv->isolate());
+	v8::Local<v8::Context> context = v8::Local<v8::Context>::New(globalEnv->isolate(), globalEnv->isolate()->GetCurrentContext());
 	Context::Scope context_scope(context);
 
-	TryCatch try_catch(isolate);
-	v8::Local<v8::Function> func = v8::Local<v8::Function>::New(isolate, gamepadButtonFunction);
+	TryCatch try_catch(globalEnv->isolate());
+	v8::Local<v8::Function> func = v8::Local<v8::Function>::New(globalEnv->isolate(), gamepadButtonFunction);
 	Local<Value> result;
 	const int argc = 3;
-	Local<Value> argv[argc] = {Int32::New(isolate, gamepad), Int32::New(isolate, button), Number::New(isolate, value)};
+	Local<Value> argv[argc] = {Int32::New(globalEnv->isolate(), gamepad), Int32::New(globalEnv->isolate(), button), Number::New(globalEnv->isolate(), value)};
 	if (!func->Call(context, context->Global(), argc, argv).ToLocal(&result)) {
-		v8::String::Utf8Value stack_trace(isolate, try_catch.StackTrace(context).ToLocalChecked());
+		v8::String::Utf8Value stack_trace(globalEnv->isolate(), try_catch.StackTrace(context).ToLocalChecked());
 		sendLogMessage("Trace: %s", *stack_trace);
 	}
 }
@@ -3663,43 +3670,33 @@ int kickstart(int argc, char **argv) {
 
 static void krom_start(const FunctionCallbackInfo<Value> &args) {
 	node::Environment *env = node::Environment::GetCurrent(args);
-	isolate = env->isolate();
-	globalContext.Reset(isolate, env->context());
+	globalEnv = env;
 
-	kinc_file_reader_t reader;
-	if (!kinc_file_reader_open(&reader, "krom.js", KINC_FILE_TYPE_ASSET)) {
-		fprintf(stderr, "could not load krom.js. aborting.\n");
-		exit(1);
-	}
+	kinc_start();
 
-	char *initCode = "const Krom = require('krom');\n";
-	size_t initCodeLength = strlen(initCode);
-
-	char *code = new char[initCodeLength + kinc_file_reader_size(&reader) + 1];
-	strcpy(code, initCode);
-	kinc_file_reader_read(&reader, &code[initCodeLength], kinc_file_reader_size(&reader));
-	code[initCodeLength + kinc_file_reader_size(&reader)] = 0;
-	kinc_file_reader_close(&reader);
-
-	/*v8::Locker locker{isolate};
-
-Isolate::Scope isolate_scope(isolate);
-HandleScope handle_scope(isolate);
-Local<Context> context = Local<Context>::New(isolate, globalContext);
-Context::Scope context_scope(context);*/
-
-	Local<String> source = String::NewFromUtf8(isolate, code, NewStringType::kNormal).ToLocalChecked();
-	Local<String> filename = String::NewFromUtf8(isolate, "krom.js", NewStringType::kNormal).ToLocalChecked();
-
-	TryCatch try_catch(isolate);
-
-	Local<v8::Script> compiled_script = v8::Script::Compile(env->context(), source).ToLocalChecked(); // , filename
-
-	Local<Value> result;
-	if (!compiled_script->Run(env->context()).ToLocal(&result)) {
-		v8::String::Utf8Value stack_trace(isolate, try_catch.StackTrace(env->context()).ToLocalChecked());
-		sendLogMessage("Trace: %s", *stack_trace);
-	}
+	updateFunction.Reset();
+	dropFilesFunction.Reset();
+	cutFunction.Reset();
+	copyFunction.Reset();
+	pasteFunction.Reset();
+	foregroundFunction.Reset();
+	resumeFunction.Reset();
+	pauseFunction.Reset();
+	backgroundFunction.Reset();
+	shutdownFunction.Reset();
+	keyboardDownFunction.Reset();
+	keyboardUpFunction.Reset();
+	keyboardPressFunction.Reset();
+	mouseDownFunction.Reset();
+	mouseUpFunction.Reset();
+	mouseMoveFunction.Reset();
+	mouseWheelFunction.Reset();
+	penDownFunction.Reset();
+	penUpFunction.Reset();
+	penMoveFunction.Reset();
+	gamepadAxisFunction.Reset();
+	gamepadButtonFunction.Reset();
+	audioFunction.Reset();
 }
 
 static void bindFunctions(Local<Context> context, Local<Object> target) {
