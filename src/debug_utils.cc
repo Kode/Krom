@@ -495,10 +495,14 @@ void FWrite(FILE* file, const std::string& str) {
   // Get required wide buffer size
   int n = MultiByteToWideChar(CP_UTF8, 0, str.data(), str.size(), nullptr, 0);
 
-  std::vector<wchar_t> wbuf(n);
+  std::vector<wchar_t> wbuf(n + 1);
   MultiByteToWideChar(CP_UTF8, 0, str.data(), str.size(), wbuf.data(), n);
+  wbuf[n] = 0;
 
   WriteConsoleW(handle, wbuf.data(), n, nullptr, nullptr);
+
+  OutputDebugStringW(wbuf.data());
+
   return;
 #elif defined(__ANDROID__)
   if (file == stderr) {
