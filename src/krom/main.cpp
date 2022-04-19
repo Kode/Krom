@@ -883,6 +883,10 @@ static void krom_compile_pipeline(const FunctionCallbackInfo<Value> &args) {
 	kinc_g4_pipeline_t *pipeline = (kinc_g4_pipeline_t *)progfield->Value();
 
 	kinc_g4_vertex_structure_t s0, s1, s2, s3;
+	kinc_g4_vertex_structure_init(&s0);
+	kinc_g4_vertex_structure_init(&s1);
+	kinc_g4_vertex_structure_init(&s2);
+	kinc_g4_vertex_structure_init(&s3);
 	kinc_g4_vertex_structure_t *structures[4] = {&s0, &s1, &s2, &s3};
 
 	int32_t size = args[5].As<Int32>()->Value();
@@ -3660,6 +3664,42 @@ int kickstart(int argc, char **argv) {
 static void krom_start(const FunctionCallbackInfo<Value> &args) {
 	node::Environment *env = node::Environment::GetCurrent(args);
 	isolate = env->isolate();
+	globalContext.Reset(isolate, env->context());
+
+	kinc_file_reader_t reader;
+	if (!kinc_file_reader_open(&reader, "krom.js", KINC_FILE_TYPE_ASSET)) {
+		fprintf(stderr, "could not load krom.js. aborting.\n");
+		exit(1);
+	}
+
+	char *initCode = "const Krom = require('krom');\n";
+	size_t initCodeLength = strlen(initCode);
+
+	char *code = new char[initCodeLength + kinc_file_reader_size(&reader) + 1];
+	strcpy(code, initCode);
+	kinc_file_reader_read(&reader, &code[initCodeLength], kinc_file_reader_size(&reader));
+	code[initCodeLength + kinc_file_reader_size(&reader)] = 0;
+	kinc_file_reader_close(&reader);
+
+	/*v8::Locker locker{isolate};
+
+Isolate::Scope isolate_scope(isolate);
+HandleScope handle_scope(isolate);
+Local<Context> context = Local<Context>::New(isolate, globalContext);
+Context::Scope context_scope(context);*/
+
+	Local<String> source = String::NewFromUtf8(isolate, code, NewStringType::kNormal).ToLocalChecked();
+	Local<String> filename = String::NewFromUtf8(isolate, "krom.js", NewStringType::kNormal).ToLocalChecked();
+
+	TryCatch try_catch(isolate);
+
+	Local<v8::Script> compiled_script = v8::Script::Compile(env->context(), source).ToLocalChecked(); // , filename
+
+	Local<Value> result;
+	if (!compiled_script->Run(env->context()).ToLocal(&result)) {
+		v8::String::Utf8Value stack_trace(isolate, try_catch.StackTrace(env->context()).ToLocalChecked());
+		sendLogMessage("Trace: %s", *stack_trace);
+	}
 }
 
 static void bindFunctions(Local<Context> context, Local<Object> target) {
