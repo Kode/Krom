@@ -782,8 +782,26 @@ int ProcessGlobalArgs(std::vector<std::string>* args,
                       std::vector<std::string>* exec_args,
                       std::vector<std::string>* errors,
                       OptionEnvvarSettings settings) {
+  auto env_opts = per_process::cli_options->per_isolate->per_env;
+
+  bool port_next = false;
+  for (auto arg : *args) {
+    if (port_next) {
+      env_opts->get_debug_options()->host_port.set_port(stoi(arg));
+
+      port_next = false;
+      continue;
+    }
+
+    if (arg == "--debug") {
+      port_next = true;
+      env_opts->get_debug_options()->inspector_enabled = true;
+    }
+  }
+
   return 0;
 
+#if 0
   // Parse a few arguments which are specific to Node.
   std::vector<std::string> v8_args;
 
@@ -854,6 +872,7 @@ int ProcessGlobalArgs(std::vector<std::string>* args,
   if (v8_args_as_char_ptr.size() > 1) return 9;
 
   return 0;
+#endif
 }
 
 static std::atomic_bool init_called{false};
