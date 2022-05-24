@@ -1,3 +1,45 @@
+#if 0
+
+// env
+node::Environment *env = node::Environment::GetCurrent(args);
+
+// get int
+args[0].As<Int32>()->Value()
+
+// add pointer to object
+Local<ObjectTemplate> templ = ObjectTemplate::New(env->isolate());
+templ->SetInternalFieldCount(1);
+
+Local<Object> obj = templ->NewInstance(env->isolate()->GetCurrentContext()).ToLocalChecked();
+obj->SetInternalField(0, External::New(env->isolate(), texture));
+
+// get pointer from object
+Local<External> field = Local<External>::Cast(args[0].As<Object>()->GetInternalField(0));
+kinc_g4_index_buffer_t *buffer = (kinc_g4_index_buffer_t *)field->Value();
+
+// create C-String
+node::Utf8Value format(env->isolate(), args[1]);
+
+// create JS-String
+String::NewFromUtf8(env->isolate(), "image")
+
+// create array-buffer
+std::shared_ptr<v8::BackingStore> store =
+	    v8::ArrayBuffer::NewBackingStore(data, byteLength, do_not_actually_delete, nullptr);
+Local<ArrayBuffer> abuffer = ArrayBuffer::New(env->isolate(), store);
+
+// get data from array-buffer
+Local<ArrayBuffer> buffer = Local<ArrayBuffer>::Cast(args[0]);
+auto store = buffer->GetBackingStore();
+
+// get property
+Local<Value> imageObj = args[0].As<Object>()->Get(env->isolate()->GetCurrentContext(), String::NewFromUtf8(env->isolate(), "image").ToLocalChecked()).ToLocalChecked();
+
+// set property
+args[0].As<Object>()->Set(env->isolate()->GetCurrentContext(), String::NewFromUtf8(env->isolate(), "image").ToLocalChecked(), obj);
+
+#endif
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
