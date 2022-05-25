@@ -19,6 +19,8 @@ jobs:
       with:
         python-version: '3.8.10'
         architecture: 'x64'
+    - name: Get DLC
+      run: .\get_dlc.bat
     - name: Create Kinc build files
       run: py kinc_gyp.py
     - name: Compile
