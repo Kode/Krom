@@ -19,5 +19,7 @@ jobs:
       with:
         python-version: '3.8.10'
         architecture: 'x64'
+    - name: Create Kinc build files
+      run: py kinc_gyp.py
     - name: Compile
       run: .\vcbuild.bat openssl-no-asm
