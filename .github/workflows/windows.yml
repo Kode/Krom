@@ -1,0 +1,23 @@
+name: Windows
+
+on:
+  push:
+    branches:
+    - main
+  pull_request:
+    branches:
+    - main
+
+jobs:
+  build:
+
+    runs-on: windows-latest
+    
+    steps:
+    - uses: actions/checkout@v2
+    - uses: actions/setup-python@v2
+      with:
+        python-version: '3.8.10'
+        architecture: 'x64'
+    - name: Compile
+      run: .\vcbuild.bat openssl-no-asm
