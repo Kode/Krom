@@ -2,7 +2,7 @@ import json
 import subprocess
 from sys import platform
 
-print(subprocess.check_output(['Kinc/Tools/windows_x64/kmake.exe', '--json']))
+print(subprocess.check_output(['Kinc/Tools/windows_x64/kmake.exe', '--json', '--nosymlinks']))
 
 data = json.loads('{}')
 with open('build/Krom.json', 'r') as f:
