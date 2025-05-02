@@ -489,6 +489,10 @@ static void krom_delete_indexbuffer(const FunctionCallbackInfo<Value> &args) {
 	free(buffer);
 }
 
+static void krom_get_samples_per_second(const FunctionCallbackInfo<Value> &args) {
+	args.GetReturnValue().Set(kinc_a2_samples_per_second);
+}
+
 static void do_not_actually_delete(void *data, size_t length, void *deleter_data) {}
 
 static void krom_lock_index_buffer(const FunctionCallbackInfo<Value> &args) {
@@ -3777,6 +3781,7 @@ static void bindFunctions(Local<Context> context, Local<Object> target) {
 	addFunction(showMouse, krom_show_mouse);
 	addFunction(createIndexBuffer, krom_create_indexbuffer);
 	addFunction(deleteIndexBuffer, krom_delete_indexbuffer);
+	addFunction(getSamplesPerSecond, krom_get_samples_per_second);
 	addFunction(lockIndexBuffer, krom_lock_index_buffer);
 	addFunction(unlockIndexBuffer, krom_unlock_index_buffer);
 	addFunction(setIndexBuffer, krom_set_indexbuffer);
@@ -3927,6 +3932,7 @@ static void registerFunctions(node::ExternalReferenceRegistry *registry) {
 	registerFunction(showMouse, krom_show_mouse);
 	registerFunction(createIndexBuffer, krom_create_indexbuffer);
 	registerFunction(deleteIndexBuffer, krom_delete_indexbuffer);
+	registerFunction(getSamplesPerSecond, krom_get_samples_per_second);
 	registerFunction(lockIndexBuffer, krom_lock_index_buffer);
 	registerFunction(unlockIndexBuffer, krom_unlock_index_buffer);
 	registerFunction(setIndexBuffer, krom_set_indexbuffer);
