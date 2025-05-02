@@ -1723,6 +1723,10 @@ static void krom_display_y(const FunctionCallbackInfo<Value> &args) {
 	args.GetReturnValue().Set(kinc_display_current_mode(args[0].As<Int32>()->Value()).y);
 }
 
+static void krom_display_frequency(const FunctionCallbackInfo<Value> &args) {
+	args.GetReturnValue().Set(kinc_display_current_mode(args[0].As<Int32>()->Value()).frequency);
+}
+
 static void krom_display_is_primary(const FunctionCallbackInfo<Value> &args) {
 	args.GetReturnValue().Set(args[0].As<Int32>()->Value() == kinc_primary_display());
 }
@@ -3833,6 +3837,7 @@ static void bindFunctions(Local<Context> context, Local<Object> target) {
 	addFunction(displayHeight, krom_display_height);
 	addFunction(displayX, krom_display_x);
 	addFunction(displayY, krom_display_y);
+	addFunction(displayFrequency, krom_display_frequency);
 	addFunction(displayIsPrimary, krom_display_is_primary);
 	addFunction(writeStorage, krom_write_storage);
 	addFunction(readStorage, krom_read_storage);
@@ -3982,6 +3987,7 @@ static void registerFunctions(node::ExternalReferenceRegistry *registry) {
 	registerFunction(displayHeight, krom_display_height);
 	registerFunction(displayX, krom_display_x);
 	registerFunction(displayY, krom_display_y);
+	registerFunction(displayFrequency, krom_display_frequency);
 	registerFunction(displayIsPrimary, krom_display_is_primary);
 	registerFunction(writeStorage, krom_write_storage);
 	registerFunction(readStorage, krom_read_storage);
